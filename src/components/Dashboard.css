@@ -173,10 +173,13 @@ body {
     background: rgba(0, 0, 0, 0.7);
     border: 1px solid var(--accent-color);
     border-radius: 0.5rem;
-    padding: 0.5rem 1rem;
+    width: 12rem; /* Fixed width */
+    height: 5rem; /* Fixed height */
+    display: flex;
+    justify-content: center;
+    align-items: center;
     text-align: center;
-    width: 10rem; /* Fixed width */
-    height: 4rem; /* Fixed height */
+    padding: 0.5rem;
 }
 
 .clock {
