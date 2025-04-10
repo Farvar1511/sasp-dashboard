@@ -173,9 +173,9 @@ body {
     background: rgba(0, 0, 0, 0.7);
     border: 1px solid var(--accent-color);
     border-radius: 0.5rem;
-    width: 12rem; /* Increased width */
-    height: 8rem; /* Increased height */
-    display: flex;
+    width: 13rem; /* Increased width */
+    height: 9rem; /* Increased height */
+    display: block;
     justify-content: center;
     align-items: center;
     text-align: center;
