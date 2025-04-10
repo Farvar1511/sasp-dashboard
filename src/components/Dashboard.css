@@ -173,8 +173,8 @@ body {
     background: rgba(0, 0, 0, 0.7);
     border: 1px solid var(--accent-color);
     border-radius: 0.5rem;
-    width: 14rem; /* Increased width */
-    height: 10rem; /* Increased height */
+    width: 12rem; /* Increased width */
+    height: 8rem; /* Increased height */
     display: flex;
     justify-content: center;
     align-items: center;
