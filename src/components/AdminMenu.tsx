@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './AdminMenu.css';
-
-// Import the shared User and Task interfaces
 import { User } from '../types/User';
 
 interface AdminMenuProps {
@@ -17,7 +15,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch users from the backend
     axios.get(`${import.meta.env.VITE_API_URL}/api/users`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
@@ -45,7 +42,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
           alert('Task assigned successfully.');
           setTaskDescription('');
           setSelectedUserId('');
-          // Update the user's tasks locally
           setUsers((prevUsers) =>
             prevUsers.map((user) =>
               user.email === selectedUserId
@@ -60,7 +56,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
 
   return (
     <div className="dashboard">
-      {/* Sidebar */}
       <div className="sidebar">
         <button className="button-primary" onClick={() => navigate('/')}>Dashboard</button>
         <button className="button-primary" onClick={() => navigate('/tasks')}>Tasks</button>
@@ -68,7 +63,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
         <button className="button-primary" onClick={() => navigate('/admin-menu')}>Admin Menu</button>
       </div>
 
-      {/* Admin Menu Content */}
       <div className="admin-menu-container">
         <h2>Admin Menu</h2>
         <div className="admin-menu">

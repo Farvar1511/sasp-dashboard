@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import './Dashboard.css'; // Sidebar styles + layout reuse
+import './Dashboard.css';
 
 interface Task {
   id: string;
@@ -20,7 +20,6 @@ export default function Tasks({ user }: { user: User }) {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   useEffect(() => {
-    // Fetch tasks for the logged-in user
     axios.get(`${import.meta.env.VITE_API_URL}/api/users`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
@@ -50,7 +49,6 @@ export default function Tasks({ user }: { user: User }) {
 
   return (
     <div className="dashboard">
-      {/* Sidebar */}
       <div className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
         <button className="button-primary" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
           {isSidebarCollapsed ? '☰' : 'Collapse'}
@@ -59,29 +57,24 @@ export default function Tasks({ user }: { user: User }) {
           <>
             <button className="button-primary" onClick={() => navigate('/')}>Dashboard</button>
             <button className="button-primary" onClick={() => navigate('/tasks')}>Tasks</button>
-            <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button> {/* ✅ Added */}
+            <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button>
           </>
         )}
       </div>
 
-      {/* Main Page Content */}
       <div className="page-content">
-        {/* SASP Logo */}
         <div className="header-stack">
           <img
             src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
             alt="SASP Logo"
             className="topbar-logo"
           />
-
-          {/* Page Title */}
           <h1 className="title" style={{ marginTop: '1rem' }}>Tasks</h1>
           <p style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>
             Welcome to the Tasks page. Here you can manage your tasks.
           </p>
         </div>
 
-        {/* Task Content */}
         <div className="tasks-page">
           <h2>Your Tasks</h2>
           <ul>
