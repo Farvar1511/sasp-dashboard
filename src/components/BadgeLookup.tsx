@@ -25,7 +25,8 @@ export default function BadgeLookup() {
 
   // Input state for badge lookup
   const [badgeInput, setBadgeInput] = useState('');
-  const [error, setError] = useState('');
+  const [rosterError, setRosterError] = useState(''); // Separate error for roster
+  const [fleetError, setFleetError] = useState(''); // Separate error for fleet
 
   // Data states for roster and fleet
   const [roster, setRoster] = useState<RosterData[]>([]);
@@ -40,20 +41,26 @@ export default function BadgeLookup() {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
       .then((res) => setRoster(res.data))
-      .catch((err) => setError('Failed to load roster data.'));
+      .catch((err) => {
+        console.error('Error fetching roster data:', err);
+        setRosterError('Failed to load roster data.');
+      });
 
     axios.get(`${import.meta.env.VITE_API_URL}/api/fleet`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
       .then((res) => setFleet(res.data))
-      .catch((err) => setError('Failed to load fleet data.'));
+      .catch((err) => {
+        console.error('Error fetching fleet data:', err);
+        setFleetError('Failed to load fleet data.');
+      });
   }, []);
 
   // Lookup function for badge number
   const handleLookup = () => {
     console.log('Badge input:', badgeInput); // Debugging
     if (!badgeInput.trim()) {
-      setError('Please enter a badge number.');
+      setRosterError('Please enter a badge number.');
       setSelectedTrooper(null);
       return;
     }
@@ -69,11 +76,11 @@ export default function BadgeLookup() {
     if (!foundTrooper) {
       console.warn(`No trooper found for badge #${badgeInput}`); // Debugging
       setSelectedTrooper(null);
-      setError(`No trooper found for badge #${badgeInput}.`);
+      setRosterError(`No trooper found for badge #${badgeInput}.`);
     } else {
       console.log('Trooper found:', foundTrooper); // Debugging
       setSelectedTrooper(foundTrooper);
-      setError('');
+      setRosterError('');
     }
   };
 
@@ -130,7 +137,9 @@ export default function BadgeLookup() {
             </button>
           </div>
 
-          {error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
+          {/* Display Errors */}
+          {rosterError && <p style={{ color: 'red', textAlign: 'center' }}>{rosterError}</p>}
+          {fleetError && <p style={{ color: 'red', textAlign: 'center' }}>{fleetError}</p>}
 
           {/* Display Trooper Info if Available */}
           {selectedTrooper && (
