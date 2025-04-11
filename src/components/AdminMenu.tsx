@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './AdminMenu.css';
 
@@ -17,6 +18,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [task, setTask] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Fetch users from the backend
@@ -61,52 +63,63 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   };
 
   return (
-    <div className="admin-menu-container">
-      <h2>Admin Menu</h2>
-      <div className="admin-menu">
-        <div>
-          <label>
-            Select User:
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-            >
-              <option value="">--Select User--</option>
-              {users.map((user) => (
-                <option key={user.email} value={user.email}>
-                  {user.name} ({user.rank})
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div>
-          <label>
-            Task:
-            <input
-              type="text"
-              value={task}
-              onChange={(e) => setTask(e.target.value)}
-            />
-          </label>
-        </div>
-        <button onClick={assignTask}>Assign Task</button>
+    <div className="dashboard">
+      {/* Sidebar */}
+      <div className="sidebar">
+        <button className="button-primary" onClick={() => navigate('/')}>Dashboard</button>
+        <button className="button-primary" onClick={() => navigate('/tasks')}>Tasks</button>
+        <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button>
+        <button className="button-primary" onClick={() => navigate('/admin-menu')}>Admin Menu</button>
       </div>
 
-      <div className="user-tasks">
-        <h3>Users and Their Tasks</h3>
-        {users.map((user) => (
-          <div key={user.email} className="user-task-card">
-            <h4>{user.name} ({user.rank})</h4>
-            <ul>
-              {user.tasks.length > 0 ? (
-                user.tasks.map((task, index) => <li key={index}>{task}</li>)
-              ) : (
-                <li>No tasks assigned</li>
-              )}
-            </ul>
+      {/* Admin Menu Content */}
+      <div className="admin-menu-container">
+        <h2>Admin Menu</h2>
+        <div className="admin-menu">
+          <div>
+            <label>
+              Select User:
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+              >
+                <option value="">--Select User--</option>
+                {users.map((user) => (
+                  <option key={user.email} value={user.email}>
+                    {user.name} ({user.rank})
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        ))}
+          <div>
+            <label>
+              Task:
+              <input
+                type="text"
+                value={task}
+                onChange={(e) => setTask(e.target.value)}
+              />
+            </label>
+          </div>
+          <button onClick={assignTask}>Assign Task</button>
+        </div>
+
+        <div className="user-tasks">
+          <h3>Users and Their Tasks</h3>
+          {users.map((user) => (
+            <div key={user.email} className="user-task-card">
+              <h4>{user.name} ({user.rank})</h4>
+              <ul>
+                {user.tasks.length > 0 ? (
+                  user.tasks.map((task, index) => <li key={index}>{task}</li>)
+                ) : (
+                  <li>No tasks assigned</li>
+                )}
+              </ul>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

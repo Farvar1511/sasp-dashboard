@@ -44,7 +44,7 @@ function App() {
         <Route path="/" element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Login onLogin={handleLogin} />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/badge-lookup" element={<BadgeLookup />} /> {/* New Route for Badge Lookup */}
-        {user && <Route path="/admin-menu" element={<div><Dashboard user={user} onLogout={handleLogout} /><AdminMenu currentUser={user} /></div>} />} {/* Admin Menu Route */}
+        {user && <Route path="/admin-menu" element={<AdminMenu currentUser={user} />} />} {/* Admin Menu Route */}
       </Routes>
     </Router>
   );
