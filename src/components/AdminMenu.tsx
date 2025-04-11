@@ -12,7 +12,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [taskDescription, setTaskDescription] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [error, setError] = useState<string | null>(null); // Add error state
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,7 +20,13 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     axios.get(`${import.meta.env.VITE_API_URL}/api/users`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
-      .then((res) => setUsers(res.data))
+      .then((res) => {
+        const usersWithTasks = res.data.map((user: User) => ({
+          ...user,
+          tasks: Array.isArray(user.tasks) ? user.tasks : [], // Ensure tasks is always an array
+        }));
+        setUsers(usersWithTasks);
+      })
       .catch((err) => {
         console.error('Error fetching users:', err);
         setError('Failed to load users. Please try again later.');

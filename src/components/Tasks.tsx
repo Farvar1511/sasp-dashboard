@@ -27,10 +27,10 @@ export default function Tasks({ user }: { user: User }) {
     })
       .then((res) => {
         const currentUser = res.data.find((u: User) => u.email === user.email);
-        if (currentUser && currentUser.tasks) {
+        if (currentUser && Array.isArray(currentUser.tasks)) {
           setTasks(currentUser.tasks);
         } else {
-          setTasks([]);
+          setTasks([]); // Ensure tasks is always an array
         }
       })
       .catch((err) => {
