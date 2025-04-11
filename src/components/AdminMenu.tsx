@@ -4,7 +4,7 @@ import axios from 'axios';
 import './AdminMenu.css';
 
 // Import the shared User and Task interfaces
-import { User, Task } from '../types/User';
+import { User } from '../types/User';
 
 interface AdminMenuProps {
   currentUser: User;
