@@ -18,16 +18,25 @@ export default function Tasks({ user }: { user: User }) {
   const navigate = useNavigate();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [error, setError] = useState<string | null>(null); // Add error state
 
   useEffect(() => {
+    // Fetch tasks for the logged-in user
     axios.get(`${import.meta.env.VITE_API_URL}/api/users`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
       .then((res) => {
         const currentUser = res.data.find((u: User) => u.email === user.email);
-        setTasks(currentUser.tasks || []);
+        if (currentUser && currentUser.tasks) {
+          setTasks(currentUser.tasks);
+        } else {
+          setTasks([]);
+        }
       })
-      .catch((err) => console.error('Error fetching tasks:', err));
+      .catch((err) => {
+        console.error('Error fetching tasks:', err);
+        setError('Failed to load tasks. Please try again later.');
+      });
   }, [user]);
 
   const completeTask = (taskId: string) => {
@@ -44,11 +53,25 @@ export default function Tasks({ user }: { user: User }) {
           )
         );
       })
-      .catch((err) => console.error('Error completing task:', err));
+      .catch((err) => {
+        console.error('Error completing task:', err);
+        setError('Failed to complete the task. Please try again later.');
+      });
   };
+
+  if (error) {
+    return (
+      <div className="error-message">
+        <h2>Error</h2>
+        <p>{error}</p>
+        <button onClick={() => navigate('/')}>Go Back to Dashboard</button>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">
+      {/* Sidebar */}
       <div className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
         <button className="button-primary" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
           {isSidebarCollapsed ? '☰' : 'Collapse'}
@@ -62,6 +85,7 @@ export default function Tasks({ user }: { user: User }) {
         )}
       </div>
 
+      {/* Main Page Content */}
       <div className="page-content">
         <div className="header-stack">
           <img
@@ -75,6 +99,7 @@ export default function Tasks({ user }: { user: User }) {
           </p>
         </div>
 
+        {/* Task Content */}
         <div className="tasks-page">
           <h2>Your Tasks</h2>
           <ul>

@@ -72,3 +72,32 @@
   margin-bottom: 0.5rem;
   border-radius: 0.5rem;
 }
+
+.error-message {
+  text-align: center;
+  margin-top: 2rem;
+  color: red;
+}
+
+.error-message h2 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.error-message p {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.error-message button {
+  padding: 0.5rem 1rem;
+  background-color: #FFD700;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.error-message button:hover {
+  background-color: #FFC107;
+}

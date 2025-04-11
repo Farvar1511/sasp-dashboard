@@ -12,14 +12,19 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [taskDescription, setTaskDescription] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [error, setError] = useState<string | null>(null); // Add error state
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Fetch users from the backend
     axios.get(`${import.meta.env.VITE_API_URL}/api/users`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
       .then((res) => setUsers(res.data))
-      .catch((err) => console.error('Error fetching users:', err));
+      .catch((err) => {
+        console.error('Error fetching users:', err);
+        setError('Failed to load users. Please try again later.');
+      });
   }, []);
 
   const assignTask = () => {
@@ -51,8 +56,21 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
           );
         }
       })
-      .catch((err) => console.error('Error assigning task:', err));
+      .catch((err) => {
+        console.error('Error assigning task:', err);
+        setError('Failed to assign task. Please try again later.');
+      });
   };
+
+  if (error) {
+    return (
+      <div className="error-message">
+        <h2>Error</h2>
+        <p>{error}</p>
+        <button onClick={() => navigate('/')}>Go Back to Dashboard</button>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">
