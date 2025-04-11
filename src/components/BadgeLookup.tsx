@@ -36,31 +36,17 @@ export default function BadgeLookup() {
 
   // Fetch both Roster and Fleet data on mount
   useEffect(() => {
-    // Fetch Roster data
     axios.get(`${import.meta.env.VITE_API_URL}/api/roster`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
-      .then((res) => {
-        console.log('Roster data fetched:', res.data); // Debugging
-        setRoster(res.data);
-      })
-      .catch((err) => {
-        console.error('Error fetching Roster data:', err);
-        setError('Failed to load roster data.');
-      });
+      .then((res) => setRoster(res.data))
+      .catch((err) => setError('Failed to load roster data.'));
 
-    // Fetch Fleet data
     axios.get(`${import.meta.env.VITE_API_URL}/api/fleet`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
-      .then((res) => {
-        console.log('Fleet data fetched:', res.data); // Debugging
-        setFleet(res.data);
-      })
-      .catch((err) => {
-        console.error('Error fetching Fleet data:', err);
-        setError('Failed to load fleet data.');
-      });
+      .then((res) => setFleet(res.data))
+      .catch((err) => setError('Failed to load fleet data.'));
   }, []);
 
   // Lookup function for badge number

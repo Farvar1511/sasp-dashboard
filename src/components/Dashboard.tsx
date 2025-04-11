@@ -32,11 +32,15 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
   useEffect(() => {
     axios.get(`${import.meta.env.VITE_API_URL}/api/links`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-    }).then(res => setLinks(res.data));
+    })
+      .then(res => setLinks(res.data))
+      .catch(err => console.error('Error fetching links:', err));
 
     axios.get(`${import.meta.env.VITE_API_URL}/api/background`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-    }).then(res => setBackground(res.data.url));
+    })
+      .then(res => setBackground(res.data.url))
+      .catch(err => console.error('Error fetching background:', err));
 
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
@@ -75,7 +79,7 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
         {!isSidebarCollapsed && (
           <>
             <button className="button-primary" onClick={() => navigate('/tasks')}>Tasks</button>
-            <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button> {/* ✅ New */}
+            <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button>
             <button className="button-primary" onClick={() => setOverlayUrl(everfallUrl)}>Everfall Home</button>
             <button className="button-primary" onClick={onLogout}>Logout</button>
           </>

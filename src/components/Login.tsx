@@ -19,16 +19,12 @@ export default function Login({ onLogin }: Props) {
   }, []);
 
   const handleLogin = async () => {
-    console.log('Login button clicked');
-    console.log('Email:', email, 'Password:', password);
-
     try {
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/login`,
         { email, password },
         { headers: { 'x-api-key': import.meta.env.VITE_API_KEY } }
       );
-      console.log('Response:', res.data);
 
       if (res.data.success) {
         onLogin(res.data.user);
