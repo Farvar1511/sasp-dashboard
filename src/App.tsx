@@ -3,21 +3,15 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Import your components
 import Login from './components/Login';
-import Dashboard from './components/Dashboard'; // TypeScript automatically resolves .tsx
+import Dashboard from './components/Dashboard';
 import Tasks from './components/Tasks';
-import BadgeLookup from './components/BadgeLookup'; // New Badge Lookup Component
-import AdminMenu from './components/AdminMenu'; // Import AdminMenu
+import BadgeLookup from './components/BadgeLookup';
+import AdminMenu from './components/AdminMenu';
+
+// Import the shared User interface
+import { User } from './types/User';
 
 function App() {
-  // Define the shape of the User object
-  interface User {
-    id?: string;
-    name: string;
-    rank: string;
-    email: string;
-    tasks: string[]; // Add tasks property to match the required User interface
-  }
-
   // State to hold the current user (null means no user is logged in)
   const [user, setUser] = useState<User | null>(null);
 
@@ -36,15 +30,23 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/*
-          For the root path ("/"), we conditionally render:
-          - Dashboard (if a user is logged in), passing the user and logout handler.
-          - Login (if no user is logged in), passing the login handler.
-        */}
-        <Route path="/" element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Login onLogin={handleLogin} />} />
+        {/* Render Dashboard or Login based on user state */}
+        <Route
+          path="/"
+          element={
+            user ? (
+              <Dashboard user={user} onLogout={handleLogout} />
+            ) : (
+              <Login onLogin={handleLogin} />
+            )
+          }
+        />
+        {/* Render Tasks only if a user is logged in */}
         {user && <Route path="/tasks" element={<Tasks user={user} />} />}
-        <Route path="/badge-lookup" element={<BadgeLookup />} /> {/* New Route for Badge Lookup */}
-        {user && <Route path="/admin-menu" element={<AdminMenu currentUser={user} />} />} {/* Admin Menu Route */}
+        {/* Render Badge Lookup */}
+        <Route path="/badge-lookup" element={<BadgeLookup />} />
+        {/* Render Admin Menu only if a user is logged in */}
+        {user && <Route path="/admin-menu" element={<AdminMenu currentUser={user} />} />}
       </Routes>
     </Router>
   );

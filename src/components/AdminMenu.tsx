@@ -1,14 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './AdminMenu.css';
 
-interface User {
-  email: string;
-  name: string;
-  rank: string;
-  tasks: string[];
-}
+// Import the shared User and Task interfaces
+import { User, Task } from '../types/User';
 
 interface AdminMenuProps {
   currentUser: User;
@@ -16,7 +12,7 @@ interface AdminMenuProps {
 
 const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [users, setUsers] = useState<User[]>([]);
-  const [task, setTask] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const navigate = useNavigate();
 
@@ -30,14 +26,14 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   }, []);
 
   const assignTask = () => {
-    if (!selectedUserId || !task) {
+    if (!selectedUserId || !taskDescription) {
       alert('Please select a user and enter a task.');
       return;
     }
 
     axios.post(`${import.meta.env.VITE_API_URL}/api/assign-task`, {
       userId: selectedUserId,
-      task,
+      task: taskDescription,
       adminId: currentUser.email,
     }, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
@@ -47,13 +43,13 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
           alert(res.data.error);
         } else {
           alert('Task assigned successfully.');
-          setTask('');
+          setTaskDescription('');
           setSelectedUserId('');
           // Update the user's tasks locally
           setUsers((prevUsers) =>
             prevUsers.map((user) =>
               user.email === selectedUserId
-                ? { ...user, tasks: [...user.tasks, task] }
+                ? { ...user, tasks: [...user.tasks, res.data.task] }
                 : user
             )
           );
@@ -97,8 +93,8 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
               Task:
               <input
                 type="text"
-                value={task}
-                onChange={(e) => setTask(e.target.value)}
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
               />
             </label>
           </div>
@@ -112,7 +108,12 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
               <h4>{user.name} ({user.rank})</h4>
               <ul>
                 {user.tasks.length > 0 ? (
-                  user.tasks.map((task, index) => <li key={index}>{task}</li>)
+                  user.tasks.map((task) => (
+                    <li key={task.id} style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
+                      {task.description}
+                      {task.completed && <span> ✅</span>}
+                    </li>
+                  ))
                 ) : (
                   <li>No tasks assigned</li>
                 )}
