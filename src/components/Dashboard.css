@@ -288,6 +288,88 @@ body {
     box-shadow: 0 0 1rem rgba(255, 215, 0, 0.6);
 }
 
+/* === ADMIN MENU === */
+.admin-menu {
+    background: #222;
+    border: 1px solid var(--accent-color);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+}
+
+.admin-menu h2 {
+    color: var(--accent-color);
+    margin-bottom: 1rem;
+}
+
+.admin-menu select,
+.admin-menu input {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    border: 1px solid var(--accent-color);
+    border-radius: 0.5rem;
+    background: #333;
+    color: var(--accent-color);
+}
+
+.admin-menu button {
+    width: 100%;
+    padding: 0.5rem;
+    background: var(--accent-color);
+    color: #222;
+    font-weight: bold;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+
+.admin-menu button:hover {
+    background: #ffc107;
+}
+
+.admin-menu .menu-options {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.admin-menu .menu-options button {
+    flex: 1;
+    padding: 0.5rem;
+    background: var(--accent-color);
+    color: #222;
+    font-weight: bold;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+
+.admin-menu .menu-options button:hover {
+    background: #ffc107;
+}
+
+.admin-menu .assign-task,
+.admin-menu .view-users,
+.admin-menu .manage-tasks {
+    margin-top: 1rem;
+}
+
+.admin-menu h3 {
+    color: var(--accent-color);
+    margin-bottom: 0.5rem;
+}
+
+.admin-menu ul {
+    list-style: none;
+    padding: 0;
+}
+
+.admin-menu ul li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--accent-color);
+}
+
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
     .sidebar {
