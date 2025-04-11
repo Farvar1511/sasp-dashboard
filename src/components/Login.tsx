@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import axios from 'axios';
 
 interface Props {
@@ -20,26 +23,27 @@ export default function Login({ onLogin }: Props) {
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/login`,
-        { email, password },
-        { headers: { 'x-api-key': import.meta.env.VITE_API_KEY } }
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
 
-      if (res.data.success) {
-        onLogin(res.data.user);
+      // Pull additional user info from Firestore using email as doc ID
+      const userDocRef = doc(db, 'users', firebaseUser.email!);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        onLogin(userData); // Send full user info back to app
       } else {
-        alert("Invalid credentials.");
+        alert('No user profile found in Firestore.');
       }
-    } catch (err) {
-      console.error("Login error:", err);
-      alert("Login error. Check the console for details.");
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Invalid email or password.');
     }
   };
 
   return (
     <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
-      {/* Background */}
       <div
         style={{
           position: 'fixed',
@@ -51,11 +55,10 @@ export default function Login({ onLogin }: Props) {
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           filter: 'blur(3px)',
-          zIndex: -1, // Ensure the background is behind the form
+          zIndex: -1,
           opacity: 0.5,
         }}
       />
-      {/* Login Form */}
       <div
         style={{
           display: 'flex',
@@ -63,7 +66,7 @@ export default function Login({ onLogin }: Props) {
           justifyContent: 'center',
           alignItems: 'center',
           height: '100%',
-          zIndex: 1, // Ensure the form is above the background
+          zIndex: 1,
           position: 'relative',
         }}
       >
@@ -80,44 +83,16 @@ export default function Login({ onLogin }: Props) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
-            style={{
-              width: '100%',
-              padding: '10px',
-              margin: '10px 0',
-              borderRadius: '5px',
-              border: '1px solid #FFD700',
-              backgroundColor: '#111',
-              color: '#FFD700',
-            }}
+            style={inputStyle}
           />
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            style={{
-              width: '100%',
-              padding: '10px',
-              margin: '10px 0',
-              borderRadius: '5px',
-              border: '1px solid #FFD700',
-              backgroundColor: '#111',
-              color: '#FFD700',
-            }}
+            style={inputStyle}
           />
-          <button
-            onClick={handleLogin}
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: '5px',
-              border: '1px solid #FFD700',
-              backgroundColor: '#222',
-              color: '#FFD700',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
+          <button onClick={handleLogin} style={buttonStyle}>
             Login
           </button>
         </div>
@@ -125,3 +100,24 @@ export default function Login({ onLogin }: Props) {
     </div>
   );
 }
+
+const inputStyle = {
+  width: '100%',
+  padding: '10px',
+  margin: '10px 0',
+  borderRadius: '5px',
+  border: '1px solid #FFD700',
+  backgroundColor: '#111',
+  color: '#FFD700',
+};
+
+const buttonStyle = {
+  width: '100%',
+  padding: '10px',
+  borderRadius: '5px',
+  border: '1px solid #FFD700',
+  backgroundColor: '#222',
+  color: '#FFD700',
+  cursor: 'pointer',
+  fontWeight: 'bold',
+};
