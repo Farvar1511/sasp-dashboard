@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import AdminMenu from './AdminMenu';
 import './Dashboard.css';
 
 interface User {
@@ -28,6 +29,8 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
   const trooperUrl = 'https://script.google.com/macros/s/AKfycbwtIXoTvpYIxdvWRY1CJ9sy0ZZayRqbx43R9_VeVF7BVxK_xVyrhh9_yd4MSgWbl71L6g/exec';
   const rosterUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQY_reY_QNw_faOG9LvgJm0TiDujgCxXD3KXQQ37e6PMY44E9aRIQ_g-tUThtvnJQ1LHzSrZHuQRYyw/pubhtml?gid=1777737199';
   const fleetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQBCfEXdC6jygMC25n1545ZZiNcWwzljaI09-1lqZjd5AHJrRoX38ecyDuZk_GMipcGpXkkuMF3XYR8/pubhtml?gid=0';
+
+  const requiredRanks = ["SSgt.", "Commander", "Commissioner"];
 
   useEffect(() => {
     axios.get(`${import.meta.env.VITE_API_URL}/api/links`, {
@@ -85,6 +88,9 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
           </>
         )}
       </div>
+
+      {/* Admin Menu */}
+      {requiredRanks.includes(user.rank) && <AdminMenu currentUser={user} />}
 
       {/* Floating Trooper Button */}
       <div className="trooper-top-right">
