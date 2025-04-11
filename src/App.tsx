@@ -6,6 +6,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard'; // TypeScript automatically resolves .tsx
 import Tasks from './components/Tasks';
 import BadgeLookup from './components/BadgeLookup'; // New Badge Lookup Component
+import AdminMenu from './components/AdminMenu'; // Import AdminMenu
 
 function App() {
   // Define the shape of the User object
@@ -42,6 +43,7 @@ function App() {
         <Route path="/" element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Login onLogin={handleLogin} />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/badge-lookup" element={<BadgeLookup />} /> {/* New Route for Badge Lookup */}
+        {user && <Route path="/admin-menu" element={<AdminMenu currentUser={user} />} />} {/* Admin Menu Route */}
       </Routes>
     </Router>
   );

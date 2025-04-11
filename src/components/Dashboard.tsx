@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import AdminMenu from './AdminMenu';
 import './Dashboard.css';
 
 interface User {
@@ -83,14 +82,14 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
           <>
             <button className="button-primary" onClick={() => navigate('/tasks')}>Tasks</button>
             <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button>
+            {requiredRanks.includes(user.rank) && (
+              <button className="button-primary" onClick={() => navigate('/admin-menu')}>Admin Menu</button>
+            )}
             <button className="button-primary" onClick={() => setOverlayUrl(everfallUrl)}>Everfall Home</button>
             <button className="button-primary" onClick={onLogout}>Logout</button>
           </>
         )}
       </div>
-
-      {/* Admin Menu */}
-      {requiredRanks.includes(user.rank) && <AdminMenu currentUser={user} />}
 
       {/* Floating Trooper Button */}
       <div className="trooper-top-right">
