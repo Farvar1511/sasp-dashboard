@@ -39,6 +39,8 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
       return;
     }
 
+    console.log('Assigning task:', { userId: selectedUserId, task: taskDescription, adminId: currentUser.email });
+
     axios.post(`${import.meta.env.VITE_API_URL}/api/assign-task`, {
       userId: selectedUserId,
       task: taskDescription,
@@ -63,7 +65,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
         }
       })
       .catch((err) => {
-        console.error('Error assigning task:', err);
+        console.error('Error assigning task:', err.response || err);
         setError('Failed to assign task. Please try again later.');
       });
   };
