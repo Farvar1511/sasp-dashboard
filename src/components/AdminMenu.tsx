@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import './AdminMenu.css';
 
 interface User {
   email: string;
   name: string;
   rank: string;
+  tasks: string[];
 }
 
 interface AdminMenuProps {
@@ -45,41 +47,67 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
           alert('Task assigned successfully.');
           setTask('');
           setSelectedUserId('');
+          // Update the user's tasks locally
+          setUsers((prevUsers) =>
+            prevUsers.map((user) =>
+              user.email === selectedUserId
+                ? { ...user, tasks: [...user.tasks, task] }
+                : user
+            )
+          );
         }
       })
       .catch((err) => console.error('Error assigning task:', err));
   };
 
   return (
-    <div className="admin-menu">
+    <div className="admin-menu-container">
       <h2>Admin Menu</h2>
-      <div>
-        <label>
-          Select User:
-          <select
-            value={selectedUserId}
-            onChange={(e) => setSelectedUserId(e.target.value)}
-          >
-            <option value="">--Select User--</option>
-            {users.map((user) => (
-              <option key={user.email} value={user.email}>
-                {user.name} ({user.rank})
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="admin-menu">
+        <div>
+          <label>
+            Select User:
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+            >
+              <option value="">--Select User--</option>
+              {users.map((user) => (
+                <option key={user.email} value={user.email}>
+                  {user.name} ({user.rank})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div>
+          <label>
+            Task:
+            <input
+              type="text"
+              value={task}
+              onChange={(e) => setTask(e.target.value)}
+            />
+          </label>
+        </div>
+        <button onClick={assignTask}>Assign Task</button>
       </div>
-      <div>
-        <label>
-          Task:
-          <input
-            type="text"
-            value={task}
-            onChange={(e) => setTask(e.target.value)}
-          />
-        </label>
+
+      <div className="user-tasks">
+        <h3>Users and Their Tasks</h3>
+        {users.map((user) => (
+          <div key={user.email} className="user-task-card">
+            <h4>{user.name} ({user.rank})</h4>
+            <ul>
+              {user.tasks.length > 0 ? (
+                user.tasks.map((task, index) => <li key={index}>{task}</li>)
+              ) : (
+                <li>No tasks assigned</li>
+              )}
+            </ul>
+          </div>
+        ))}
       </div>
-      <button onClick={assignTask}>Assign Task</button>
     </div>
   );
 };
