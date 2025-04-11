@@ -22,7 +22,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
 
   useEffect(() => {
     // Fetch users from the backend
-    axios.get(`${import.meta.env.VITE_API_URL}/users.json`, {
+    axios.get(`${import.meta.env.VITE_API_URL}/api/users`, {
       headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
     })
       .then((res) => setUsers(res.data))
@@ -35,7 +35,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
       return;
     }
 
-    axios.post(`${import.meta.env.VITE_API_URL}/assign-task`, {
+    axios.post(`${import.meta.env.VITE_API_URL}/api/assign-task`, {
       userId: selectedUserId,
       task,
       adminId: currentUser.email,

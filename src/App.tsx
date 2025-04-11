@@ -42,7 +42,7 @@ function App() {
           - Login (if no user is logged in), passing the login handler.
         */}
         <Route path="/" element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Login onLogin={handleLogin} />} />
-        <Route path="/tasks" element={<Tasks />} />
+        {user && <Route path="/tasks" element={<Tasks user={user} />} />}
         <Route path="/badge-lookup" element={<BadgeLookup />} /> {/* New Route for Badge Lookup */}
         {user && <Route path="/admin-menu" element={<AdminMenu currentUser={user} />} />} {/* Admin Menu Route */}
       </Routes>

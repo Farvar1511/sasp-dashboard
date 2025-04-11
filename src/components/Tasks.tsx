@@ -1,10 +1,52 @@
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import './Dashboard.css'; // Sidebar styles + layout reuse
 
-export default function Tasks() {
+interface Task {
+  id: string;
+  description: string;
+  assignedAt: string;
+  completed: boolean;
+}
+
+interface User {
+  email: string;
+}
+
+export default function Tasks({ user }: { user: User }) {
   const navigate = useNavigate();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    // Fetch tasks for the logged-in user
+    axios.get(`${import.meta.env.VITE_API_URL}/api/users`, {
+      headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
+    })
+      .then((res) => {
+        const currentUser = res.data.find((u: User) => u.email === user.email);
+        setTasks(currentUser.tasks || []);
+      })
+      .catch((err) => console.error('Error fetching tasks:', err));
+  }, [user]);
+
+  const completeTask = (taskId: string) => {
+    axios.post(`${import.meta.env.VITE_API_URL}/api/complete-task`, {
+      userId: user.email,
+      taskId,
+    }, {
+      headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
+    })
+      .then(() => {
+        setTasks((prevTasks) =>
+          prevTasks.map((task) =>
+            task.id === taskId ? { ...task, completed: true } : task
+          )
+        );
+      })
+      .catch((err) => console.error('Error completing task:', err));
+  };
 
   return (
     <div className="dashboard">
@@ -39,16 +81,20 @@ export default function Tasks() {
           </p>
         </div>
 
-        {/* Task Content Grid */}
-        <div className="link-grid">
-          <div className="link-card">
-            <h2>Today's Assignments</h2>
-            <p style={{ color: '#ccc' }}>No tasks assigned yet.</p>
-          </div>
-          <div className="link-card">
-            <h2>Review Queue</h2>
-            <p style={{ color: '#ccc' }}>Nothing to review.</p>
-          </div>
+        {/* Task Content */}
+        <div className="tasks-page">
+          <h2>Your Tasks</h2>
+          <ul>
+            {tasks.map((task) => (
+              <li key={task.id} style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
+                {task.description}
+                {!task.completed && (
+                  <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
+                )}
+                {task.completed && <span> ✅</span>}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </div>
