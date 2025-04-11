@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Import your components
 import Login from './components/Login';
-import Dashboard from './components/Dashboard.tsx'; // Ensure correct extension
+import Dashboard from './components/Dashboard'; // TypeScript automatically resolves .tsx
 import Tasks from './components/Tasks';
 import BadgeLookup from './components/BadgeLookup'; // New Badge Lookup Component
 
