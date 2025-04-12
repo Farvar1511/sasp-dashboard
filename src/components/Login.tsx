@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import axios from 'axios';
@@ -39,6 +39,21 @@ export default function Login({ onLogin }: Props) {
     } catch (error) {
       console.error('Login error:', error);
       alert('Invalid email or password.');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      alert("Please enter your email first.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert("📩 Password reset email sent!");
+    } catch (err: any) {
+      console.error("Forgot password error:", err);
+      alert("Error sending reset email: " + err.message);
     }
   };
 
@@ -95,6 +110,18 @@ export default function Login({ onLogin }: Props) {
           <button onClick={handleLogin} style={buttonStyle}>
             Login
           </button>
+          <p
+            style={{
+              marginTop: '10px',
+              color: '#FFD700',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              textAlign: 'center',
+            }}
+            onClick={handleForgotPassword}
+          >
+            Forgot your password?
+          </p>
         </div>
       </div>
     </div>

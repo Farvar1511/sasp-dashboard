@@ -82,7 +82,7 @@ export default function Tasks({ user }: { user: User }) {
         )}
       </div>
 
-      {/* Main Content */}
+      {/* Main Page Content */}
       <div className="page-content">
         <div className="header-stack">
           <img
@@ -96,42 +96,18 @@ export default function Tasks({ user }: { user: User }) {
           </p>
         </div>
 
-        <div className="tasks-page">
-          <h2>Your Tasks</h2>
-          {tasks.length === 0 ? (
-            <p>No tasks assigned.</p>
-          ) : (
-            <ul>
-              {tasks.map(task => (
-                <li
-                  key={task.id}
-                  style={{
-                    marginBottom: '10px',
-                    textDecoration: task.completed ? 'line-through' : 'none'
-                  }}
-                >
-                  {task.description}
-                  {!task.completed && (
-                    <button
-                      onClick={() => completeTask(task.id)}
-                      style={{
-                        marginLeft: '10px',
-                        backgroundColor: '#222',
-                        color: '#FFD700',
-                        border: '1px solid #FFD700',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Mark as Completed
-                    </button>
-                  )}
-                  {task.completed && <span> ✅</span>}
-                </li>
-              ))}
-            </ul>
-          )}
+        {/* Task Content */}
+        <div className="tasks-grid">
+          {tasks.map((task) => (
+            <div key={task.id} className="task-card">
+              <h3>{task.description}</h3>
+              <p>Assigned At: {new Date(task.assignedAt).toLocaleString()}</p>
+              {!task.completed && (
+                <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
+              )}
+              {task.completed && <span>✅ Completed</span>}
+            </div>
+          ))}
         </div>
       </div>
     </div>
