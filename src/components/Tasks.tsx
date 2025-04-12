@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import './Dashboard.css';
+import Sidebar from './Sidebar';
 
 interface Task {
   id: string;
@@ -55,16 +56,6 @@ export default function Tasks({ user }: { user: User }) {
     }
   };
 
-  const updateTaskDescription = async (taskId: string, newDescription: string) => {
-    try {
-      const taskRef = doc(db, 'users', user.email, 'tasks', taskId);
-      await updateDoc(taskRef, { description: newDescription });
-    } catch (err) {
-      console.error('Error updating task:', err);
-      setError("Failed to update task.");
-    }
-  };
-
   if (error) {
     return (
       <div className="error-message">
@@ -76,41 +67,35 @@ export default function Tasks({ user }: { user: User }) {
   }
 
   return (
-    <div className="page-content">
-      <div className="header-stack">
-        <img
-          src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
-          alt="SASP Logo"
-          className="topbar-logo"
-        />
-        <h1 className="title" style={{ marginTop: '1rem' }}>Tasks</h1>
-        <p style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>
-          Welcome to the Tasks page. Here you can manage your tasks.
-        </p>
-      </div>
+    <div className="dashboard">
+      <Sidebar navigate={navigate} />
+      {/* Main Page Content */}
+      <div className="page-content">
+        <div className="header-stack">
+          <img
+            src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
+            alt="SASP Logo"
+            className="topbar-logo"
+          />
+          <h1 className="title" style={{ marginTop: '1rem' }}>Tasks</h1>
+          <p style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>
+            Welcome to the Tasks page. Here you can manage your tasks.
+          </p>
+        </div>
 
-      {/* Task Content */}
-      <div className="tasks-grid">
-        {tasks.map((task) => (
-          <div key={task.id} className="task-card">
-            <h3>
-              {task.completed ? (
-                task.description
-              ) : (
-                <input
-                  type="text"
-                  defaultValue={task.description}
-                  onBlur={(e) => updateTaskDescription(task.id, e.target.value)}
-                />
+        {/* Task Content */}
+        <div className="tasks-grid">
+          {tasks.map((task) => (
+            <div key={task.id} className="task-card">
+              <h3>{task.description}</h3>
+              <p>Assigned At: {new Date(task.assignedAt).toLocaleString()}</p>
+              {!task.completed && (
+                <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
               )}
-            </h3>
-            <p>Assigned At: {new Date(task.assignedAt).toLocaleString()}</p>
-            {!task.completed && (
-              <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
-            )}
-            {task.completed && <span>✅ Completed</span>}
-          </div>
-        ))}
+              {task.completed && <span>✅ Completed</span>}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
