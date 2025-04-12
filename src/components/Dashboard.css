@@ -112,7 +112,7 @@ body {
   display: flex;
   justify-content: center;
   gap: 1rem;
-  margin: 1rem 0 0.5rem; /* Reduced bottom margin */
+  margin: 1rem 0 1rem; /* Reduced bottom margin */
 }
 
 .top-bar-button {
@@ -317,23 +317,24 @@ body {
 /* 🔗 CATEGORY LINKS */
 .category-link {
   display: block;
+  padding: 0.6rem 1rem;
   margin: 0.4rem 0;
-  padding: 0.5rem 1rem;
-  text-align: center;
-  font-size: 1rem;
-  font-weight: bold;
-  color: #222;
-  background-color: #FFD700;
-  border: none;
+  color: #FFD700;
+  background: #222;
+  border: 1px solid #FFD700;
   border-radius: 0.5rem;
+  text-align: center;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 1rem;
   text-decoration: none;
-  transition: background-color 0.2s ease, transform 0.2s ease;
-  box-shadow: 0 0 0.3rem rgba(255, 215, 0, 0.5);
+  transition: background 0.2s, transform 0.2s;
 }
 
 .category-link:hover {
-  background-color: #FFC107;
-  transform: translateY(-1px);
+  background-color: #333;
+  color: #fff;
+  transform: scale(1.05);
 }
 
 /* 📚 CATEGORIZED LINK BOXES */
@@ -341,35 +342,7 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
-  margin-top: 0.5rem; /* Reduced top margin */
-}
-
-.category-box {
-  background: rgba(34, 34, 34, 0.8);
-  border: 1px solid #FFD700;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  box-shadow: 0 0 0.5rem rgba(255, 215, 0, 0.3);
-}
-
-.category-box h3 {
-  font-size: 1.2rem;
-  margin-bottom: 1rem;
-  color: #FFD700;
-}
-
-.category-link {
-  display: block;
-  padding: 0.5rem 0;
-  color: #FFD700;
-  text-decoration: none;
-  border-bottom: 1px solid rgba(255, 215, 0, 0.3);
-  transition: color 0.2s ease;
-  cursor: pointer;
-}
-
-.category-link:hover {
-  color: #FFF;
+  margin-top: 1rem; /* Reduced top margin */
 }
 
 /* === ADMIN MENU === */

@@ -9,7 +9,10 @@ export default function Sidebar({ navigate }: { navigate: (path: string) => void
     { label: 'Dashboard', path: '/' },
     { label: 'Tasks', path: '/tasks' },
     { label: 'Badge Lookup', path: '/badge-lookup' },
-    { label: 'Everfall Home', path: '/everfall-home' },
+    {
+      label: 'Everfall Home',
+      action: () => window.open('https://everfallcommunity.com', '_blank'), // Open in new tab
+    },
     { label: 'Admin Menu', path: '/admin-menu' },
   ];
 
@@ -20,17 +23,27 @@ export default function Sidebar({ navigate }: { navigate: (path: string) => void
       </button>
       {!isSidebarCollapsed && (
         <>
-          {buttons
-            .filter((button) => button.path !== location.pathname) // Hide the button for the current page
-            .map((button) => (
+          {buttons.map((button) =>
+            button.path ? (
+              button.path !== location.pathname && (
+                <button
+                  key={button.path}
+                  className="button-primary"
+                  onClick={() => navigate(button.path)}
+                >
+                  {button.label}
+                </button>
+              )
+            ) : (
               <button
-                key={button.path}
+                key={button.label}
                 className="button-primary"
-                onClick={() => navigate(button.path)}
+                onClick={button.action}
               >
                 {button.label}
               </button>
-            ))}
+            )
+          )}
           <button
             className="button-primary logout-button"
             onClick={() => {
