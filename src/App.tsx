@@ -95,8 +95,8 @@ function App() {
             )) && (
             <Route
               path="/admin-menu"
-              element={<AdminMenu currentUser={user} />}
-            /> // Updated to pass `currentUser`
+              element={<AdminMenu currentUser={user} />} // Updated to pass `currentUser`
+            />
           )}
         {user && (
           <Route path="/bulletins" element={<Bulletins user={user} />} />
