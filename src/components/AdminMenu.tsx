@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { db } from '../firebase';
+import { useEffect, useState } from "react";
+import { db } from "../firebase";
 import {
   collection,
   doc,
@@ -8,17 +8,17 @@ import {
   deleteDoc,
   addDoc,
   updateDoc,
-} from 'firebase/firestore';
-import { v4 as uuidv4 } from 'uuid';
-import Layout from './Layout';
-import { useNavigate } from 'react-router-dom';
+} from "firebase/firestore";
+import { v4 as uuidv4 } from "uuid";
+import Layout from "./Layout";
+import { useNavigate } from "react-router-dom";
 
 interface Task {
   id: string;
   description: string;
   assignedAt: string;
   completed: boolean;
-  type: 'normal' | 'goal-oriented';
+  type: "normal" | "goal-oriented";
   goal?: number;
   progress?: number;
 }
@@ -36,21 +36,27 @@ interface AdminMenuProps {
 
 const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [taskDescription, setTaskDescription] = useState('');
-  const [taskType, setTaskType] = useState<'normal' | 'goal-oriented'>('normal');
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskType, setTaskType] = useState<"normal" | "goal-oriented">(
+    "normal"
+  );
   const [taskGoal, setTaskGoal] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
-  const [bulletinTitle, setBulletinTitle] = useState('');
-  const [bulletinBody, setBulletinBody] = useState('');
-  const [editingTask, setEditingTask] = useState<{ taskId: string; description: string; goal?: number } | null>(null);
+  const [bulletinTitle, setBulletinTitle] = useState("");
+  const [bulletinBody, setBulletinBody] = useState("");
+  const [editingTask, setEditingTask] = useState<{
+    taskId: string;
+    description: string;
+    goal?: number;
+  } | null>(null);
   const navigate = useNavigate();
 
   // 🔄 Load users and their tasks
   useEffect(() => {
     const fetchUsers = async (): Promise<void> => {
       try {
-        const usersSnap = await getDocs(collection(db, 'users'));
+        const usersSnap = await getDocs(collection(db, "users"));
         const usersList: User[] = [];
 
         for (const docSnap of usersSnap.docs) {
@@ -62,7 +68,9 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
             tasks: [],
           };
 
-          const tasksSnap = await getDocs(collection(db, 'users', docSnap.id, 'tasks'));
+          const tasksSnap = await getDocs(
+            collection(db, "users", docSnap.id, "tasks")
+          );
           tasksSnap.forEach((taskDoc) => {
             const taskData = taskDoc.data();
             user.tasks.push({
@@ -81,8 +89,8 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
 
         setUsers(usersList);
       } catch (err) {
-        console.error('Failed to load users:', err);
-        setError('Failed to load users from Firestore.');
+        console.error("Failed to load users:", err);
+        setError("Failed to load users from Firestore.");
       }
     };
 
@@ -92,7 +100,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   // 📝 Assign a new task
   const assignTask = async (): Promise<void> => {
     if (!selectedUserId || !taskDescription) {
-      alert('Please select a user and enter a task.');
+      alert("Please select a user and enter a task.");
       return;
     }
 
@@ -103,17 +111,17 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
       assignedAt: new Date().toISOString(),
       completed: false,
       type: taskType,
-      ...(taskType === 'goal-oriented' && { goal: taskGoal, progress: 0 }),
+      ...(taskType === "goal-oriented" && { goal: taskGoal, progress: 0 }),
     };
 
     try {
-      const taskRef = doc(db, 'users', selectedUserId, 'tasks', taskId);
+      const taskRef = doc(db, "users", selectedUserId, "tasks", taskId);
       await setDoc(taskRef, task);
 
-      alert('✅ Task assigned!');
-      setTaskDescription('');
-      setSelectedUserId('');
-      setTaskType('normal');
+      alert("✅ Task assigned!");
+      setTaskDescription("");
+      setSelectedUserId("");
+      setTaskType("normal");
       setTaskGoal(0);
 
       // Update local state
@@ -125,15 +133,18 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
         )
       );
     } catch (err) {
-      console.error('Failed to assign task:', err);
-      setError('Error assigning task.');
+      console.error("Failed to assign task:", err);
+      setError("Error assigning task.");
     }
   };
 
   // 🗑️ Delete a completed task
-  const deleteTask = async (userEmail: string, taskId: string): Promise<void> => {
+  const deleteTask = async (
+    userEmail: string,
+    taskId: string
+  ): Promise<void> => {
     try {
-      const taskRef = doc(db, 'users', userEmail, 'tasks', taskId);
+      const taskRef = doc(db, "users", userEmail, "tasks", taskId);
       await deleteDoc(taskRef);
 
       setUsers((prev) =>
@@ -147,8 +158,8 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
         )
       );
     } catch (err) {
-      console.error('Failed to delete task:', err);
-      alert('Error deleting task');
+      console.error("Failed to delete task:", err);
+      alert("Error deleting task");
     }
   };
 
@@ -157,7 +168,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     if (!editingTask) return;
 
     try {
-      const taskRef = doc(db, 'users', userEmail, 'tasks', editingTask.taskId);
+      const taskRef = doc(db, "users", userEmail, "tasks", editingTask.taskId);
       const updates: Partial<Task> = { description: editingTask.description };
       if (editingTask.goal !== undefined) updates.goal = editingTask.goal;
 
@@ -170,7 +181,11 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
                 ...user,
                 tasks: user.tasks.map((task) =>
                   task.id === editingTask.taskId
-                    ? { ...task, description: editingTask.description, goal: editingTask.goal }
+                    ? {
+                        ...task,
+                        description: editingTask.description,
+                        goal: editingTask.goal,
+                      }
                     : task
                 ),
               }
@@ -179,15 +194,15 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
       );
       setEditingTask(null); // Exit edit mode
     } catch (err) {
-      console.error('Error saving task edits:', err);
-      setError('Failed to save task edits.');
+      console.error("Error saving task edits:", err);
+      setError("Failed to save task edits.");
     }
   };
 
   // 📢 Create a bulletin
   const createBulletin = async () => {
     if (!bulletinTitle || !bulletinBody) {
-      alert('Please provide both a title and body for the bulletin.');
+      alert("Please provide both a title and body for the bulletin.");
       return;
     }
 
@@ -197,13 +212,13 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
         body: bulletinBody,
         createdAt: new Date().toISOString(),
       };
-      await addDoc(collection(db, 'bulletins'), newBulletin); // Add to Firestore
-      alert('✅ Bulletin created successfully!');
-      setBulletinTitle('');
-      setBulletinBody('');
+      await addDoc(collection(db, "bulletins"), newBulletin); // Add to Firestore
+      alert("✅ Bulletin created successfully!");
+      setBulletinTitle("");
+      setBulletinBody("");
     } catch (err) {
-      console.error('Error creating bulletin:', err);
-      alert('Failed to create bulletin.');
+      console.error("Error creating bulletin:", err);
+      alert("Failed to create bulletin.");
     }
   };
 
@@ -212,7 +227,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
       <div className="error-message">
         <h2>Error</h2>
         <p>{error}</p>
-        <button onClick={() => navigate('/')}>Back to Dashboard</button>
+        <button onClick={() => navigate("/")}>Back to Dashboard</button>
       </div>
     );
   }
@@ -253,14 +268,16 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
               Task Type:
               <select
                 value={taskType}
-                onChange={(e) => setTaskType(e.target.value as 'normal' | 'goal-oriented')}
+                onChange={(e) =>
+                  setTaskType(e.target.value as "normal" | "goal-oriented")
+                }
               >
                 <option value="normal">Normal</option>
                 <option value="goal-oriented">Goal-Oriented</option>
               </select>
             </label>
           </div>
-          {taskType === 'goal-oriented' && (
+          {taskType === "goal-oriented" && (
             <div>
               <label>
                 Goal:
@@ -294,15 +311,29 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
         <div className="user-tasks">
           <h3>Users and Their Tasks</h3>
 
-          <div className="user-grid">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {users.map((user) => (
-              <div key={user.email} className="user-task-card">
-                <h4>{user.name} ({user.rank})</h4>
-                <ul>
+              <div
+                key={user.email}
+                className="bg-gray-900 p-4 rounded-lg shadow space-y-2 border border-yellow-400"
+              >
+                <h3 className="text-xl font-semibold">
+                  {user.name} ({user.rank})
+                </h3>
+                <ul className="space-y-2 text-sm">
                   {user.tasks.length > 0 ? (
                     user.tasks.map((task) => (
-                      <li key={task.id} className={task.completed ? 'completed' : ''}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <li
+                        key={task.id}
+                        className="bg-black p-2 rounded border border-gray-700"
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.5rem",
+                          }}
+                        >
                           {editingTask?.taskId === task.id ? (
                             <>
                               <input
@@ -310,37 +341,50 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
                                 value={editingTask.description}
                                 onChange={(e) =>
                                   setEditingTask((prev) =>
-                                    prev ? { ...prev, description: e.target.value } : null
+                                    prev
+                                      ? { ...prev, description: e.target.value }
+                                      : null
                                   )
                                 }
                                 placeholder="Edit task description"
                               />
-                              {task.type === 'goal-oriented' && (
+                              {task.type === "goal-oriented" && (
                                 <input
                                   type="number"
-                                  value={editingTask.goal ?? ''}
+                                  value={editingTask.goal ?? ""}
                                   onChange={(e) =>
                                     setEditingTask((prev) =>
-                                      prev ? { ...prev, goal: Number(e.target.value) } : null
+                                      prev
+                                        ? {
+                                            ...prev,
+                                            goal: Number(e.target.value),
+                                          }
+                                        : null
                                     )
                                   }
                                   placeholder="Edit goal"
                                 />
                               )}
-                              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button onClick={() => saveTaskEdits(user.email)}>Save</button>
-                                <button onClick={() => setEditingTask(null)}>Cancel</button>
+                              <div style={{ display: "flex", gap: "0.5rem" }}>
+                                <button
+                                  onClick={() => saveTaskEdits(user.email)}
+                                >
+                                  Save
+                                </button>
+                                <button onClick={() => setEditingTask(null)}>
+                                  Cancel
+                                </button>
                               </div>
                             </>
                           ) : (
-                            <>
+                            <div className="flex flex-col gap-1">
                               <span>{task.description}</span>
-                              {task.type === 'goal-oriented' && (
-                                <span>
+                              {task.type === "goal-oriented" && (
+                                <span className="text-xs">
                                   Goal: {task.progress}/{task.goal}
                                 </span>
                               )}
-                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <div className="flex gap-2 mt-1">
                                 {!task.completed && (
                                   <button
                                     className="edit-icon"
@@ -358,21 +402,29 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
                                 )}
                                 <button
                                   className="delete-icon"
-                                  onClick={() => deleteTask(user.email, task.id)}
+                                  onClick={() =>
+                                    deleteTask(user.email, task.id)
+                                  }
                                   title="Delete Task"
                                 >
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#fff" width="16" height="16">
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 24 24"
+                                    fill="#fff"
+                                    width="16"
+                                    height="16"
+                                  >
                                     <path d="M3 6h18v2H3V6zm2 3h14v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm5 2v8h2v-8H8zm4 0v8h2v-8h-2zM9 4V2h6v2h5v2H4V4h5z" />
                                   </svg>
                                 </button>
                               </div>
-                            </>
+                            </div>
                           )}
                         </div>
                       </li>
                     ))
                   ) : (
-                    <li>No tasks assigned</li>
+                    <li className="italic text-yellow-300">No tasks</li>
                   )}
                 </ul>
               </div>

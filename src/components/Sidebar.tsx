@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
@@ -6,11 +5,14 @@ import { auth } from "../firebase";
 export default function Sidebar({
   navigate,
   user,
+  isCollapsed,
+  toggleCollapse,
 }: {
   navigate: (path: string) => void;
   user?: { rank?: string; isAdmin?: boolean };
+  isCollapsed: boolean;
+  toggleCollapse: () => void;
 }) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const location = useLocation();
 
   const buttons = [
@@ -32,14 +34,18 @@ export default function Sidebar({
   ];
 
   return (
-    <div className={`sidebar transition-all duration-300`}>
+    <div
+      className={`sidebar transition-all duration-300 ${
+        isCollapsed ? "w-16" : "w-40"
+      }`}
+    >
       <button
         className="button-primary mb-2 hover:bg-yellow-300 transition-colors"
-        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        onClick={toggleCollapse}
       >
-        {isSidebarCollapsed ? "☰" : "Collapse"}
+        {isCollapsed ? "☰" : "Collapse"}
       </button>
-      {!isSidebarCollapsed && (
+      {!isCollapsed && (
         <>
           {buttons.map((button) =>
             button.path ? (

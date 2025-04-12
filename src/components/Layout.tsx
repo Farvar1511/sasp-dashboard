@@ -1,13 +1,26 @@
-import Sidebar from './Sidebar';
-import { useNavigate } from 'react-router-dom';
+import Sidebar from "./Sidebar";
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
-export default function Layout({ children, user }: { children: React.ReactNode; user: any }) {
+export default function Layout({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user: any;
+}) {
   const navigate = useNavigate();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   return (
-    <div className="dashboard">
-      <Sidebar navigate={navigate} user={user} />
-      <div className="page-content">{children}</div>
+    <div className="dashboard flex">
+      <Sidebar
+        navigate={navigate}
+        user={user}
+        isCollapsed={isSidebarCollapsed}
+        toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+      />
+      <main className="page-content flex-1">{children}</main>
     </div>
   );
 }
