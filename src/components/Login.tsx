@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebase';
 import { images } from '../data/images';
 import { z } from 'zod';
@@ -28,8 +28,9 @@ export default function Login() {
   const onSubmit = async (data: { email: string; password: string }) => {
     setError(null); // Clear previous errors
     try {
-      // Handle login logic
-      console.log(data);
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      console.log('User logged in:', userCredential.user);
+      // Redirect or handle successful login here
     } catch (error: any) {
       console.error('Login error:', error);
       setError('Invalid email or password.');
