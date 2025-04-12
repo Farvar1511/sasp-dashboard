@@ -35,7 +35,7 @@ function App() {
           path="/"
           element={
             user ? (
-              <Dashboard user={user} onLogout={handleLogout} />
+              <Dashboard user={user} />
             ) : (
               <Login onLogin={handleLogin} />
             )
