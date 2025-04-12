@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import './Dashboard.css';
 
@@ -24,17 +24,20 @@ export default function Tasks({ user }: { user: User }) {
   useEffect(() => {
     if (!user.email) return;
 
-    const userDocRef = doc(db, 'users', user.email);
+    const tasksRef = collection(db, 'users', user.email, 'tasks');
 
-    const unsubscribe = onSnapshot(userDocRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        const tasksObj = data.tasks || {};
-        const tasksArray: Task[] = Object.values(tasksObj);
-        setTasks(tasksArray);
-      } else {
-        setTasks([]);
-      }
+    const unsubscribe = onSnapshot(tasksRef, (snapshot) => {
+      const tasksList: Task[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        tasksList.push({
+          id: doc.id,
+          description: data.description,
+          assignedAt: data.assignedAt,
+          completed: data.completed,
+        });
+      });
+      setTasks(tasksList);
     }, (error) => {
       console.error("Error fetching tasks:", error);
       setError("Failed to load tasks. Please try again later.");
@@ -45,18 +48,8 @@ export default function Tasks({ user }: { user: User }) {
 
   const completeTask = async (taskId: string) => {
     try {
-      const updatedTasks = tasks.map(task =>
-        task.id === taskId ? { ...task, completed: true } : task
-      );
-      setTasks(updatedTasks);
-
-      const newTaskMap: Record<string, Task> = {};
-      updatedTasks.forEach(task => {
-        newTaskMap[task.id] = task;
-      });
-
-      const userDocRef = doc(db, 'users', user.email);
-      await updateDoc(userDocRef, { tasks: newTaskMap });
+      const taskRef = doc(db, 'users', user.email, 'tasks', taskId);
+      await updateDoc(taskRef, { completed: true });
     } catch (err) {
       console.error('Error completing task:', err);
       setError("Failed to update task.");
@@ -110,7 +103,13 @@ export default function Tasks({ user }: { user: User }) {
           ) : (
             <ul>
               {tasks.map(task => (
-                <li key={task.id} style={{ marginBottom: '10px', textDecoration: task.completed ? 'line-through' : 'none' }}>
+                <li
+                  key={task.id}
+                  style={{
+                    marginBottom: '10px',
+                    textDecoration: task.completed ? 'line-through' : 'none'
+                  }}
+                >
                   {task.description}
                   {!task.completed && (
                     <button

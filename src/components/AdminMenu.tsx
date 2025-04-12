@@ -5,8 +5,9 @@ import {
   collection,
   doc,
   getDocs,
-  setDoc
-} from 'firebase/firestore'; // Removed getDoc
+  setDoc,
+  deleteDoc
+} from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import './AdminMenu.css';
 
@@ -28,7 +29,7 @@ interface AdminMenuProps {
   currentUser: User;
 }
 
-const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => { // ⬅️ underscore silences unused warning
+const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
   const navigate = useNavigate();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -36,7 +37,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => { // ⬅️ 
   const [taskDescription, setTaskDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // 🔄 Load users from Firestore and their tasks
+  // 🔄 Load users and their tasks
   useEffect(() => {
     const fetchUsers = async (): Promise<void> => {
       try {
@@ -76,7 +77,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => { // ⬅️ 
     fetchUsers();
   }, []);
 
-  // 📝 Assign a new task to selected user
+  // 📝 Assign a new task
   const assignTask = async (): Promise<void> => {
     if (!selectedUserId || !taskDescription) {
       alert('Please select a user and enter a task.');
@@ -99,7 +100,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => { // ⬅️ 
       setTaskDescription('');
       setSelectedUserId('');
 
-      // Update UI optimistically
+      // Update local state
       setUsers((prev) =>
         prev.map((user) =>
           user.email === selectedUserId
@@ -110,6 +111,28 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => { // ⬅️ 
     } catch (err) {
       console.error('Failed to assign task:', err);
       setError('Error assigning task.');
+    }
+  };
+
+  // 🗑️ Delete a completed task
+  const deleteTask = async (userEmail: string, taskId: string) => {
+    try {
+      const taskRef = doc(db, 'users', userEmail, 'tasks', taskId);
+      await deleteDoc(taskRef);
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.email === userEmail
+            ? {
+                ...user,
+                tasks: user.tasks?.filter((task) => task.id !== taskId),
+              }
+            : user
+        )
+      );
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+      alert('Error deleting task');
     }
   };
 
@@ -172,7 +195,26 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => { // ⬅️ 
                 {user.tasks && user.tasks.length > 0 ? (
                   user.tasks.map((task) => (
                     <li key={task.id} style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
-                      {task.description} {task.completed && <span>✅</span>}
+                      {task.description}
+                      {task.completed && (
+                        <>
+                          <span> ✅</span>
+                          <button
+                            onClick={() => deleteTask(user.email, task.id)}
+                            style={{
+                              marginLeft: '10px',
+                              backgroundColor: '#c0392b',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                     </li>
                   ))
                 ) : (
