@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import './Dashboard.css';
-import Sidebar from './Sidebar';
+import Layout from './Layout';
 
 interface Task {
   id: string;
@@ -17,7 +15,6 @@ interface User {
 }
 
 export default function Tasks({ user }: { user: User }) {
-  const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,22 +23,26 @@ export default function Tasks({ user }: { user: User }) {
 
     const tasksRef = collection(db, 'users', user.email, 'tasks');
 
-    const unsubscribe = onSnapshot(tasksRef, (snapshot) => {
-      const tasksList: Task[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        tasksList.push({
-          id: doc.id,
-          description: data.description,
-          assignedAt: data.assignedAt,
-          completed: data.completed,
+    const unsubscribe = onSnapshot(
+      tasksRef,
+      (snapshot) => {
+        const tasksList: Task[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          tasksList.push({
+            id: doc.id,
+            description: data.description,
+            assignedAt: data.assignedAt,
+            completed: data.completed,
+          });
         });
-      });
-      setTasks(tasksList);
-    }, (error) => {
-      console.error("Error fetching tasks:", error);
-      setError("Failed to load tasks. Please try again later.");
-    });
+        setTasks(tasksList);
+      },
+      (error) => {
+        console.error('Error fetching tasks:', error);
+        setError('Failed to load tasks. Please try again later.');
+      }
+    );
 
     return () => unsubscribe();
   }, [user.email]);
@@ -52,51 +53,61 @@ export default function Tasks({ user }: { user: User }) {
       await updateDoc(taskRef, { completed: true });
     } catch (err) {
       console.error('Error completing task:', err);
-      setError("Failed to update task.");
+      setError('Failed to update task.');
+    }
+  };
+
+  const updateTaskDescription = async (taskId: string, newDescription: string) => {
+    try {
+      const taskRef = doc(db, 'users', user.email, 'tasks', taskId);
+      await updateDoc(taskRef, { description: newDescription });
+    } catch (err) {
+      console.error('Error updating task:', err);
+      setError('Failed to update task.');
     }
   };
 
   if (error) {
     return (
-      <div className="error-message">
-        <h2>Error</h2>
-        <p>{error}</p>
-        <button onClick={() => navigate('/')}>Go Back to Dashboard</button>
-      </div>
+      <Layout>
+        <div className="error-message">
+          <h2>Error</h2>
+          <p>{error}</p>
+        </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="dashboard">
-      <Sidebar navigate={navigate} />
-      {/* Main Page Content */}
-      <div className="page-content">
-        <div className="header-stack">
-          <img
-            src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
-            alt="SASP Logo"
-            className="topbar-logo"
-          />
-          <h1 className="title" style={{ marginTop: '1rem' }}>Tasks</h1>
-          <p style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>
-            Welcome to the Tasks page. Here you can manage your tasks.
-          </p>
-        </div>
-
-        {/* Task Content */}
-        <div className="tasks-grid">
-          {tasks.map((task) => (
-            <div key={task.id} className="task-card">
-              <h3>{task.description}</h3>
-              <p>Assigned At: {new Date(task.assignedAt).toLocaleString()}</p>
-              {!task.completed && (
-                <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
-              )}
-              {task.completed && <span>✅ Completed</span>}
-            </div>
-          ))}
-        </div>
+    <Layout>
+      <div className="header-stack">
+        <h1 className="title" style={{ marginTop: '1rem' }}>Tasks</h1>
+        <p style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>
+          Welcome to the Tasks page. Here you can manage your tasks.
+        </p>
       </div>
-    </div>
+      <div className="tasks-grid">
+        {tasks.map((task) => (
+          <div key={task.id} className="task-card">
+            <h3>
+              {task.completed ? (
+                task.description
+              ) : (
+                <input
+                  type="text"
+                  defaultValue={task.description}
+                  onBlur={(e) => updateTaskDescription(task.id, e.target.value)}
+                />
+              )}
+            </h3>
+            <p>Assigned At: {new Date(task.assignedAt).toLocaleString()}</p>
+            {!task.completed && (
+              <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
+            )}
+            {task.completed && <span>✅ Completed</span>}
+          </div>
+        ))}
+      </div>
+    </Layout>
   );
 }
