@@ -150,6 +150,26 @@
   background-color: #FF1A1A;
 }
 
+.delete-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.delete-icon:hover {
+  transform: scale(1.1);
+}
+
+.delete-icon svg {
+  fill: #FF4D4D;
+}
+
 .error-message {
   text-align: center;
   margin-top: 2rem;
