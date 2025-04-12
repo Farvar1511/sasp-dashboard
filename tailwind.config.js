@@ -5,7 +5,7 @@ module.exports = {
     extend: {
       fontFamily: {
         sans: ["Inter", "sans-serif"], // Default app font
-        orbitron: ["Orbitron", "sans-serif"], // Special font for clock
+        orbitron: ["Orbitron", "sans-serif"], // Custom Orbitron font
       },
     },
   },

@@ -64,22 +64,29 @@ export default function Dashboard({ user }: { user: User }) {
       {/* Background Image */}
       {background && (
         <div
-          className="dashboard-background"
+          className="fixed top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10"
           style={{
             backgroundImage: `url('${background}')`,
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "cover",
+            backgroundAttachment: "fixed", // Ensure background stays fixed
           }}
         />
       )}
 
+      {/* SASP Logo */}
+      <div className="flex justify-center pt-4">
+        <img
+          src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
+          alt="SASP Logo"
+          className="h-24" // Approximately 6rem
+        />
+      </div>
+
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col items-center px-6 pt-12 max-w-7xl mx-auto">
+      <div className="relative z-10 flex flex-col items-center px-6 pt-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
-          <img
-            src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
-            alt="SASP Logo"
-            className="w-20 mb-4"
-          />
           <h1 className="text-4xl font-black uppercase text-center mb-2 drop-shadow-md">
             San Andreas State Police
           </h1>
@@ -87,8 +94,8 @@ export default function Dashboard({ user }: { user: User }) {
         </div>
 
         {/* Clock */}
-        <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-52 mb-8 shadow">
-          <div className="font-orbitron text-md space-y-1">
+        <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-52 mb-8 shadow font-orbitron">
+          <div className="text-md space-y-1">
             <div>{time.toLocaleDateString("en-US", { weekday: "long" })}</div>
             <div>{time.toLocaleDateString("en-US")}</div>
             <div>{time.toLocaleTimeString()}</div>
