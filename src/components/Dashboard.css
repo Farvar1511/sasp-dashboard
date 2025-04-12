@@ -207,7 +207,7 @@ body {
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding: 1rem; /* Adjusted padding */
+    padding: 0.5rem; /* Adjusted padding */
 }
 
 .clock {
@@ -236,7 +236,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 1rem;
+    gap: 0.5rem;
     flex-wrap: wrap;
 }
 
@@ -246,7 +246,7 @@ body {
     align-items: center;
     text-align: center;
     white-space: nowrap;
-    padding: 0.75rem 1.25rem;
+    padding: 0.25rem 1.25rem;
     font-size: 1.1rem;
     font-weight: 700;
     background: linear-gradient(145deg, #FFD700, #FFC107);
