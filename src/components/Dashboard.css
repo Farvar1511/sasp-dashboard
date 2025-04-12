@@ -109,29 +109,10 @@ body {
 /* 🔝 TOP BAR BUTTONS */
 .top-bar {
   display: flex;
-  justify-content: flex-start; /* Align items to the left by default */
+  justify-content: center;
   gap: 1rem;
-  margin: 0.5rem 0; /* Reduce excessive vertical gap */
-}
-
-.top-bar-button {
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  font-weight: bold;
-  text-align: center;
-  background-color: #FFD700; /* Gold background */
-  color: #222; /* Dark text */
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 0 0.5rem rgba(255, 215, 0, 0.5);
-}
-
-.top-bar-button:hover {
-  background-color: #FFC107; /* Slightly darker gold on hover */
-  transform: translateY(-2px);
-  box-shadow: 0 0 1rem rgba(255, 215, 0, 0.6);
+  margin-top: 1.5rem; /* Increased top margin for better flow */
+  margin-bottom: 2rem; /* Increased bottom margin for spacing */
 }
 
 /* Align-right class */
@@ -212,6 +193,7 @@ body {
     align-items: center;
     text-align: center;
     padding: 0.5rem; /* Adjusted padding */
+    margin-bottom: 1rem; /* Add spacing below the clock */
 }
 
 .clock {
@@ -570,7 +552,7 @@ body {
 
 .trooper-top-right {
     position: fixed;
-    top: calc(6.5rem + 1rem); /* Align with .topbar height + buffer */
+    top: 2rem; /* Align with header area */
     right: 2rem;
     z-index: 999;
 }
