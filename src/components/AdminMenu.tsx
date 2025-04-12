@@ -157,64 +157,48 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
 
       <div className="admin-menu-container">
         <h2>Admin Menu</h2>
-
         <div className="admin-menu">
-          <label>
-            Select User:
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-            >
-              <option value="">-- Select User --</option>
-              {users.map((user) => (
-                <option key={user.email} value={user.email}>
-                  {user.name} ({user.rank})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Task:
-            <input
-              type="text"
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
-            />
-          </label>
-
+          <div>
+            <label>
+              Select User:
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+              >
+                <option value="">--Select User--</option>
+                {users.map((user) => (
+                  <option key={user.email} value={user.email}>
+                    {user.name} ({user.rank})
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div>
+            <label>
+              Task:
+              <input
+                type="text"
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+              />
+            </label>
+          </div>
           <button onClick={assignTask}>Assign Task</button>
         </div>
 
-        <div className="user-tasks">
-          <h3>Users and Their Tasks</h3>
+        <div className="user-grid">
           {users.map((user) => (
             <div key={user.email} className="user-task-card">
               <h4>{user.name} ({user.rank})</h4>
               <ul>
-                {user.tasks && user.tasks.length > 0 ? (
+                {user.tasks.length > 0 ? (
                   user.tasks.map((task) => (
-                    <li key={task.id} style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
+                    <li
+                      key={task.id}
+                      className={task.completed ? 'completed' : ''}
+                    >
                       {task.description}
-                      {task.completed && (
-                        <>
-                          <span> ✅</span>
-                          <button
-                            onClick={() => deleteTask(user.email, task.id)}
-                            style={{
-                              marginLeft: '10px',
-                              backgroundColor: '#c0392b',
-                              color: '#fff',
-                              border: 'none',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
                     </li>
                   ))
                 ) : (
