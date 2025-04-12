@@ -6,7 +6,7 @@ import {
   doc,
   getDocs,
   setDoc,
-  deleteDoc
+  deleteDoc,
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import './AdminMenu.css';
@@ -22,7 +22,7 @@ interface User {
   email: string;
   name: string;
   rank: string;
-  tasks?: Task[];
+  tasks: Task[];
 }
 
 interface AdminMenuProps {
@@ -56,7 +56,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
           const tasksSnap = await getDocs(collection(db, 'users', docSnap.id, 'tasks'));
           tasksSnap.forEach((taskDoc) => {
             const taskData = taskDoc.data();
-            user.tasks?.push({
+            user.tasks.push({
               id: taskDoc.id,
               description: taskData.description,
               assignedAt: taskData.assignedAt,
@@ -104,7 +104,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
       setUsers((prev) =>
         prev.map((user) =>
           user.email === selectedUserId
-            ? { ...user, tasks: [...(user.tasks || []), task] }
+            ? { ...user, tasks: [...user.tasks, task] }
             : user
         )
       );
@@ -115,7 +115,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
   };
 
   // 🗑️ Delete a completed task
-  const deleteTask = async (userEmail: string, taskId: string) => {
+  const deleteTask = async (userEmail: string, taskId: string): Promise<void> => {
     try {
       const taskRef = doc(db, 'users', userEmail, 'tasks', taskId);
       await deleteDoc(taskRef);
@@ -125,7 +125,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
           user.email === userEmail
             ? {
                 ...user,
-                tasks: user.tasks?.filter((task) => task.id !== taskId),
+                tasks: user.tasks.filter((task) => task.id !== taskId),
               }
             : user
         )
@@ -199,6 +199,11 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
                       className={task.completed ? 'completed' : ''}
                     >
                       {task.description}
+                      {!task.completed && (
+                        <button onClick={() => deleteTask(user.email, task.id)}>
+                          Delete
+                        </button>
+                      )}
                     </li>
                   ))
                 ) : (
