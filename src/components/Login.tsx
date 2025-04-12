@@ -1,23 +1,28 @@
-import { useEffect, useState } from 'react';
-import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
-import { images } from '../data/images';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { useEffect, useState } from "react";
+import {
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
+import { auth } from "../firebase";
+import { images } from "../data/images";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 
 const schema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-interface Props {}
-
 export default function Login() {
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
     resolver: zodResolver(schema),
   });
-  const [background, setBackground] = useState('');
+  const [background, setBackground] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,92 +31,67 @@ export default function Login() {
   }, []);
 
   const onSubmit = async (data: { email: string; password: string }) => {
-    setError(null); // Clear previous errors
+    setError(null);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-      console.log('User logged in:', userCredential.user);
-      // Redirect or handle successful login here
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        data.email,
+        data.password
+      );
+      console.log("User logged in:", userCredential.user);
     } catch (error: any) {
-      console.error('Login error:', error);
-      setError('Invalid email or password.');
+      console.error("Login error:", error);
+      setError("Invalid email or password.");
     }
   };
 
   const handleForgotPassword = async () => {
-    const emailInput = document.querySelector('input[name="email"]') as HTMLInputElement;
+    const emailInput = document.querySelector(
+      'input[name="email"]'
+    ) as HTMLInputElement;
     const email = emailInput?.value;
-
-    if (!email) {
-      setError('Please enter your email first.');
-      return;
-    }
-
+    if (!email) return setError("Please enter your email first.");
     try {
       await sendPasswordResetEmail(auth, email);
-      alert('📩 Password reset email sent!');
+      alert("📩 Password reset email sent!");
     } catch (err: any) {
-      console.error('Forgot password error:', err);
-      setError('Error sending reset email: ' + err.message);
+      setError("Error sending reset email: " + err.message);
     }
   };
 
   return (
-    <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
+    <div className="relative h-screen w-screen">
       <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundImage: `url(${background})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'blur(3px)',
-          zIndex: -1,
-          opacity: 0.5,
-        }}
+        className="absolute inset-0 bg-cover bg-center blur-sm opacity-50 z-0"
+        style={{ backgroundImage: `url(${background})` }}
       />
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100%',
-          zIndex: 1,
-          position: 'relative',
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: 'rgba(34, 34, 34, 0.8)',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 0 10px rgba(0, 0, 0, 0.5)',
-            maxWidth: '400px',
-            width: '90%',
-          }}
-        >
-          <h2 style={{ color: '#FFD700', textAlign: 'center' }}>SASP Login</h2>
-          {error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
+      <div className="relative z-10 flex flex-col justify-center items-center h-full">
+        <div className="login-form w-full max-w-md p-6 bg-gray-800 rounded-lg shadow-lg">
+          <h2>SASP Login</h2>
+          {error && <p>{error}</p>}
           <form onSubmit={handleSubmit(onSubmit)}>
-            <input {...register('email')} placeholder="Email" style={inputStyle} />
-            {errors.email && <p style={{ color: 'red', textAlign: 'center' }}>{errors.email.message}</p>}
-            <input {...register('password')} placeholder="Password" type="password" style={inputStyle} />
-            {errors.password && <p style={{ color: 'red', textAlign: 'center' }}>{errors.password.message}</p>}
-            <button type="submit" style={buttonStyle}>
+            <input
+              {...register("email")}
+              placeholder="Email"
+              className="w-full p-2 rounded-md bg-gray-700 text-yellow-400 border border-yellow-400 mb-2"
+            />
+            {errors.email && <p>{errors.email.message}</p>}
+            <input
+              {...register("password")}
+              type="password"
+              placeholder="Password"
+              className="w-full p-2 rounded-md bg-gray-700 text-yellow-400 border border-yellow-400 mb-2"
+            />
+            {errors.password && <p>{errors.password.message}</p>}
+            <button
+              type="submit"
+              className="w-full px-4 py-2 rounded-md bg-yellow-400 text-black font-semibold shadow hover:bg-yellow-300"
+            >
               Login
             </button>
           </form>
           <p
-            style={{
-              marginTop: '10px',
-              color: '#FFD700',
-              textDecoration: 'underline',
-              cursor: 'pointer',
-              textAlign: 'center',
-            }}
+            className="text-sm mt-4 text-yellow-400 text-center hover:underline cursor-pointer"
             onClick={handleForgotPassword}
           >
             Forgot your password?
@@ -121,24 +101,3 @@ export default function Login() {
     </div>
   );
 }
-
-const inputStyle = {
-  width: '100%',
-  padding: '10px',
-  margin: '10px 0',
-  borderRadius: '5px',
-  border: '1px solid #FFD700',
-  backgroundColor: '#111',
-  color: '#FFD700',
-};
-
-const buttonStyle = {
-  width: '100%',
-  padding: '10px',
-  borderRadius: '5px',
-  border: '1px solid #FFD700',
-  backgroundColor: '#222',
-  color: '#FFD700',
-  cursor: 'pointer',
-  fontWeight: 'bold',
-};
