@@ -11,11 +11,9 @@ const schema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
-interface Props {
-  onLogin: (user: any) => void;
-}
+interface Props {}
 
-export default function Login({ onLogin }: Props) {
+export default function Login() {
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
   });
