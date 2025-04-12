@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import links from '../data/links'; // Import links data
 import { images } from '../data/images'; // Import images data
@@ -11,17 +10,11 @@ interface User {
   email: string;
 }
 
-interface Link {
-  Label: string;
-  Url: string;
-  Category: string;
-}
-
 export default function Dashboard({ user }: { user: User }) {
   const [background, setBackground] = useState('');
   const [time, setTime] = useState(new Date());
   const [welcomeMessage, setWelcomeMessage] = useState('');
-  const navigate = useNavigate();
+  const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
 
   useEffect(() => {
     // Randomly select a background image from images.ts
@@ -55,11 +48,12 @@ export default function Dashboard({ user }: { user: User }) {
     return () => clearTimeout(timeoutRef.current);
   }, [user]);
 
-  // Filter links into top bar and categorized groups
+  // Filter links into top bar and categorized groups, excluding specified categories
   const topBarCategories = ['Fleet Management', 'SASP Roster'];
+  const excludedCategories = ['Community', 'Tools', 'Internal'];
   const topLinks = links.filter((link) => topBarCategories.includes(link.Label));
   const groupedLinks = links
-    .filter((link) => !topBarCategories.includes(link.Label))
+    .filter((link) => !topBarCategories.includes(link.Label) && !excludedCategories.includes(link.Category))
     .reduce((acc, curr) => {
       if (!acc[curr.Category]) acc[curr.Category] = [];
       acc[curr.Category].push(curr);
@@ -91,9 +85,6 @@ export default function Dashboard({ user }: { user: User }) {
             className="topbar-logo"
           />
           <h1 className="title">San Andreas State Police</h1>
-          <div className="star-icon">
-            <img src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png" alt="SASP Star" />
-          </div>
           <div id="welcomeArea">{welcomeMessage}</div>
           <div className="clock-container">
             <div className="clock">
@@ -107,15 +98,13 @@ export default function Dashboard({ user }: { user: User }) {
         {/* 🔝 TOP BAR BUTTONS */}
         <div className="top-bar">
           {topLinks.map((link) => (
-            <a
+            <button
               key={link.Label}
-              href={link.Url}
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={() => setOverlayUrl(link.Url)}
               className="top-bar-button"
             >
               {link.Label}
-            </a>
+            </button>
           ))}
         </div>
 
@@ -125,20 +114,30 @@ export default function Dashboard({ user }: { user: User }) {
             <div key={category} className="category-box">
               <h3>{category}</h3>
               {items.map((item) => (
-                <a
+                <button
                   key={item.Label}
-                  href={item.Url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  onClick={() => setOverlayUrl(item.Url)}
                   className="category-link"
                 >
                   {item.Label}
-                </a>
+                </button>
               ))}
             </div>
           ))}
         </div>
       </div>
+
+      {/* Modal Overlay */}
+      {overlayUrl && (
+        <div className="overlay">
+          <div className="overlay-content">
+            <button className="close-button" onClick={() => setOverlayUrl(null)}>
+              ✖
+            </button>
+            <iframe src={overlayUrl} title="Overlay Content" frameBorder="0"></iframe>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

@@ -124,7 +124,7 @@ body {
   color: #FFD700;
   border: 1px solid #FFD700;
   border-radius: 0.5rem;
-  text-decoration: none;
+  cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -343,6 +343,7 @@ body {
   text-decoration: none;
   border-bottom: 1px solid rgba(255, 215, 0, 0.3);
   transition: color 0.2s ease;
+  cursor: pointer;
 }
 
 .category-link:hover {
@@ -549,67 +550,59 @@ body {
     z-index: 999;
 }
 
+/* Modal Overlay */
 .overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0, 0, 0, 0.85);
-    z-index: 9999;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.85);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .overlay-content {
-    position: relative;
-    width: 90vw;
-    height: 90vh;
-    background-color: var(--dark-bg);
-    border: 1px solid var(--accent-color);
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+  position: relative;
+  width: 90vw;
+  height: 90vh;
+  background-color: #111;
+  border: 1px solid #FFD700;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .overlay-content iframe {
-    flex-grow: 1;
-    width: 100%;
-    height: 100%;
-    border: none;
+  flex-grow: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
 }
 
-.overlay-controls {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
-    gap: 0.5rem;
-    background-color: #000;
-    border-bottom: 1px solid var(--accent-color);
-    z-index: 2;
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #FFD700;
+  color: #222;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.overlay-controls button {
-    background: linear-gradient(145deg, #FFD700, #FFC107);
-    color: #222;
-    font-size: 1rem;
-    font-weight: 700;
-    padding: 0.6rem 1.2rem;
-    border: none;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4),
-        inset -1px -1px 2px rgba(255, 255, 255, 0.2);
-    transition: all 0.2s ease;
-}
-
-.overlay-controls button:hover {
-    background: linear-gradient(145deg, #FFE57F, #FFD54F);
-    transform: translateY(-2px);
-    box-shadow: 5px 5px 12px rgba(0, 0, 0, 0.5),
-        inset -2px -2px 4px rgba(255, 255, 255, 0.3);
+.close-button:hover {
+  background: #FFC107;
 }
 
 .overlay-controls {
