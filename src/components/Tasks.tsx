@@ -17,7 +17,6 @@ interface User {
 
 export default function Tasks({ user }: { user: User }) {
   const navigate = useNavigate();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +55,16 @@ export default function Tasks({ user }: { user: User }) {
     }
   };
 
+  const updateTaskDescription = async (taskId: string, newDescription: string) => {
+    try {
+      const taskRef = doc(db, 'users', user.email, 'tasks', taskId);
+      await updateDoc(taskRef, { description: newDescription });
+    } catch (err) {
+      console.error('Error updating task:', err);
+      setError("Failed to update task.");
+    }
+  };
+
   if (error) {
     return (
       <div className="error-message">
@@ -67,48 +76,41 @@ export default function Tasks({ user }: { user: User }) {
   }
 
   return (
-    <div className="dashboard">
-      {/* Sidebar */}
-      <div className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
-        <button className="button-primary" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
-          {isSidebarCollapsed ? '☰' : 'Collapse'}
-        </button>
-        {!isSidebarCollapsed && (
-          <>
-            <button className="button-primary" onClick={() => navigate('/')}>Dashboard</button>
-            <button className="button-primary" onClick={() => navigate('/tasks')}>Tasks</button>
-            <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button>
-          </>
-        )}
+    <div className="page-content">
+      <div className="header-stack">
+        <img
+          src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
+          alt="SASP Logo"
+          className="topbar-logo"
+        />
+        <h1 className="title" style={{ marginTop: '1rem' }}>Tasks</h1>
+        <p style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>
+          Welcome to the Tasks page. Here you can manage your tasks.
+        </p>
       </div>
 
-      {/* Main Page Content */}
-      <div className="page-content">
-        <div className="header-stack">
-          <img
-            src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
-            alt="SASP Logo"
-            className="topbar-logo"
-          />
-          <h1 className="title" style={{ marginTop: '1rem' }}>Tasks</h1>
-          <p style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>
-            Welcome to the Tasks page. Here you can manage your tasks.
-          </p>
-        </div>
-
-        {/* Task Content */}
-        <div className="tasks-grid">
-          {tasks.map((task) => (
-            <div key={task.id} className="task-card">
-              <h3>{task.description}</h3>
-              <p>Assigned At: {new Date(task.assignedAt).toLocaleString()}</p>
-              {!task.completed && (
-                <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
+      {/* Task Content */}
+      <div className="tasks-grid">
+        {tasks.map((task) => (
+          <div key={task.id} className="task-card">
+            <h3>
+              {task.completed ? (
+                task.description
+              ) : (
+                <input
+                  type="text"
+                  defaultValue={task.description}
+                  onBlur={(e) => updateTaskDescription(task.id, e.target.value)}
+                />
               )}
-              {task.completed && <span>✅ Completed</span>}
-            </div>
-          ))}
-        </div>
+            </h3>
+            <p>Assigned At: {new Date(task.assignedAt).toLocaleString()}</p>
+            {!task.completed && (
+              <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
+            )}
+            {task.completed && <span>✅ Completed</span>}
+          </div>
+        ))}
       </div>
     </div>
   );
