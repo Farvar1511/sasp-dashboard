@@ -340,7 +340,7 @@ const BadgeLookup: React.FC = () => {
   const renderCertifications = (certs: RosterUser["certifications"]) => {
     if (!certs) return <span className="text-gray-400">None</span>;
     const activeCerts = Object.entries(certs)
-      .filter(([key, value]) => value !== null)
+      .filter(([, value]) => value !== null)
       .map(([key, value]) => `${key}: ${value}`);
     return activeCerts.length > 0 ? (
       activeCerts.join(", ")
