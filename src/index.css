@@ -160,25 +160,25 @@
 
   /* Login */
   .login-container {
-    @apply flex flex-col items-center justify-center min-h-screen bg-black text-yellow-400;
+    @apply flex items-center justify-center min-h-screen bg-black text-white;
   }
   .login-form {
-    @apply bg-gray-800 text-yellow-400 rounded-lg p-6 shadow-lg w-full max-w-md;
+    @apply bg-gray-800 text-yellow-400 rounded-lg p-8 shadow-lg w-full max-w-md;
   }
   .login-form h2 {
-    @apply text-yellow-400 text-center text-2xl font-bold mb-4;
+    @apply text-[#f3c700] text-center text-3xl font-bold mb-6;
   }
   .login-form p {
-    @apply text-red-500 text-center;
+    @apply text-gray-400 text-center mb-4;
   }
   .login-form input {
-    @apply w-full p-2 rounded-md bg-gray-700 text-yellow-400 border border-yellow-400 mb-2;
+    @apply w-full p-3 rounded-md bg-gray-900 text-white placeholder-gray-400 border border-gray-700 focus:ring-2 focus:ring-[#f3c700] focus:outline-none;
   }
   .login-form button {
-    @apply w-full px-4 py-2 rounded-md bg-yellow-400 text-black font-semibold shadow hover:bg-yellow-300;
+    @apply w-full px-4 py-2 rounded-md bg-[#f3c700] text-black font-semibold shadow hover:bg-yellow-300 transition;
   }
   .login-form a {
-    @apply text-yellow-400 hover:underline text-sm block text-center mt-4;
+    @apply text-[#f3c700] hover:underline text-sm block text-center mt-4;
   }
 
   /* Badges */
