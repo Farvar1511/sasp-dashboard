@@ -19,66 +19,60 @@ export default function Sidebar({
     { label: "Dashboard", path: "/" },
     { label: "Tasks", path: "/tasks" },
     { label: "Badge Lookup", path: "/badge-lookup" },
-    {
-      label: "Everfall Home",
-      action: () => window.open("https://everfallcommunity.com", "_blank"),
-    },
-    ...(user?.isAdmin ||
-    (user?.rank &&
-      ["Staff Sergeant", "SSgt.", "Commander", "Commissioner"].includes(
-        user.rank
-      ))
-      ? [{ label: "Admin Menu", path: "/admin-menu" }]
+    ...(user?.isAdmin === true
+      ? [{ label: "Admin Menu", path: "/admin" }]
       : []),
     { label: "Bulletins", path: "/bulletins" },
   ];
 
   return (
+    // Apply higher z-index (z-30) and ensure width transitions correctly
     <div
-      className={`sidebar fixed top-0 left-0 h-full bg-black text-white flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out ${
+      className={`fixed top-0 left-0 h-full bg-black text-yellow-400 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out z-30 ${
+        // Use z-30 for highest layer
         isCollapsed ? "w-16" : "w-40"
       }`}
     >
+      {/* Toggle Button - Always visible */}
       <button
-        className="px-4 py-2 rounded-md bg-[#f3c700] text-black font-semibold hover:bg-yellow-300 transition-colors"
+        className="w-full px-2 py-2 rounded-md bg-yellow-400 text-black font-bold hover:bg-yellow-300 transition flex items-center justify-center" // Already centered
         onClick={toggleCollapse}
       >
         {isCollapsed ? "☰" : "Collapse"}
       </button>
-      <div className={`${isCollapsed ? "space-y-2" : "space-y-4"}`}>
+
+      {/* Navigation Links - Hidden when collapsed */}
+      <div
+        className={`flex-grow flex flex-col ${
+          isCollapsed ? "hidden" : "space-y-4"
+        }`}
+      >
         {buttons.map((button) =>
-          button.path ? (
-            button.path !== location.pathname && (
-              <button
-                key={button.path}
-                className={`${
-                  isCollapsed ? "text-center text-xs" : "px-4 py-2"
-                } rounded-md bg-[#f3c700] text-black font-semibold hover:bg-yellow-300 transition-colors`}
-                onClick={() => navigate(button.path)}
-              >
-                {button.label}
-              </button>
-            )
-          ) : (
-            <button
-              key={button.label}
-              className={`${
-                isCollapsed ? "text-center text-xs" : "px-4 py-2"
-              } rounded-md bg-[#f3c700] text-black font-semibold hover:bg-yellow-300 transition-colors`}
-              onClick={button.action}
-            >
-              {button.label}
-            </button>
-          )
+          button.path
+            ? button.path !== location.pathname && (
+                <button
+                  key={button.path}
+                  // Removed text-left, added text-center, flex, justify-center, items-center
+                  className="w-full px-4 py-2 rounded-md bg-yellow-400 text-black font-bold hover:bg-yellow-300 transition text-center flex justify-center items-center"
+                  onClick={() => {
+                    navigate(button.path);
+                  }}
+                >
+                  {button.label}
+                </button>
+              )
+            : null
         )}
+        {/* Spacer to push logout to bottom */}
+        <div className="flex-grow"></div>
+        {/* Logout Button */}
         <button
-          className={`${
-            isCollapsed ? "text-center text-xs" : "px-4 py-2"
-          } rounded-md bg-[#f3c700] text-black font-semibold hover:bg-red-500 transition-colors mt-4`}
+          // Added text-center, flex, justify-center, items-center
+          className="w-full px-4 py-2 rounded-md bg-yellow-400 text-black font-bold hover:bg-red-500 transition mt-auto text-center flex justify-center items-center"
           onClick={async () => {
             try {
               await signOut(auth);
-              navigate("/login");
+              // Navigation to /login should happen automatically via App.tsx's auth listener
             } catch (error) {
               console.error("Error logging out:", error);
             }

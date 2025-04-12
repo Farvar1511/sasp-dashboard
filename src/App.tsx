@@ -1,114 +1,67 @@
-import { useState, useEffect } from "react";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "./firebase";
-import { doc, getDoc } from "firebase/firestore";
-
-// Import your components
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import Tasks from "./components/Tasks";
+import Bulletins from "./components/Bulletins";
 import BadgeLookup from "./components/BadgeLookup";
 import AdminMenu from "./components/AdminMenu";
-import Bulletins from "./components/Bulletins"; // Ensure correct path
+import DisciplineNotes from "./components/DisciplineNotes"; // Ensure the file exists at this path
+import RosterManagement from "./components/RosterManagement";
+import SASPRoster from "./components/SASPRoster"; // Import the new component
+import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
-// Import the shared User interface
-import { User } from "./types/User";
-
-function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true); // Add loading state
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const userDocRef = doc(
-            db,
-            "users",
-            firebaseUser.email!.toLowerCase()
-          ); // Normalize email
-          const userDoc = await getDoc(userDocRef);
-
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            console.log("Fetched user data:", userData); // Debug log
-            setUser({
-              email: firebaseUser.email!,
-              name: userData.name || "Unknown",
-              rank: userData.rank || "Unknown",
-              tasks: userData.tasks || [],
-              isAdmin: userData.role === "admin", // Map role to isAdmin
-            });
-          } else {
-            console.error("User data not found in Firestore.");
-            setUser(null);
-          }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
-          setUser(null);
-        }
-      } else {
-        setUser(null); // Ensure user is null if not authenticated
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
+function AppContent() {
+  const { user, loading } = useAuth();
 
   if (loading) {
-    // Show a loading screen while user data is being fetched
-    return <div>Loading...</div>;
+    return (
+      <div className="flex justify-center items-center h-screen bg-black text-yellow-400">
+        Loading Authentication...
+      </div>
+    );
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            user ? <Dashboard user={user} /> : <Navigate to="/login" replace />
-          }
-        />
-        <Route
-          path="/login"
-          element={
-            user ? (
-              <Navigate to="/" replace />
-            ) : (
-              <Login /> // Removed onLogin prop
-            )
-          }
-        />
-        {user && (
-          <Route
-            path="/tasks"
-            element={<Tasks user={user} />} // Tasks will use the updated theme
-          />
-        )}
+    <Routes>
+      <Route path="/login" element={<Login />} />
+
+      {/* Protected Routes */}
+      <Route element={<ProtectedRoute user={user} />}>
+        <Route path="/" element={<Dashboard user={user!} />} />
+        <Route path="/tasks" element={<Tasks user={user!} />} />
+        <Route path="/bulletins" element={<Bulletins user={user!} />} />
         <Route path="/badge-lookup" element={<BadgeLookup />} />
-        {user &&
-          (user.isAdmin ||
-            ["Staff Sergeant", "SSgt.", "Commander", "Commissioner"].includes(
-              user.rank
-            )) && (
-            <Route
-              path="/admin-menu"
-              element={<AdminMenu currentUser={user} />} // AdminMenu will use the updated theme
-            />
-          )}
-        {user && (
-          <Route path="/bulletins" element={<Bulletins user={user} />} />
-        )}{" "}
-        {/* Ensure user is passed */}
-      </Routes>
-    </Router>
+        <Route path="/sasp-roster" element={<SASPRoster user={user!} />} />{" "}
+        {/* Add route for SASPRoster */}
+        {/* Admin Routes */}
+        <Route element={<AdminRoute user={user} />}>
+          <Route path="/admin" element={<AdminMenu user={user!} />} />
+          <Route
+            path="/admin/discipline"
+            element={<DisciplineNotes user={user!} />}
+          />
+          <Route
+            path="/admin/roster"
+            element={<RosterManagement user={user!} />}
+          />
+        </Route>
+      </Route>
+
+      {/* Fallback Route (Optional) */}
+      <Route path="*" element={<Login />} />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </AuthProvider>
   );
 }
 

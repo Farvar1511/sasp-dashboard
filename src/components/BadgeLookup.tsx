@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Layout from "./Layout";
+import { images } from "../data/images"; // Import images
 
 // Define the data structure for a trooper from the Roster sheet
 interface RosterData {
@@ -37,8 +38,15 @@ export default function BadgeLookup() {
     null
   );
 
-  // Fetch both Roster and Fleet data on mount
+  // State for background image
+  const [background, setBackground] = useState("");
+
+  // Fetch both Roster, Fleet data, and set background on mount
   useEffect(() => {
+    // Set background
+    const randomImage = images[Math.floor(Math.random() * images.length)];
+    setBackground(randomImage);
+
     axios
       .get(`${import.meta.env.VITE_API_URL}/api/roster`, {
         headers: { "x-api-key": import.meta.env.VITE_API_KEY },
@@ -108,6 +116,19 @@ export default function BadgeLookup() {
         }
       }
     >
+      {/* Background Image */}
+      {background && (
+        <div
+          className="fixed top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10 backdrop-blur-md"
+          style={{
+            backgroundImage: `url('${background}')`,
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "cover",
+            backgroundAttachment: "fixed",
+          }}
+        />
+      )}
+
       <div className="page-content">
         <div
           style={{

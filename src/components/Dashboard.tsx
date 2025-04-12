@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom"; // Import useNavigate
 import Layout from "./Layout";
 import links from "../data/links";
 import { images } from "../data/images";
@@ -14,14 +15,11 @@ export default function Dashboard({ user }: { user: User }) {
   const [time, setTime] = useState(new Date());
   const [welcomeMessage, setWelcomeMessage] = useState("");
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
+  const navigate = useNavigate(); // Instantiate useNavigate
 
   useEffect(() => {
     const randomImage = images[Math.floor(Math.random() * images.length)];
-    console.log("🚀 BACKGROUND IMAGE SELECTED:", randomImage); // Debugging step
     setBackground(randomImage);
-
-    // Uncomment this line to test with a specific fallback image
-    // setBackground("https://i.gyazo.com/7430c1fff7bd872edb76a0d5724c15e9.png");
 
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
@@ -39,20 +37,22 @@ export default function Dashboard({ user }: { user: User }) {
     setWelcomeMessage(`${greeting}, ${user.rank} ${lastName}`);
   }, [user]);
 
-  const topBarCategories = ["Fleet Management", "SASP Roster"];
-  const excludedCategories = ["Community", "Tools", "Internal"];
+  // Separate top links
   const topLinks = links.filter((link) =>
-    topBarCategories.includes(link.Label)
+    ["Fleet Management", "SASP Roster"].includes(link.Label)
   );
+
+  // Group remaining links by category, excluding internal/community/tools
+  const excludedCategories = ["Community", "Tools", "Internal"];
   const groupedLinks = links
     .filter(
       (link) =>
-        !topBarCategories.includes(link.Label) &&
+        !["Fleet Management", "SASP Roster"].includes(link.Label) &&
         !excludedCategories.includes(link.Category)
     )
-    .reduce((acc, curr) => {
-      if (!acc[curr.Category]) acc[curr.Category] = [];
-      acc[curr.Category].push(curr);
+    .reduce((acc, link) => {
+      if (!acc[link.Category]) acc[link.Category] = [];
+      acc[link.Category].push(link);
       return acc;
     }, {} as Record<string, typeof links>);
 
@@ -64,7 +64,7 @@ export default function Dashboard({ user }: { user: User }) {
       {/* Background Image */}
       {background && (
         <div
-          className="fixed top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10"
+          className="fixed top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10 backdrop-blur-md"
           style={{
             backgroundImage: `url('${background}')`,
             backgroundRepeat: "no-repeat",
@@ -74,23 +74,21 @@ export default function Dashboard({ user }: { user: User }) {
         />
       )}
 
-      {/* SASP Logo */}
-      <div className="flex justify-center pt-4">
-        <img
-          src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
-          alt="SASP Logo"
-          className="h-24" // Approximately 6rem
-        />
-      </div>
-
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col w-full max-w-[1600px] px-10 pt-6 mx-auto">
+      <div className="relative z-10 flex flex-col items-center w-full max-w-[1600px] px-10 pt-6 mx-auto">
         {/* Header */}
         <div className="flex flex-col items-center mb-8 space-y-2">
+          {/* SASP Logo */}
           <img
-            src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
+            src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png" // Verified URL
+            alt="SASP Logo"
+            className="h-12" // 3rem
+          />
+          {/* SASP Star Badge */}
+          <img
+            src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png" // Verified URL
             alt="SASP Star Badge"
-            className="h-16"
+            className="h-16 mt-4" // Added margin-top for spacing
           />
           <h1 className="text-4xl font-black uppercase text-center drop-shadow-md">
             San Andreas State Police
@@ -99,17 +97,11 @@ export default function Dashboard({ user }: { user: User }) {
         </div>
 
         {/* Clock */}
-        <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-60 mb-8 shadow">
-          <div className="space-y-1 text-lg">
-            <div className="font-orbitron font-bold">
-              {time.toLocaleDateString("en-US", { weekday: "long" })}
-            </div>
-            <div className="font-orbitron font-bold">
-              {time.toLocaleDateString("en-US")}
-            </div>
-            <div className="font-orbitron font-bold">
-              {time.toLocaleTimeString()}
-            </div>
+        <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-60 mb-8 shadow font-orbitron">
+          <div className="space-y-1 text-lg font-bold">
+            <div>{time.toLocaleDateString("en-US", { weekday: "long" })}</div>
+            <div>{time.toLocaleDateString("en-US")}</div>
+            <div>{time.toLocaleTimeString()}</div>
           </div>
         </div>
 
@@ -118,7 +110,13 @@ export default function Dashboard({ user }: { user: User }) {
           {topLinks.map((link) => (
             <button
               key={link.Label}
-              onClick={() => openModal(link.Url)}
+              // Conditionally set onClick based on the link label
+              onClick={
+                () =>
+                  link.Label === "SASP Roster"
+                    ? navigate("/sasp-roster") // Navigate for SASP Roster
+                    : openModal(link.Url) // Open modal for others
+              }
               className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-lg shadow hover:scale-105 hover:bg-yellow-300 transition-transform duration-150"
             >
               {link.Label}
@@ -127,7 +125,7 @@ export default function Dashboard({ user }: { user: User }) {
         </div>
 
         {/* Grouped Links */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
           {Object.entries(groupedLinks).map(([category, items]) => (
             <div
               key={category}
@@ -152,8 +150,9 @@ export default function Dashboard({ user }: { user: User }) {
 
       {/* Modal Overlay */}
       {overlayUrl && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center pt-12 px-4">
-          <div className="w-full max-w-7xl flex justify-end gap-2 mb-4">
+        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center">
+          {/* Controls container - align with sidebar and limit width */}
+          <div className="w-full flex justify-end gap-2 p-4 z-10 ml-40 max-w-[calc(100%-10rem)]">
             <a
               href={overlayUrl}
               target="_blank"
@@ -169,7 +168,8 @@ export default function Dashboard({ user }: { user: User }) {
               ✕
             </button>
           </div>
-          <div className="flex-grow w-full max-w-7xl h-full bg-black border border-yellow-400 rounded-lg overflow-hidden">
+          {/* Iframe container - align with sidebar and limit width */}
+          <div className="flex-grow w-full h-full bg-black border border-yellow-400 rounded-lg overflow-hidden ml-40 max-w-[calc(100%-10rem)]">
             <iframe
               src={overlayUrl}
               title="Modal Content"

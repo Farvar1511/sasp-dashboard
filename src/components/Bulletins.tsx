@@ -5,30 +5,71 @@ import {
   deleteDoc,
   doc,
   updateDoc,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Layout from "./Layout";
+import { User } from "../types/User";
+import { images } from "../data/images"; // Import images
 
 interface Bulletin {
   id: string;
   title: string;
   body: string;
-  createdAt: string;
+  createdAt: Date;
 }
 
-export default function Bulletins({ user }: { user: any }) {
+interface BulletinsProps {
+  user: User | any;
+}
+
+export default function Bulletins({ user }: BulletinsProps) {
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editingBulletin, setEditingBulletin] = useState<Bulletin | null>(null);
+  const [background, setBackground] = useState(""); // State for background image
 
   useEffect(() => {
+    // Set background
+    const randomImage = images[Math.floor(Math.random() * images.length)];
+    setBackground(randomImage);
+
     const fetchBulletins = async () => {
       try {
         const snapshot = await getDocs(collection(db, "bulletins"));
-        const fetchedBulletins = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Bulletin[];
+        const fetchedBulletins = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          let createdAt: Date;
+
+          if (data.createdAt instanceof Timestamp) {
+            createdAt = data.createdAt.toDate();
+          } else if (typeof data.createdAt === "string") {
+            createdAt = new Date(data.createdAt);
+          } else if (data.createdAt?.seconds) {
+            createdAt = new Timestamp(
+              data.createdAt.seconds,
+              data.createdAt.nanoseconds
+            ).toDate();
+          } else {
+            console.warn(
+              `Bulletin ${doc.id} missing or has invalid createdAt:`,
+              data.createdAt
+            );
+            createdAt = new Date(0);
+          }
+
+          return {
+            id: doc.id,
+            title: data.title ?? "Untitled",
+            body: data.body ?? "",
+            createdAt,
+          };
+        });
+
+        fetchedBulletins.sort(
+          (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+        );
+
         setBulletins(fetchedBulletins);
       } catch (err) {
         console.error("Error fetching bulletins:", err);
@@ -69,9 +110,29 @@ export default function Bulletins({ user }: { user: any }) {
     }
   };
 
+  const formatTimestamp = (date: Date | undefined): string => {
+    if (!date || isNaN(date.getTime()) || date.getTime() === 0) {
+      return "Date unknown";
+    }
+    return date?.toLocaleString?.() ?? "Date unknown";
+  };
+
   return (
     <Layout user={user}>
-      <div className="page-content">
+      {/* Background Image */}
+      {background && (
+        <div
+          className="fixed top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10 backdrop-blur-md"
+          style={{
+            backgroundImage: `url('${background}')`,
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "cover",
+            backgroundAttachment: "fixed",
+          }}
+        />
+      )}
+
+      <div className="page-content min-h-screen flex flex-col custom-scrollbar">
         <h1 className="text-3xl font-bold mb-6 text-[#f3c700]">📢 Bulletins</h1>
 
         {error && <p className="text-red-500 mb-4">{error}</p>}
@@ -79,11 +140,14 @@ export default function Bulletins({ user }: { user: any }) {
         {bulletins.length === 0 ? (
           <p className="text-yellow-400 italic">No announcements yet.</p>
         ) : (
-          <div className="bulletins">
+          <ul className="space-y-6 flex-grow">
             {bulletins.map((bulletin) => (
-              <div key={bulletin.id} className="bulletin-item relative">
+              <li
+                key={bulletin.id}
+                className="bg-black/80 p-4 rounded-md border border-yellow-400 shadow relative"
+              >
                 {editingBulletin?.id === bulletin.id ? (
-                  <div className="bulletin-edit-form">
+                  <div className="bulletin-edit-form space-y-2">
                     <input
                       type="text"
                       className="input"
@@ -121,34 +185,33 @@ export default function Bulletins({ user }: { user: any }) {
                     </div>
                   </div>
                 ) : (
-                  <>
+                  <div>
                     <h3 className="bulletin-title">{bulletin.title}</h3>
                     <p className="bulletin-body">{bulletin.body}</p>
-                    <p className="bulletin-meta">
-                      Created: {new Date(bulletin.createdAt).toLocaleString()}
-                    </p>
-
+                    <small className="bulletin-meta">
+                      Created at: {formatTimestamp(bulletin.createdAt)}
+                    </small>
                     {user?.isAdmin && (
-                      <div className="bulletin-actions absolute top-2 right-2 opacity-0 hover:opacity-100 transition-opacity">
+                      <div className="bulletin-actions flex gap-2 absolute top-2 right-2 opacity-0 hover:opacity-100 transition-opacity">
                         <button
-                          className="button-secondary"
+                          className="button-secondary text-xs p-1"
                           onClick={() => setEditingBulletin(bulletin)}
                         >
-                          ✏️
+                          ✏️ Edit
                         </button>
                         <button
-                          className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-400"
+                          className="bg-red-500 text-white text-xs px-2 py-1 rounded-md hover:bg-red-400"
                           onClick={() => deleteBulletin(bulletin.id)}
                         >
-                          🗑
+                          🗑 Delete
                         </button>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
     </Layout>

@@ -24,7 +24,7 @@
 
   /* Page Content */
   .page-content {
-    @apply flex-1 p-6 overflow-y-auto text-yellow-400 ml-16;
+    @apply min-h-screen p-6 overflow-y-auto text-yellow-400; /* Use min-h-screen and ensure overflow-y-auto */
     background-color: transparent; /* Ensure no background color overrides the image */
   }
 
@@ -38,14 +38,9 @@
 
   /* Sidebar */
   .sidebar {
-    @apply fixed top-0 left-0 h-full bg-gray-800 text-yellow-400 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out;
+    @apply fixed top-0 left-0 h-full bg-black text-yellow-400 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out; /* Changed bg-gray-800 to bg-black */
   }
-  .sidebar.w-16 {
-    @apply p-2;
-  }
-  .sidebar.w-40 {
-    @apply p-4;
-  }
+
   .sidebar-button {
     @apply px-4 py-2 rounded-md bg-[#f3c700] text-black font-semibold hover:bg-yellow-300 transition-colors;
   }
@@ -57,7 +52,7 @@
 
   /* Buttons */
   .button-primary {
-    @apply px-4 py-2 rounded-md bg-[#f3c700] text-black font-semibold shadow hover:bg-yellow-300;
+    @apply px-4 py-3 bg-yellow-400 text-black font-semibold rounded-md shadow hover:bg-yellow-300 transition;
   }
   .button-secondary {
     @apply px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-gray-200;
@@ -112,7 +107,7 @@
     @apply text-2xl font-bold text-[#f3c700] border-b border-[#f3c700] pb-2 mb-4;
   }
   .input {
-    @apply w-full p-3 rounded-md bg-gray-900 text-white placeholder-gray-400 border border-gray-700 focus:ring-2 focus:ring-[#f3c700] focus:outline-none;
+    @apply w-full px-4 py-3 rounded-md bg-black border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400;
   }
   .user-card {
     @apply bg-gray-900 p-4 rounded-lg border border-yellow-400 space-y-3;
@@ -232,4 +227,103 @@
   .glow {
     animation: glow 1.5s infinite alternate;
   }
+}
+
+/* === Admin Menu (from AdminMenu.css) === */
+.admin-menu-container {
+  @apply ml-48 p-8 bg-[#222] text-white min-h-screen box-border w-[calc(100%-12rem)];
+
+  @media (max-width: 768px) {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+.admin-menu {
+  @apply flex flex-col gap-4 mb-8 max-w-xl;
+}
+
+.admin-menu label {
+  @apply block mb-2;
+}
+
+.admin-menu input,
+.admin-menu select {
+  @apply w-full p-2 mb-4 rounded-md bg-gray-800 text-yellow-400 border border-yellow-400;
+}
+
+.admin-menu button {
+  @apply px-4 py-2 bg-yellow-400 text-black font-bold rounded-md hover:bg-yellow-300;
+}
+
+.user-tasks {
+  @apply mt-8;
+}
+
+.user-grid {
+  @apply grid grid-cols-3 gap-4 mt-4;
+}
+
+.user-task-card {
+  @apply bg-gray-800 p-4 rounded-md border border-yellow-400 shadow-md flex flex-col justify-between text-center;
+}
+
+.user-task-card h4 {
+  @apply text-lg mb-2 text-yellow-400;
+}
+
+.user-task-card ul {
+  @apply list-none p-0 m-0;
+}
+
+.user-task-card li {
+  @apply bg-gray-700 text-white p-2 my-2 rounded-md;
+}
+
+.user-task-card li.completed {
+  @apply line-through text-gray-400;
+}
+
+.user-task-card button {
+  @apply mt-2 px-4 py-2 bg-yellow-400 text-black font-bold rounded-md hover:bg-yellow-300;
+}
+
+.user-task-card button.delete-button {
+  @apply mt-2 px-4 py-2 bg-red-600 text-white rounded-md flex items-center justify-center gap-2 hover:bg-red-500;
+}
+
+.user-task-card button.delete-button svg {
+  @apply w-4 h-4 fill-white;
+}
+
+.delete-button.small {
+  @apply px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-500;
+}
+
+.delete-icon {
+  @apply bg-transparent border-none cursor-pointer p-1 ml-2 flex items-center justify-center transition-transform;
+}
+
+.delete-icon:hover {
+  transform: scale(1.1);
+}
+
+.delete-icon svg {
+  @apply fill-red-600;
+}
+
+.error-message {
+  @apply text-center mt-8 text-red-500;
+}
+
+.error-message h2 {
+  @apply text-2xl mb-4;
+}
+
+.error-message p {
+  @apply text-lg mb-4;
+}
+
+.error-message button {
+  @apply px-4 py-2 bg-yellow-400 rounded-md font-bold hover:bg-yellow-300;
 }

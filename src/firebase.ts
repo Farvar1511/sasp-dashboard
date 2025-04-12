@@ -1,7 +1,11 @@
 // src/firebase.ts
-import { initializeApp } from 'firebase/app';
-import { getAuth, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp } from "firebase/app";
+import {
+  getAuth,
+  setPersistence,
+  browserSessionPersistence,
+} from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -18,5 +22,5 @@ export const db = getFirestore(app);
 
 // Set authentication persistence to session-based (clears on browser close)
 setPersistence(auth, browserSessionPersistence).catch((error) => {
-  console.error('Error setting auth persistence:', error);
+  console.error("Error setting auth persistence:", error);
 });
