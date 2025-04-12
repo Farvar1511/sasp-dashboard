@@ -59,8 +59,7 @@ body {
 
 .dashboard {
     padding-left: 10rem;
-    padding-top: 2rem;
-    /* ✅ way more balanced */
+    padding-top: 7rem; /* Ensure it clears the fixed .topbar */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -112,7 +111,7 @@ body {
   display: flex;
   justify-content: center;
   gap: 1rem;
-  margin: 1rem 0 0.5rem; /* Reduced bottom margin */
+  margin: 0.5rem 0; /* Reduce excessive vertical gap */
 }
 
 .top-bar-button {
@@ -225,10 +224,10 @@ body {
 .page-content {
     width: 100%;
     max-width: 1600px;
-    padding: 1rem 2rem;
+    padding: 1rem 1.5rem; /* Adjust padding for better balance */
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem; /* Reduce gap between elements */
 }
 
 /* === ACTION BUTTONS === */
@@ -283,6 +282,7 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
+    height: 100%; /* Ensure consistent height for grid rows */
 }
 
 .link-card h2 {
@@ -328,9 +328,10 @@ body {
   background: rgba(34, 34, 34, 0.7); /* Reduced opacity for background visibility */
   border: 1px solid #FFD700;
   border-radius: 0.5rem;
-  padding: 1.25rem;
+  padding: 1rem; /* Reduce padding for tighter layout */
   box-shadow: 0 0 0.5rem rgba(255, 215, 0, 0.2);
   text-align: center;
+  height: 100%; /* Ensure consistent height for grid rows */
 }
 
 /* === CATEGORY TITLES === */
