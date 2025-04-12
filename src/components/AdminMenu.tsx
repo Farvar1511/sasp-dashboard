@@ -59,7 +59,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     setBackground(randomImage);
   }, []);
 
-  // 🔄 Load users and their tasks
   useEffect(() => {
     const fetchUsers = async (): Promise<void> => {
       try {
@@ -104,7 +103,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     fetchUsers();
   }, []);
 
-  // 📝 Assign a new task
   const assignTask = async (): Promise<void> => {
     if (!selectedUserId || !taskDescription) {
       alert("Please select a user and enter a task.");
@@ -131,7 +129,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
       setTaskType("normal");
       setTaskGoal(0);
 
-      // Update local state
       setUsers((prev) =>
         prev.map((user) =>
           user.email === selectedUserId
@@ -145,7 +142,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     }
   };
 
-  // 🗑️ Delete a completed task
   const deleteTask = async (
     userEmail: string,
     taskId: string
@@ -170,7 +166,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     }
   };
 
-  // ✏️ Save edited task
   const saveTaskEdits = async (userEmail: string) => {
     if (!editingTask) return;
 
@@ -199,14 +194,13 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
             : user
         )
       );
-      setEditingTask(null); // Exit edit mode
+      setEditingTask(null);
     } catch (err) {
       console.error("Error saving task edits:", err);
       setError("Failed to save task edits.");
     }
   };
 
-  // 📢 Create a bulletin
   const createBulletin = async () => {
     if (!bulletinTitle || !bulletinBody) {
       alert("Please provide both a title and body for the bulletin.");
@@ -219,7 +213,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
         body: bulletinBody,
         createdAt: new Date().toISOString(),
       };
-      await addDoc(collection(db, "bulletins"), newBulletin); // Add to Firestore
+      await addDoc(collection(db, "bulletins"), newBulletin);
       alert("✅ Bulletin created successfully!");
       setBulletinTitle("");
       setBulletinBody("");
@@ -241,226 +235,121 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
 
   return (
     <Layout user={currentUser}>
-      {/* Background Image */}
       <div
         className="fixed inset-0 bg-cover bg-center blur-sm opacity-50 -z-10"
         style={{ backgroundImage: `url(${background})` }}
       ></div>
 
-      {/* Main Content */}
       <div className="page-content">
-        <div className="max-w-7xl mx-auto px-6 pt-12 space-y-10">
-          <h1 className="text-4xl font-black uppercase text-center mb-4 drop-shadow-md">
-            Admin Control Panel
-          </h1>
-
-          {/* Task Assignment */}
-          <section className="bg-gray-800 p-6 rounded-lg shadow space-y-4">
-            <h2 className="text-2xl font-bold mb-2">Assign Task</h2>
+        <div className="admin-panel space-y-12">
+          <div className="admin-section">
+            <h2 className="section-header">Assign Task</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label>
-                  Select User:
-                  <select
-                    value={selectedUserId}
-                    onChange={(e) => setSelectedUserId(e.target.value)}
-                  >
-                    <option value="">--Select User--</option>
-                    {users.map((user) => (
-                      <option key={user.email} value={user.email}>
-                        {user.name} ({user.rank})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div>
-                <label>
-                  Task:
-                  <input
-                    type="text"
-                    value={taskDescription}
-                    onChange={(e) => setTaskDescription(e.target.value)}
-                  />
-                </label>
-              </div>
-              <div>
-                <label>
-                  Task Type:
-                  <select
-                    value={taskType}
-                    onChange={(e) =>
-                      setTaskType(e.target.value as "normal" | "goal-oriented")
-                    }
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="goal-oriented">Goal-Oriented</option>
-                  </select>
-                </label>
-              </div>
+              <select
+                className="input"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+              >
+                <option value="">Select User</option>
+                {users.map((u) => (
+                  <option key={u.email} value={u.email}>
+                    {u.name} ({u.rank})
+                  </option>
+                ))}
+              </select>
+              <input
+                className="input"
+                placeholder="Task Description"
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+              />
+              <select
+                className="input"
+                value={taskType}
+                onChange={(e) =>
+                  setTaskType(e.target.value as "normal" | "goal-oriented")
+                }
+              >
+                <option value="normal">Normal</option>
+                <option value="goal-oriented">Goal-Oriented</option>
+              </select>
               {taskType === "goal-oriented" && (
-                <div>
-                  <label>
-                    Goal:
-                    <input
-                      type="number"
-                      value={taskGoal}
-                      onChange={(e) => setTaskGoal(Number(e.target.value))}
-                    />
-                  </label>
-                </div>
+                <input
+                  className="input"
+                  placeholder="Goal (if applicable)"
+                  value={taskGoal}
+                  onChange={(e) => setTaskGoal(Number(e.target.value))}
+                />
               )}
             </div>
-            <button className="button-primary mt-2" onClick={assignTask}>
+            <button className="button-primary mt-4" onClick={assignTask}>
               Assign Task
             </button>
-          </section>
+          </div>
 
-          {/* Bulletin Creator */}
-          <section className="bg-gray-800 p-6 rounded-lg shadow space-y-4">
-            <h2 className="text-2xl font-bold">Create Bulletin</h2>
+          <div className="admin-section">
+            <h2 className="section-header">Create Bulletin</h2>
             <input
-              type="text"
+              className="input"
               placeholder="Bulletin Title"
               value={bulletinTitle}
               onChange={(e) => setBulletinTitle(e.target.value)}
             />
             <textarea
+              className="input"
               placeholder="Bulletin Body"
               value={bulletinBody}
               onChange={(e) => setBulletinBody(e.target.value)}
-            />
-            <button className="button-primary" onClick={createBulletin}>
+            ></textarea>
+            <button className="button-primary mt-4" onClick={createBulletin}>
               Create Bulletin
             </button>
-          </section>
+          </div>
 
-          {/* Users and Tasks */}
-          <section className="space-y-6">
-            <h2 className="text-2xl font-bold">User Task Overview</h2>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="admin-section">
+            <h2 className="section-header">User Task Overview</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {users.map((user) => (
-                <div
-                  key={user.email}
-                  className="bg-gray-900 p-4 rounded-lg shadow space-y-2 border border-yellow-400"
-                >
-                  <h3 className="text-xl font-semibold">
+                <div className="user-card" key={user.email}>
+                  <h3 className="font-bold mb-2">
                     {user.name} ({user.rank})
                   </h3>
-                  <ul className="space-y-2 text-sm">
-                    {user.tasks.length > 0 ? (
-                      user.tasks.map((task) => (
-                        <li
-                          key={task.id}
-                          className="bg-black p-2 rounded border border-gray-700"
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "0.5rem",
-                            }}
+                  {user.tasks.map((task) => (
+                    <div className="task-card" key={task.id}>
+                      <p>{task.description}</p>
+                      {task.goal && (
+                        <p className="text-xs">
+                          Goal: {task.progress}/{task.goal}
+                        </p>
+                      )}
+                      <div className="flex gap-2 mt-1">
+                        {!task.completed && (
+                          <button
+                            className="text-yellow-400 hover:text-yellow-300"
+                            onClick={() =>
+                              setEditingTask({
+                                taskId: task.id,
+                                description: task.description,
+                                goal: task.goal,
+                              })
+                            }
                           >
-                            {editingTask?.taskId === task.id ? (
-                              <>
-                                <input
-                                  type="text"
-                                  value={editingTask.description}
-                                  onChange={(e) =>
-                                    setEditingTask((prev) =>
-                                      prev
-                                        ? {
-                                            ...prev,
-                                            description: e.target.value,
-                                          }
-                                        : null
-                                    )
-                                  }
-                                  placeholder="Edit task description"
-                                />
-                                {task.type === "goal-oriented" && (
-                                  <input
-                                    type="number"
-                                    value={editingTask.goal ?? ""}
-                                    onChange={(e) =>
-                                      setEditingTask((prev) =>
-                                        prev
-                                          ? {
-                                              ...prev,
-                                              goal: Number(e.target.value),
-                                            }
-                                          : null
-                                      )
-                                    }
-                                    placeholder="Edit goal"
-                                  />
-                                )}
-                                <div style={{ display: "flex", gap: "0.5rem" }}>
-                                  <button
-                                    onClick={() => saveTaskEdits(user.email)}
-                                  >
-                                    Save
-                                  </button>
-                                  <button onClick={() => setEditingTask(null)}>
-                                    Cancel
-                                  </button>
-                                </div>
-                              </>
-                            ) : (
-                              <div className="flex flex-col gap-1">
-                                <span>{task.description}</span>
-                                {task.type === "goal-oriented" && (
-                                  <span className="text-xs">
-                                    Goal: {task.progress}/{task.goal}
-                                  </span>
-                                )}
-                                <div className="flex gap-2 mt-1">
-                                  {!task.completed && (
-                                    <button
-                                      className="edit-icon"
-                                      onClick={() =>
-                                        setEditingTask({
-                                          taskId: task.id,
-                                          description: task.description,
-                                          goal: task.goal,
-                                        })
-                                      }
-                                      title="Edit Task"
-                                    >
-                                      ✏️
-                                    </button>
-                                  )}
-                                  <button
-                                    className="delete-icon"
-                                    onClick={() =>
-                                      deleteTask(user.email, task.id)
-                                    }
-                                    title="Delete Task"
-                                  >
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      viewBox="0 0 24 24"
-                                      fill="#fff"
-                                      width="16"
-                                      height="16"
-                                    >
-                                      <path d="M3 6h18v2H3V6zm2 3h14v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm5 2v8h2v-8H8zm4 0v8h2v-8h-2zM9 4V2h6v2h5v2H4V4h5z" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </li>
-                      ))
-                    ) : (
-                      <li className="italic text-yellow-300">No tasks</li>
-                    )}
-                  </ul>
+                            ✏️
+                          </button>
+                        )}
+                        <button
+                          className="text-red-500 hover:text-red-300"
+                          onClick={() => deleteTask(user.email, task.id)}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
-          </section>
+          </div>
         </div>
       </div>
     </Layout>

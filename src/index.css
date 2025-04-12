@@ -7,7 +7,7 @@
 
 @layer base {
   body {
-    @apply font-sans bg-black text-yellow-400 min-h-screen overflow-x-hidden;
+    @apply font-sans bg-black text-white min-h-screen overflow-x-hidden;
   }
 }
 
@@ -44,15 +44,15 @@
 
   /* Buttons */
   .button-primary {
-    @apply px-4 py-2 rounded-md bg-yellow-400 text-black font-semibold shadow hover:bg-yellow-300;
+    @apply px-4 py-2 rounded-md bg-[#f3c700] text-black font-semibold shadow hover:bg-yellow-300;
   }
   .button-secondary {
-    @apply px-4 py-2 rounded-md bg-gray-700 text-yellow-400 font-semibold hover:bg-gray-600;
+    @apply px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-gray-200;
   }
 
   /* Cards */
   .card {
-    @apply bg-gray-800 text-yellow-400 rounded-lg p-4 shadow-lg;
+    @apply bg-black border border-[#f3c700] text-white rounded-lg p-4 shadow-lg;
   }
   .card-title {
     @apply text-xl font-bold mb-2;
@@ -83,6 +83,29 @@
   }
   .admin-menu button {
     @apply px-4 py-2 rounded-md bg-yellow-400 text-black font-semibold shadow hover:bg-yellow-300;
+  }
+
+  /* Admin Panel */
+  .admin-panel {
+    @apply max-w-6xl mx-auto px-6 py-12;
+  }
+  .admin-section {
+    @apply bg-black border border-[#f3c700] p-6 rounded-lg shadow-lg space-y-4;
+  }
+  .admin-section h2 {
+    @apply text-2xl font-bold text-[#f3c700] border-b border-[#f3c700] pb-2;
+  }
+  .section-header {
+    @apply text-2xl font-bold mb-4 text-yellow-400;
+  }
+  .input {
+    @apply w-full p-2 rounded-md bg-gray-900 text-white border border-[#f3c700] focus:outline-none focus:ring-2 focus:ring-[#f3c700];
+  }
+  .user-card {
+    @apply bg-gray-900 p-4 rounded-lg border border-yellow-400 space-y-3;
+  }
+  .task-card {
+    @apply bg-black p-3 rounded-md border border-gray-700 text-yellow-300;
   }
 
   /* Bulletins */
@@ -134,6 +157,20 @@
   }
   .login-form a {
     @apply text-yellow-400 hover:underline text-sm block text-center mt-4;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-block px-2 py-1 rounded-full text-xs font-bold uppercase;
+  }
+  .badge-yellow {
+    @apply bg-[#f3c700] text-black;
+  }
+  .badge-white {
+    @apply bg-white text-black;
+  }
+  .badge-red {
+    @apply bg-red-600 text-white;
   }
 }
 

@@ -86,7 +86,12 @@ function App() {
             )
           }
         />
-        {user && <Route path="/tasks" element={<Tasks user={user} />} />}
+        {user && (
+          <Route
+            path="/tasks"
+            element={<Tasks user={user} />} // Tasks will use the updated theme
+          />
+        )}
         <Route path="/badge-lookup" element={<BadgeLookup />} />
         {user &&
           (user.isAdmin ||
@@ -95,7 +100,7 @@ function App() {
             )) && (
             <Route
               path="/admin-menu"
-              element={<AdminMenu currentUser={user} />} // Updated to pass `currentUser`
+              element={<AdminMenu currentUser={user} />} // AdminMenu will use the updated theme
             />
           )}
         {user && (
