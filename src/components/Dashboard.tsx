@@ -98,11 +98,15 @@ export default function Dashboard({ user }: { user: User }) {
               {link.Label}
             </button>
           ))}
+        </div>
+
+        {/* Trooper Quick Reference Button */}
+        <div className="trooper-top-right">
           <a
             href="https://script.google.com/macros/s/AKfycbwtIXoTvpYIxdvWRY1CJ9sy0ZZayRqbx43R9_VeVF7BVxK_xVyrhh9_yd4MSgWbl71L6g/exec"
             target="_blank"
             rel="noopener noreferrer"
-            className="roster-btn align-right"
+            className="roster-btn"
           >
             Trooper Quick Reference
           </a>

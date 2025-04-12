@@ -569,7 +569,7 @@ body {
 
 .trooper-top-right {
     position: fixed;
-    top: 1rem;
+    top: calc(6.5rem + 0.5rem); /* Align with .topbar height + extra spacing */
     right: 2rem;
     z-index: 999;
 }
