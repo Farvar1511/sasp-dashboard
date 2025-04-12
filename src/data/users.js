@@ -1,4 +1,4 @@
-import { getDatabase, ref, onValue } from "firebase/database"; // Import Firebase database functions
+import { getDatabase, ref, onValue, update } from "firebase/database"; // Import Firebase database functions
 
 // Function to listen for real-time updates to users from Firebase
 export const listenToUsers = (callback) => {
@@ -22,4 +22,22 @@ export const listenToUsers = (callback) => {
 export const hasAdminPrivileges = (rank) => {
   const adminRanks = ["Staff Sergeant", "Commander", "Commissioner"];
   return adminRanks.includes(rank);
+};
+
+/**
+ * Assign a task to a user in Firebase.
+ * @param {string} userId - The unique identifier for the user (e.g., CID or email).
+ * @param {object} task - The task object to assign.
+ */
+export const assignTask = async (userId, task) => {
+  const db = getDatabase();
+  const userTasksRef = ref(db, `users/${userId}/tasks`);
+  try {
+    await update(userTasksRef, {
+      [task.id]: task, // Use task ID as the key
+    });
+    console.log(`Task assigned to user ${userId}:`, task);
+  } catch (error) {
+    console.error("Error assigning task:", error);
+  }
 };

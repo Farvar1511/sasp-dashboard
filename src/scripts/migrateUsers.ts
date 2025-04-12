@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, setDoc, doc } from 'firebase/firestore';
-// 👇 change this line
 const { users } = require('../data/users');
 import * as dotenv from 'dotenv';
 
@@ -21,7 +20,12 @@ const db = getFirestore(app);
 (async () => {
   for (const user of users) {
     const docId = user.email || `badge-${user.badge}`;
-    await setDoc(doc(db, 'users', docId), user);
+    const userData = {
+      name: user.name,
+      rank: user.rank,
+      tasks: user.tasks || {} // Include tasks if available
+    };
+    await setDoc(doc(db, 'users', docId), userData);
     console.log(`✅ Uploaded: ${user.name} (${docId})`);
   }
   console.log('🎉 All users uploaded!');

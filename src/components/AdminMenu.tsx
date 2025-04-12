@@ -1,73 +1,118 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { db } from '../firebase';
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  getDoc
+} from 'firebase/firestore';
+import { v4 as uuidv4 } from 'uuid';
 import './AdminMenu.css';
-import { User } from '../types/User';
+
+interface Task {
+  id: string;
+  description: string;
+  assignedAt: string;
+  completed: boolean;
+}
+
+interface User {
+  email: string;
+  name: string;
+  rank: string;
+  tasks?: Task[];
+}
 
 interface AdminMenuProps {
   currentUser: User;
 }
 
 const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
-  const [users, setUsers] = useState<User[]>([]);
-  const [taskDescription, setTaskDescription] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  // 🔄 Load users
   useEffect(() => {
-    // Fetch users from the backend
-    axios.get(`${import.meta.env.VITE_API_URL}/api/users`, {
-      headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-    })
-      .then((res) => {
-        const usersWithTasks = res.data.map((user: User) => ({
-          ...user,
-          tasks: Array.isArray(user.tasks) ? user.tasks : [], // Ensure tasks is always an array
-        }));
-        setUsers(usersWithTasks);
-      })
-      .catch((err) => {
-        console.error('Error fetching users:', err);
-        setError('Failed to load users. Please try again later.');
-      });
+    const fetchUsers = async () => {
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const usersList: User[] = [];
+
+        for (const docSnap of usersSnap.docs) {
+          const data = docSnap.data();
+          const user: User = {
+            email: docSnap.id,
+            name: data.name,
+            rank: data.rank,
+            tasks: [],
+          };
+
+          // Fetch tasks from subcollection
+          const tasksSnap = await getDocs(collection(db, 'users', docSnap.id, 'tasks'));
+          tasksSnap.forEach((taskDoc) => {
+            const taskData = taskDoc.data();
+            user.tasks?.push({
+              id: taskDoc.id,
+              description: taskData.description,
+              assignedAt: taskData.assignedAt,
+              completed: taskData.completed,
+            });
+          });
+
+          usersList.push(user);
+        }
+
+        setUsers(usersList);
+      } catch (err) {
+        console.error('Failed to load users:', err);
+        setError('Failed to load users from Firestore.');
+      }
+    };
+
+    fetchUsers();
   }, []);
 
-  const assignTask = () => {
+  // 📝 Assign task
+  const assignTask = async () => {
     if (!selectedUserId || !taskDescription) {
       alert('Please select a user and enter a task.');
       return;
     }
 
-    console.log('Assigning task:', { userId: selectedUserId, task: taskDescription, adminId: currentUser.email });
+    const taskId = uuidv4();
+    const task: Task = {
+      id: taskId,
+      description: taskDescription,
+      assignedAt: new Date().toISOString(),
+      completed: false,
+    };
 
-    axios.post(`${import.meta.env.VITE_API_URL}/api/assign-task`, {
-      userId: selectedUserId,
-      task: taskDescription,
-      adminId: currentUser.email,
-    }, {
-      headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-    })
-      .then((res) => {
-        if (res.data.error) {
-          alert(res.data.error);
-        } else {
-          alert('Task assigned successfully.');
-          setTaskDescription('');
-          setSelectedUserId('');
-          setUsers((prevUsers) =>
-            prevUsers.map((user) =>
-              user.email === selectedUserId
-                ? { ...user, tasks: [...user.tasks, res.data.task] }
-                : user
-            )
-          );
-        }
-      })
-      .catch((err) => {
-        console.error('Error assigning task:', err.response || err);
-        setError('Failed to assign task. Please try again later.');
-      });
+    try {
+      const taskRef = doc(db, 'users', selectedUserId, 'tasks', taskId);
+      await setDoc(taskRef, task);
+
+      alert('✅ Task assigned!');
+      setTaskDescription('');
+      setSelectedUserId('');
+
+      // Update UI
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.email === selectedUserId
+            ? { ...user, tasks: [...(user.tasks || []), task] }
+            : user
+        )
+      );
+    } catch (err) {
+      console.error('Failed to assign task:', err);
+      setError('Error assigning task.');
+    }
   };
 
   if (error) {
@@ -75,7 +120,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
       <div className="error-message">
         <h2>Error</h2>
         <p>{error}</p>
-        <button onClick={() => navigate('/')}>Go Back to Dashboard</button>
+        <button onClick={() => navigate('/')}>Back to Dashboard</button>
       </div>
     );
   }
@@ -91,33 +136,32 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
 
       <div className="admin-menu-container">
         <h2>Admin Menu</h2>
+
         <div className="admin-menu">
-          <div>
-            <label>
-              Select User:
-              <select
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
-              >
-                <option value="">--Select User--</option>
-                {users.map((user) => (
-                  <option key={user.email} value={user.email}>
-                    {user.name} ({user.rank})
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div>
-            <label>
-              Task:
-              <input
-                type="text"
-                value={taskDescription}
-                onChange={(e) => setTaskDescription(e.target.value)}
-              />
-            </label>
-          </div>
+          <label>
+            Select User:
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+            >
+              <option value="">-- Select User --</option>
+              {users.map((user) => (
+                <option key={user.email} value={user.email}>
+                  {user.name} ({user.rank})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Task:
+            <input
+              type="text"
+              value={taskDescription}
+              onChange={(e) => setTaskDescription(e.target.value)}
+            />
+          </label>
+
           <button onClick={assignTask}>Assign Task</button>
         </div>
 
@@ -127,11 +171,10 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
             <div key={user.email} className="user-task-card">
               <h4>{user.name} ({user.rank})</h4>
               <ul>
-                {user.tasks.length > 0 ? (
+                {user.tasks && user.tasks.length > 0 ? (
                   user.tasks.map((task) => (
                     <li key={task.id} style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
-                      {task.description}
-                      {task.completed && <span> ✅</span>}
+                      {task.description} {task.completed && <span>✅</span>}
                     </li>
                   ))
                 ) : (

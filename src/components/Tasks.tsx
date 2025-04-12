@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import './Dashboard.css';
 
 interface Task {
@@ -18,45 +19,48 @@ export default function Tasks({ user }: { user: User }) {
   const navigate = useNavigate();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [error, setError] = useState<string | null>(null); // Add error state
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch tasks for the logged-in user
-    axios.get(`${import.meta.env.VITE_API_URL}/api/users`, {
-      headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-    })
-      .then((res) => {
-        const currentUser = res.data.find((u: User) => u.email === user.email);
-        if (currentUser && Array.isArray(currentUser.tasks)) {
-          setTasks(currentUser.tasks);
-        } else {
-          setTasks([]); // Ensure tasks is always an array
-        }
-      })
-      .catch((err) => {
-        console.error('Error fetching tasks:', err);
-        setError('Failed to load tasks. Please try again later.');
-      });
-  }, [user]);
+    if (!user.email) return;
 
-  const completeTask = (taskId: string) => {
-    axios.post(`${import.meta.env.VITE_API_URL}/api/complete-task`, {
-      userId: user.email,
-      taskId,
-    }, {
-      headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-    })
-      .then(() => {
-        setTasks((prevTasks) =>
-          prevTasks.map((task) =>
-            task.id === taskId ? { ...task, completed: true } : task
-          )
-        );
-      })
-      .catch((err) => {
-        console.error('Error completing task:', err);
-        setError('Failed to complete the task. Please try again later.');
+    const userDocRef = doc(db, 'users', user.email);
+
+    const unsubscribe = onSnapshot(userDocRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const tasksObj = data.tasks || {};
+        const tasksArray: Task[] = Object.values(tasksObj);
+        setTasks(tasksArray);
+      } else {
+        setTasks([]);
+      }
+    }, (error) => {
+      console.error("Error fetching tasks:", error);
+      setError("Failed to load tasks. Please try again later.");
+    });
+
+    return () => unsubscribe();
+  }, [user.email]);
+
+  const completeTask = async (taskId: string) => {
+    try {
+      const updatedTasks = tasks.map(task =>
+        task.id === taskId ? { ...task, completed: true } : task
+      );
+      setTasks(updatedTasks);
+
+      const newTaskMap: Record<string, Task> = {};
+      updatedTasks.forEach(task => {
+        newTaskMap[task.id] = task;
       });
+
+      const userDocRef = doc(db, 'users', user.email);
+      await updateDoc(userDocRef, { tasks: newTaskMap });
+    } catch (err) {
+      console.error('Error completing task:', err);
+      setError("Failed to update task.");
+    }
   };
 
   if (error) {
@@ -85,7 +89,7 @@ export default function Tasks({ user }: { user: User }) {
         )}
       </div>
 
-      {/* Main Page Content */}
+      {/* Main Content */}
       <div className="page-content">
         <div className="header-stack">
           <img
@@ -99,20 +103,36 @@ export default function Tasks({ user }: { user: User }) {
           </p>
         </div>
 
-        {/* Task Content */}
         <div className="tasks-page">
           <h2>Your Tasks</h2>
-          <ul>
-            {tasks.map((task) => (
-              <li key={task.id} style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
-                {task.description}
-                {!task.completed && (
-                  <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
-                )}
-                {task.completed && <span> ✅</span>}
-              </li>
-            ))}
-          </ul>
+          {tasks.length === 0 ? (
+            <p>No tasks assigned.</p>
+          ) : (
+            <ul>
+              {tasks.map(task => (
+                <li key={task.id} style={{ marginBottom: '10px', textDecoration: task.completed ? 'line-through' : 'none' }}>
+                  {task.description}
+                  {!task.completed && (
+                    <button
+                      onClick={() => completeTask(task.id)}
+                      style={{
+                        marginLeft: '10px',
+                        backgroundColor: '#222',
+                        color: '#FFD700',
+                        border: '1px solid #FFD700',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Mark as Completed
+                    </button>
+                  )}
+                  {task.completed && <span> ✅</span>}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>
