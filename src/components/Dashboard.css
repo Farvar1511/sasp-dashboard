@@ -112,25 +112,7 @@ body {
   display: flex;
   justify-content: center;
   gap: 1rem;
-  margin: 1rem 0 1rem; /* Reduced bottom margin */
-}
-
-.top-bar-button {
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  font-weight: bold;
-  text-align: center;
-  background-color: #222;
-  color: #FFD700;
-  border: 1px solid #FFD700;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.top-bar-button:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 1rem rgba(255, 215, 0, 0.6);
+  margin: 1rem 0 0.5rem; /* Reduced bottom margin */
 }
 
 /* === BACKGROUND === */
@@ -319,13 +301,12 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
-  margin-top: 1rem; /* Adjusted for tighter spacing */
-  font-family: 'Inter', sans-serif;
+  margin-top: 0.5rem; /* Reduced top margin */
 }
 
 .category-box {
-  background: rgba(34, 34, 34, 0.85); /* Translucent dark background */
-  border: 1px solid #FFD700; /* Gold outline */
+  background: rgba(34, 34, 34, 0.7); /* Reduced opacity for background visibility */
+  border: 1px solid #FFD700;
   border-radius: 0.5rem;
   padding: 1.25rem;
   box-shadow: 0 0 0.5rem rgba(255, 215, 0, 0.2);
@@ -562,6 +543,27 @@ body {
     top: 1rem;
     right: 2rem;
     z-index: 999;
+}
+
+.trooper-top-right .roster-btn {
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  font-weight: bold;
+  background: linear-gradient(145deg, #FFD700, #FFC107);
+  color: #222;
+  border: none;
+  border-radius: 0.75rem;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.4),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.trooper-top-right .roster-btn:hover {
+  background: linear-gradient(145deg, #FFE57F, #FFD54F);
+  transform: translateY(-2px);
+  box-shadow: 6px 6px 12px rgba(0, 0, 0, 0.5),
+    inset -3px -3px 6px rgba(255, 255, 255, 0.4);
 }
 
 /* Modal Overlay */

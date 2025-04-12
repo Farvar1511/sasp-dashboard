@@ -22,7 +22,7 @@ const links = [
   { Label: 'Case Law', Url: 'https://docs.google.com/document/d/1PGWz8yW8U2hvUMBq3aTUa3gu8WSJlilushztSyctUM8/edit?tab=t.0', Category: 'Department of Justice' },
   { Label: 'Bail Process', Url: 'https://docs.google.com/document/d/e/2PACX-1vSoUiYAA6zKbumFQ1cFr0jc5Tiu8lVhq0gHwu4XohpFUmoLSmN6tv_AP70thP47Y1vnS2yzQUlQZU-1/pub', Category: 'Department of Justice' },
   { Label: 'File A Warrant', Url: 'https://discord.com/channels/1045125896081788928/1114331045748289557/1199569024464457898', Category: 'Department of Justice' },
-  { Label: 'VIdeo Footage Guidelines', Url: 'https://docs.google.com/document/d/1bfGLiCfNrZZM0GqSphsswD51kj6uMeM5ofh4v8gerR8/edit?usp=sharing', Category: 'Department of Justice' },
+  { Label: 'Video Footage Guidelines', Url: 'https://docs.google.com/document/d/1bfGLiCfNrZZM0GqSphsswD51kj6uMeM5ofh4v8gerR8/edit?usp=sharing', Category: 'Department of Justice' },
   { Label: 'SASP Roster', Url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQY_reY_QNw_faOG9LvgJm0TiDujgCxXD3KXQQ37e6PMY44E9aRIQ_g-tUThtvnJQ1LHzSrZHuQRYyw/pubhtml?gid=1777737199', Category: 'Resources' },
   { Label: 'Fleet Management', Url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQBCfEXdC6jygMC25n1545ZZiNcWwzljaI09-1lqZjd5AHJrRoX38ecyDuZk_GMipcGpXkkuMF3XYR8/pubhtml?gid=0', Category: 'Resources' },
   { Label: 'Everfall Community', Url: 'https://www.everfallcommunity.com', Category: 'Community' },
