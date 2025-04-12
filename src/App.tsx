@@ -33,7 +33,7 @@ function App() {
               name: userData.name || 'Unknown',
               rank: userData.rank || 'Unknown',
               tasks: userData.tasks || [],
-              isAdmin: userData.isAdmin || false, // Fetch isAdmin from Firestore
+              isAdmin: userData.role === 'admin', // Map role to isAdmin
             });
           } else {
             console.error('User data not found in Firestore.');
