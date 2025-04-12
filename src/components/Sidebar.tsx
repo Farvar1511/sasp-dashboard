@@ -16,7 +16,7 @@ export default function Sidebar({ navigate, user }: { navigate: (path: string) =
       action: () => window.open('https://everfallcommunity.com', '_blank'), // Open in new tab
     },
     // Only show Admin Menu if the user has the appropriate rank
-    ...(user?.rank && ['Staff Sergeant', 'Commander', 'Commissioner'].includes(user.rank)
+    ...(user?.rank && ['Staff Sergeant', 'SSgt.', 'Commander', 'Commissioner'].includes(user.rank)
       ? [{ label: 'Admin Menu', path: '/admin-menu' }]
       : []),
   ];

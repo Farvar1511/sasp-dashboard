@@ -20,7 +20,7 @@ export const listenToUsers = (callback) => {
  * @returns {boolean} - True if the user has admin privileges, false otherwise.
  */
 export const hasAdminPrivileges = (rank) => {
-  const adminRanks = ["Staff Sergeant", "Commander", "Commissioner"];
+  const adminRanks = ["Staff Sergeant", "SSgt.", "Commander", "Commissioner"];
   return adminRanks.includes(rank);
 };
 
