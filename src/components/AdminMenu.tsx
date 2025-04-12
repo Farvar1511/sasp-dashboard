@@ -187,37 +187,41 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
           <button onClick={assignTask}>Assign Task</button>
         </div>
 
-        <div className="user-grid">
-          {users.map((user) => (
-            <div key={user.email} className="user-task-card">
-              <h4>{user.name} ({user.rank})</h4>
-              <ul>
-                {user.tasks.length > 0 ? (
-                  user.tasks.map((task) => (
-                    <li
-                      key={task.id}
-                      className={task.completed ? 'completed' : ''}
-                    >
-                      {task.description}
-                      {!task.completed && (
-                        <button
-                          className="delete-button"
-                          onClick={() => deleteTask(user.email, task.id)}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                            <path d="M3 6h18v2H3V6zm2 3h14v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm5 2v8h2v-8H8zm4 0v8h2v-8h-2zM9 4V2h6v2h5v2H4V4h5z" />
-                          </svg>
-                          Delete
-                        </button>
-                      )}
-                    </li>
-                  ))
-                ) : (
-                  <li>No tasks assigned</li>
-                )}
-              </ul>
-            </div>
-          ))}
+        <div className="user-tasks">
+          <h3>Users and Their Tasks</h3>
+
+          <div className="user-grid">
+            {users.map((user) => (
+              <div key={user.email} className="user-task-card">
+                <h4>{user.name} ({user.rank})</h4>
+                <ul>
+                  {user.tasks.length > 0 ? (
+                    user.tasks.map((task) => (
+                      <li
+                        key={task.id}
+                        className={task.completed ? 'completed' : ''}
+                      >
+                        {task.description}
+                        {!task.completed && (
+                          <button
+                            className="delete-button"
+                            onClick={() => deleteTask(user.email, task.id)}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                              <path d="M3 6h18v2H3V6zm2 3h14v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm5 2v8h2v-8H8zm4 0v8h2v-8h-2zM9 4V2h6v2h5v2H4V4h5z" />
+                            </svg>
+                            Delete
+                          </button>
+                        )}
+                      </li>
+                    ))
+                  ) : (
+                    <li>No tasks assigned</li>
+                  )}
+                </ul>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
