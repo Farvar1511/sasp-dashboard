@@ -52,7 +52,7 @@ export default function Dashboard({ user }: { user: User }) {
   return (
     <Layout user={user}>
       <div
-        className="fixed inset-0 bg-cover bg-center blur-sm opacity-50"
+        className="fixed inset-0 bg-cover bg-center blur-sm opacity-50 -z-10"
         style={{ backgroundImage: `url(${background})` }}
       />
       <div className="min-h-screen bg-black text-yellow-400 font-sans px-4 py-8 flex flex-col items-center">
@@ -61,7 +61,7 @@ export default function Dashboard({ user }: { user: User }) {
           <img
             src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
             alt="SASP Logo"
-            className="w-32 md:w-44 drop-shadow-lg"
+            className="w-24 md:w-32 max-w-full drop-shadow-lg"
           />
           <a
             href="https://script.google.com/macros/s/AKfycbwtIXoTvpYIxdvWRY1CJ9sy0ZZayRqbx43R9_VeVF7BVxK_xVyrhh9_yd4MSgWbl71L6g/exec"
@@ -73,28 +73,28 @@ export default function Dashboard({ user }: { user: User }) {
           </a>
         </div>
 
-        {/* Title */}
-        <h1 className="text-4xl font-black uppercase tracking-wide text-center drop-shadow-lg mb-1">
+        {/* Title & Greeting */}
+        <h1 className="text-4xl font-black uppercase text-center mb-1 drop-shadow-md">
           San Andreas State Police
         </h1>
         <p className="text-lg font-semibold text-center mb-4">{welcomeMessage}</p>
 
         {/* Clock */}
-        <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-52 mb-6 shadow">
-          <div className="font-mono text-md">
+        <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-52 mb-8 shadow">
+          <div className="font-mono text-md space-y-1">
             <div>{time.toLocaleDateString('en-US', { weekday: 'long' })}</div>
             <div>{time.toLocaleDateString('en-US')}</div>
             <div>{time.toLocaleTimeString()}</div>
           </div>
         </div>
 
-        {/* Top Links */}
-        <div className="flex gap-4 mb-8">
+        {/* Top Buttons */}
+        <div className="flex flex-wrap justify-center gap-4 mb-10">
           {topLinks.map((link) => (
             <button
               key={link.Label}
               onClick={() => openModal(link.Url)}
-              className="bg-yellow-400 text-black font-bold px-5 py-2 rounded-md shadow hover:bg-yellow-300 transition"
+              className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-lg shadow hover:bg-yellow-300 transition"
             >
               {link.Label}
             </button>
@@ -104,7 +104,7 @@ export default function Dashboard({ user }: { user: User }) {
         {/* Link Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl w-full">
           {Object.entries(groupedLinks).map(([category, items]) => (
-            <div key={category} className="bg-black/70 border border-yellow-400 rounded-lg p-4 shadow">
+            <div key={category} className="bg-black/70 border border-yellow-400 rounded-lg p-5 shadow-lg">
               <h3 className="text-xl font-bold mb-3">{category}</h3>
               {items.map((item) => (
                 <button
@@ -120,9 +120,10 @@ export default function Dashboard({ user }: { user: User }) {
         </div>
       </div>
 
+      {/* Modal */}
       {overlayUrl && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center pt-12 border-2 border-yellow-400">
-          <div className="w-full flex justify-end gap-2 px-4 py-2">
+        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center pt-12 px-4">
+          <div className="w-full max-w-6xl flex justify-end gap-2 mb-2">
             <a
               href={overlayUrl}
               target="_blank"
@@ -138,7 +139,7 @@ export default function Dashboard({ user }: { user: User }) {
               ✕
             </button>
           </div>
-          <div className="flex-grow w-11/12 h-5/6 bg-black border border-yellow-400 rounded-lg overflow-hidden">
+          <div className="flex-grow w-full max-w-6xl h-[90vh] bg-black border border-yellow-400 rounded-lg overflow-hidden">
             <iframe src={overlayUrl} title="Modal Content" className="w-full h-full border-none"></iframe>
           </div>
         </div>
