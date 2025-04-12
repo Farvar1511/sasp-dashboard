@@ -7,6 +7,7 @@ import {
   setDoc,
   deleteDoc,
   addDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import Layout from './Layout';
@@ -151,6 +152,30 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     }
   };
 
+  // ✏️ Edit task description
+  const editTaskDescription = async (userEmail: string, taskId: string, newDescription: string) => {
+    try {
+      const taskRef = doc(db, 'users', userEmail, 'tasks', taskId);
+      await updateDoc(taskRef, { description: newDescription });
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.email === userEmail
+            ? {
+                ...user,
+                tasks: user.tasks.map((task) =>
+                  task.id === taskId ? { ...task, description: newDescription } : task
+                ),
+              }
+            : user
+        )
+      );
+    } catch (err) {
+      console.error('Error editing task description:', err);
+      setError('Failed to edit task description.');
+    }
+  };
+
   // 📢 Create a bulletin
   const createBulletin = async () => {
     if (!bulletinTitle || !bulletinBody) {
@@ -270,15 +295,23 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
                     user.tasks.map((task) => (
                       <li key={task.id} className={task.completed ? 'completed' : ''}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>
-                            {task.description}
-                            {task.type === 'goal-oriented' && (
-                              <span style={{ marginLeft: '8px' }}>
-                                {task.progress}/{task.goal}
-                              </span>
-                            )}
-                            {task.completed && <span style={{ color: 'limegreen', marginLeft: '8px' }}>✅</span>}
-                          </span>
+                          {task.completed ? (
+                            <span>{task.description}</span>
+                          ) : (
+                            <input
+                              type="text"
+                              value={task.description}
+                              onChange={(e) =>
+                                editTaskDescription(user.email, task.id, e.target.value)
+                              }
+                            />
+                          )}
+                          {task.type === 'goal-oriented' && (
+                            <span style={{ marginLeft: '8px' }}>
+                              {task.progress}/{task.goal}
+                            </span>
+                          )}
+                          {task.completed && <span style={{ color: 'limegreen', marginLeft: '8px' }}>✅</span>}
                           <button
                             className="delete-icon"
                             onClick={() => deleteTask(user.email, task.id)}
