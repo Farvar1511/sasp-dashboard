@@ -1,12 +1,14 @@
 // tailwind.config.js
 /** @type {import('tailwindcss').Config} */
-export const content = ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"];
-export const theme = {
-  extend: {
-    fontFamily: {
-      sans: ["Inter", "sans-serif"], // ⬅️ enables `font-sans`
-      orbitron: ["Orbitron", "sans-serif"], // ⬅️ enables `font-orbitron`
+module.exports = {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ["Inter", "sans-serif"], // Enables `font-sans`
+        orbitron: ["Orbitron", "sans-serif"], // Enables `font-orbitron`
+      },
     },
   },
+  plugins: [],
 };
-export const plugins = [];
