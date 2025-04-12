@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -15,7 +15,6 @@ import AdminMenu from './components/AdminMenu';
 import { User } from './types/User';
 
 function App() {
-  // State to hold the current user (null means no user is logged in)
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true); // Add loading state
 
@@ -51,12 +50,6 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Handler function to log the user out
-  const handleLogout = () => {
-    console.log('User logged out');
-    setUser(null); // Clear the user state
-  };
-
   if (loading) {
     // Show a loading screen while user data is being fetched
     return <div>Loading...</div>;
@@ -65,22 +58,29 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Render Dashboard or Login based on user state */}
+        {/* Redirect to Login if user is not logged in */}
         <Route
           path="/"
           element={
             user ? (
-              <Dashboard user={user} /> // Render Dashboard if user is logged in
+              <Dashboard user={user} />
             ) : (
-              <Login onLogin={(loggedInUser) => setUser(loggedInUser)} /> // Render Login if no user is logged in
+              <Navigate to="/login" replace />
             )
           }
         />
-        {/* Render Tasks only if a user is logged in */}
+        <Route
+          path="/login"
+          element={
+            user ? (
+              <Navigate to="/" replace />
+            ) : (
+              <Login onLogin={(loggedInUser) => setUser(loggedInUser)} />
+            )
+          }
+        />
         {user && <Route path="/tasks" element={<Tasks user={user} />} />}
-        {/* Render Badge Lookup */}
         <Route path="/badge-lookup" element={<BadgeLookup />} />
-        {/* Render Admin Menu only if a user is logged in and has the required rank */}
         {user && user.rank && ['Staff Sergeant', 'Commander', 'Commissioner'].includes(user.rank) && (
           <Route path="/admin-menu" element={<AdminMenu currentUser={user} />} />
         )}
