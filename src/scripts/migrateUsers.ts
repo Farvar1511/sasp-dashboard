@@ -28,6 +28,7 @@ const db = getFirestore(app);
       name: user.name,
       rank: user.rank,
       tasks: user.tasks || {}, // Include tasks if available
+      CID: user.badge || '', // Include CID or badge as a fallback
     };
 
     await setDoc(doc(db, 'users', user.email), userData); // Use email as document ID

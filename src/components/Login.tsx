@@ -21,14 +21,19 @@ export default function Login({ onLogin }: Props) {
 
   const handleLogin = async () => {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const firebaseUser = userCredential.user;
-
-      const userDocRef = doc(db, 'users', firebaseUser.email!);
+      const userDocRef = doc(db, 'users', email);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
+
+        // If the user has not set a custom password, default to their CID
+        const defaultPassword = userData.CID || userData.badge || 'defaultPassword';
+        const loginPassword = password || defaultPassword;
+
+        const userCredential = await signInWithEmailAndPassword(auth, email, loginPassword);
+        const firebaseUser = userCredential.user;
+
         onLogin({
           email: firebaseUser.email,
           ...userData, // Populate additional user data from Firestore

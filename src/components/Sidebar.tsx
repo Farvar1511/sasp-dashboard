@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-export default function Sidebar({ navigate }: { navigate: (path: string) => void }) {
+export default function Sidebar({ navigate, user }: { navigate: (path: string) => void; user?: { rank?: string } }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const location = useLocation();
 
@@ -13,7 +13,10 @@ export default function Sidebar({ navigate }: { navigate: (path: string) => void
       label: 'Everfall Home',
       action: () => window.open('https://everfallcommunity.com', '_blank'), // Open in new tab
     },
-    { label: 'Admin Menu', path: '/admin-menu' },
+    // Only show Admin Menu if the user has the appropriate rank
+    ...(user?.rank && ['Staff Sergeant', 'Commander', 'Commissioner'].includes(user.rank)
+      ? [{ label: 'Admin Menu', path: '/admin-menu' }]
+      : []),
   ];
 
   return (
