@@ -31,18 +31,17 @@ export default function Sidebar({ navigate }: { navigate: (path: string) => void
                 {button.label}
               </button>
             ))}
+          <button
+            className="button-primary logout-button"
+            onClick={() => {
+              navigate('/'); // Navigate to the login page
+              window.location.reload(); // Clear user session
+            }}
+          >
+            Logout
+          </button>
         </>
       )}
-      {/* Logout button */}
-      <button
-        className="button-primary logout-button"
-        onClick={() => {
-          navigate('/'); // Navigate to the login page
-          window.location.reload(); // Clear user session
-        }}
-      >
-        Logout
-      </button>
     </div>
   );
 }

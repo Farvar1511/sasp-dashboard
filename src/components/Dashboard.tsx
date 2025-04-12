@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { hasAdminPrivileges } from '../data/users'; // Corrected import statement
 import Layout from './Layout';
+import links from '../data/links'; // Import links data
+import { images } from '../data/images'; // Import images data
 import './Dashboard.css';
 
 interface User {
@@ -18,30 +18,16 @@ interface Link {
 }
 
 export default function Dashboard({ user }: { user: User }) {
-  const [links, setLinks] = useState<Link[]>([]);
   const [background, setBackground] = useState('');
   const [time, setTime] = useState(new Date());
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const navigate = useNavigate();
 
-  const everfallUrl = 'https://www.everfallcommunity.com';
-  const trooperUrl = 'https://script.google.com/macros/s/AKfycbwtIXoTvpYIxdvWRY1CJ9sy0ZZayRqbx43R9_VeVF7BVxK_xVyrhh9_yd4MSgWbl71L6g/exec';
-  const rosterUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQY_reY_QNw_faOG9LvgJm0TiDujgCxXD3KXQQ37e6PMY44E9aRIQ_g-tUThtvnJQ1LHzSrZHuQRYyw/pubhtml?gid=1777737199';
-  const fleetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQBCfEXdC6jygMC25n1545ZZiNcWwzljaI09-1lqZjd5AHJrRoX38ecyDuZk_GMipcGpXkkuMF3XYR8/pubhtml?gid=0';
-
   useEffect(() => {
-    axios.get(`${import.meta.env.VITE_API_URL}/api/links`, {
-      headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-    })
-      .then(res => setLinks(res.data))
-      .catch(err => console.error('Error fetching links:', err));
-
-    axios.get(`${import.meta.env.VITE_API_URL}/api/background`, {
-      headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-    })
-      .then(res => setBackground(res.data.url))
-      .catch(err => console.error('Error fetching background:', err));
+    // Randomly select a background image from images.ts
+    const randomImage = images[Math.floor(Math.random() * images.length)];
+    setBackground(randomImage);
 
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
@@ -72,6 +58,21 @@ export default function Dashboard({ user }: { user: User }) {
 
   return (
     <Layout>
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundImage: `url(${background})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'blur(3px)',
+          zIndex: -1,
+          opacity: 0.5,
+        }}
+      />
       <div className="page-content">
         <div className="header-stack">
           <img
@@ -94,19 +95,26 @@ export default function Dashboard({ user }: { user: User }) {
         </div>
 
         <div className="action-buttons">
-          <button className="roster-btn" onClick={() => setOverlayUrl(rosterUrl)}>SASP Roster</button>
-          <button className="roster-btn" onClick={() => setOverlayUrl(fleetUrl)}>Fleet Management</button>
+          {links
+            .filter((link) => link.Category === 'Resources')
+            .map((link, i) => (
+              <button key={i} className="roster-btn" onClick={() => setOverlayUrl(link.Url)}>
+                {link.Label}
+              </button>
+            ))}
         </div>
 
         <div className="link-grid">
-          {Object.entries(links.reduce((acc, link) => {
-            acc[link.Category] = acc[link.Category] || [];
-            acc[link.Category].push(link);
-            return acc;
-          }, {} as Record<string, Link[]>)).map(([category, links]) => (
+          {Object.entries(
+            links.reduce((acc, link) => {
+              acc[link.Category] = acc[link.Category] || [];
+              acc[link.Category].push(link);
+              return acc;
+            }, {} as Record<string, Link[]>)
+          ).map(([category, categoryLinks]) => (
             <div className="link-card" key={category}>
               <h2>{category}</h2>
-              {links.map((link, i) => (
+              {categoryLinks.map((link, i) => (
                 <button key={i} className="button-primary" onClick={() => setOverlayUrl(link.Url)}>
                   {link.Label}
                 </button>

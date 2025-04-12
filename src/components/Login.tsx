@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import axios from 'axios';
+import { images } from '../data/images'; // Import images data
+import './Login.css';
 
 interface Props {
   onLogin: (user: any) => void;
@@ -14,11 +15,9 @@ export default function Login({ onLogin }: Props) {
   const [background, setBackground] = useState('');
 
   useEffect(() => {
-    axios.get(`${import.meta.env.VITE_API_URL}/api/background`, {
-      headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-    })
-      .then((res) => setBackground(res.data.url))
-      .catch((error) => console.error('Error fetching background:', error));
+    // Randomly select a background image from images.ts
+    const randomImage = images[Math.floor(Math.random() * images.length)];
+    setBackground(randomImage);
   }, []);
 
   const handleLogin = async () => {
