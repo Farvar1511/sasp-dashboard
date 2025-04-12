@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   collection,
   getDocs,
@@ -10,26 +10,31 @@ import {
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
 import { User as AuthUser } from "../types/User";
+import fullRosterTemplate, {
+  normalizeTemplateCertKeys,
+} from "../data/FullRosterData";
 
 const rankOrder: { [key: string]: number } = {
   Commissioner: 1,
-  "Deputy Commissioner": 2,
-  "Assistant Commissioner": 3,
-  Commander: 4,
-  Captain: 5,
-  Lieutenant: 6,
-  "Staff Sergeant": 7,
-  Sergeant: 8,
-  Corporal: 9,
-  "Trooper First Class": 10,
-  Trooper: 11,
-  Cadet: 12,
+  "Assistant Deputy Commissioner": 2,
+  "Deputy Commissioner": 3,
+  "Assistant Commissioner": 4,
+  Commander: 5,
+  Captain: 6,
+  Lieutenant: 7,
+  "Staff Sergeant": 8,
+  Sergeant: 9,
+  Corporal: 10,
+  "Trooper First Class": 11,
+  Trooper: 12,
+  Cadet: 13,
   Unknown: 99,
 };
 
 const rankCategories: { [key: string]: string[] } = {
   "High Command": [
     "Commissioner",
+    "Assistant Deputy Commissioner",
     "Deputy Commissioner",
     "Assistant Commissioner",
     "Commander",
@@ -39,6 +44,14 @@ const rankCategories: { [key: string]: string[] } = {
   "State Troopers": ["Corporal", "Trooper First Class", "Trooper"],
   Cadets: ["Cadet"],
 };
+
+const categoryOrder = [
+  "High Command",
+  "Command",
+  "Supervisors",
+  "State Troopers",
+  "Cadets",
+];
 
 type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
 
@@ -78,7 +91,7 @@ const certKeys: string[] = [
   "ACU",
   "CIU",
   "K9",
-  "Heat",
+  "HEAT",
   "MOTO",
   "FTO",
   "SWAT",
@@ -113,6 +126,7 @@ interface RosterUser {
   isActive?: boolean;
   discordId?: string;
   email?: string;
+  isPlaceholder?: boolean;
 }
 
 const processRosterData = (
@@ -121,33 +135,54 @@ const processRosterData = (
   sortedRoster: RosterUser[];
   groupedRoster: { [category: string]: RosterUser[] };
 } => {
-  const sortedRoster = [...usersData].sort((a, b) => {
+  const categorizedUsers = usersData
+    .map((user) => {
+      let category = null;
+      for (const cat of categoryOrder) {
+        if (rankCategories[cat]?.includes(user.rank)) {
+          category = cat;
+          break;
+        }
+      }
+      if (
+        !category &&
+        user.rank &&
+        user.rank !== "Unknown" &&
+        user.rank !== ""
+      ) {
+        console.warn(
+          `User ${user.name} (${user.callsign}) has rank "${user.rank}" which doesn't fit into defined categories.`
+        );
+      }
+      return { ...user, category };
+    })
+    .filter((user) => user.category !== null);
+
+  const sortedRoster = categorizedUsers.sort((a, b) => {
+    const categoryIndexA = categoryOrder.indexOf(a.category!);
+    const categoryIndexB = categoryOrder.indexOf(b.category!);
+    if (categoryIndexA !== categoryIndexB) {
+      return categoryIndexA - categoryIndexB;
+    }
+
     const rankA = rankOrder[a.rank] ?? rankOrder.Unknown;
     const rankB = rankOrder[b.rank] ?? rankOrder.Unknown;
     if (rankA !== rankB) {
       return rankA - rankB;
     }
-    return a.name.localeCompare(b.name);
+
+    const callsignA = a.callsign || "";
+    const callsignB = b.callsign || "";
+    return callsignA.localeCompare(callsignB);
   });
 
   const grouped: { [category: string]: RosterUser[] } = {};
-  Object.keys(rankCategories).forEach((category) => {
-    grouped[category] = [];
+  categoryOrder.forEach((cat) => {
+    grouped[cat] = [];
   });
-  grouped["Other"] = [];
 
   sortedRoster.forEach((u) => {
-    let foundCategory = false;
-    for (const category in rankCategories) {
-      if (rankCategories[category].includes(u.rank)) {
-        grouped[category].push(u);
-        foundCategory = true;
-        break;
-      }
-    }
-    if (!foundCategory) {
-      grouped["Other"].push(u);
-    }
+    grouped[u.category!].push(u);
   });
 
   return { sortedRoster, groupedRoster: grouped };
@@ -186,43 +221,150 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
   });
   const [addUserError, setAddUserError] = useState<string | null>(null);
 
+  const [searchTerm, setSearchTerm] = useState<string>("");
+
   useEffect(() => {
-    const fetchRoster = async () => {
+    const fetchAndMergeRoster = async () => {
       setLoading(true);
       setError(null);
       try {
         const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
-        const usersData = usersSnapshot.docs.map((doc) => {
+        const liveUsersData = usersSnapshot.docs.map((doc) => {
           const data = doc.data();
-
+          const normalizedCerts = data.certifications
+            ? Object.entries(data.certifications).reduce(
+                (acc, [key, value]) => {
+                  acc[key.toUpperCase()] = value as CertStatus;
+                  return acc;
+                },
+                {} as { [key: string]: CertStatus }
+              )
+            : {};
           return {
             id: doc.id,
             name: data.name || "Unknown",
             rank: data.rank || "Unknown",
             badge: data.badge || "N/A",
             callsign: data.callsign || "",
-            certifications: data.certifications || {},
+            certifications: normalizedCerts,
             loaStartDate: data.loaStartDate || undefined,
             loaEndDate: data.loaEndDate || undefined,
             isActive: data.isActive !== undefined ? data.isActive : true,
             discordId: data.discordId || "",
             email: doc.id,
+            isPlaceholder: false,
           } as RosterUser;
         });
 
-        const { sortedRoster, groupedRoster: processedGroupedRoster } =
-          processRosterData(usersData);
-        setRoster(sortedRoster);
-        setGroupedRoster(processedGroupedRoster);
+        const liveUserMap = new Map<string, RosterUser>();
+        liveUsersData.forEach((user) => {
+          if (user.callsign) {
+            liveUserMap.set(user.callsign, user);
+          }
+        });
+
+        const mergedRoster: RosterUser[] = fullRosterTemplate.map(
+          (templateEntry) => {
+            const liveUser = templateEntry.callsign
+              ? liveUserMap.get(templateEntry.callsign)
+              : undefined;
+            if (liveUser) {
+              return {
+                ...liveUser,
+                callsign: templateEntry.callsign,
+                isPlaceholder: false,
+              };
+            } else {
+              return {
+                id: `template-${templateEntry.callsign || Math.random()}`,
+                name: templateEntry.name,
+                rank: templateEntry.rank,
+                badge: templateEntry.badge || "N/A",
+                callsign: templateEntry.callsign,
+                certifications: normalizeTemplateCertKeys(
+                  templateEntry.certifications
+                ),
+                loaStartDate: templateEntry.loaStartDate || undefined,
+                loaEndDate: templateEntry.loaEndDate || undefined,
+                isActive:
+                  typeof templateEntry.isActive === "boolean"
+                    ? templateEntry.isActive
+                    : false,
+                discordId: templateEntry.discordId || "",
+                email: templateEntry.email || "",
+                isPlaceholder: true,
+              } as RosterUser;
+            }
+          }
+        );
+
+        setRoster(mergedRoster);
       } catch (err) {
-        console.error("Error fetching roster:", err);
+        console.error("Error fetching or merging roster:", err);
         setError("Failed to load roster. Please try again later.");
       } finally {
         setLoading(false);
       }
     };
-    fetchRoster();
+
+    fetchAndMergeRoster();
   }, []);
+
+  const processedAndFilteredRoster = useMemo(() => {
+    if (!roster || roster.length === 0) {
+      return { filtered: [], grouped: {} };
+    }
+
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    const filtered = lowerSearchTerm
+      ? roster.filter(
+          (u) =>
+            u.name?.toLowerCase().includes(lowerSearchTerm) ||
+            u.badge?.toLowerCase().includes(lowerSearchTerm) ||
+            u.callsign?.toLowerCase().includes(lowerSearchTerm)
+        )
+      : roster;
+
+    const grouped: { [category: string]: RosterUser[] } = {};
+    categoryOrder.forEach((cat) => {
+      grouped[cat] = [];
+    });
+
+    const sortedFiltered = [...filtered].sort((a, b) => {
+      const rankA = rankOrder[a.rank] ?? rankOrder.Unknown;
+      const rankB = rankOrder[b.rank] ?? rankOrder.Unknown;
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+      const callsignA = a.callsign || "";
+      const callsignB = b.callsign || "";
+      return callsignA.localeCompare(callsignB);
+    });
+
+    sortedFiltered.forEach((u) => {
+      let foundCategory = false;
+      for (const category of categoryOrder) {
+        if (rankCategories[category]?.includes(u.rank)) {
+          grouped[category].push(u);
+          foundCategory = true;
+          break;
+        }
+      }
+    });
+
+    const finalGrouped: { [category: string]: RosterUser[] } = {};
+    categoryOrder.forEach((cat) => {
+      if (grouped[cat] && grouped[cat].length > 0) {
+        finalGrouped[cat] = grouped[cat];
+      }
+    });
+
+    return { filtered: sortedFiltered, grouped: finalGrouped };
+  }, [roster, searchTerm]);
+
+  useEffect(() => {
+    setGroupedRoster(processedAndFilteredRoster.grouped);
+  }, [processedAndFilteredRoster]);
 
   const handleEditChange = (field: keyof RosterUser, value: any) => {
     if (!editingUser) return;
@@ -245,7 +387,11 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
   };
 
   const saveUserChanges = async () => {
-    if (!editingUser) return;
+    if (!editingUser || editingUser.name === "VACANT") {
+      console.warn("Attempted to save a vacant roster entry.");
+      setEditingUser(null);
+      return;
+    }
 
     const userDocRef = doc(dbFirestore, "users", editingUser.id);
     const cleanCertifications = certKeys.reduce((acc, key) => {
@@ -269,7 +415,6 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
 
     delete dataToUpdate.id;
     delete dataToUpdate.email;
-
     dataToUpdate.loaStartDate = dataToUpdate.loaStartDate || null;
     dataToUpdate.loaEndDate = dataToUpdate.loaEndDate || null;
 
@@ -284,13 +429,16 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
       };
 
       const updatedRosterList = roster.map((u) =>
-        u.id === editingUser.id ? updatedUserForState : u
+        u.id === editingUser.id
+          ? { ...updatedUserForState, isPlaceholder: false }
+          : u
       );
+
       const { sortedRoster, groupedRoster: updatedGroupedRoster } =
         processRosterData(updatedRosterList);
+
       setRoster(sortedRoster);
       setGroupedRoster(updatedGroupedRoster);
-
       setEditingUser(null);
     } catch (err) {
       console.error("Error updating user:", err);
@@ -308,17 +456,18 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
 
   const handleAddNewUser = async () => {
     setAddUserError(null);
+
     if (!newUser.email || !newUser.name || !newUser.badge || !newUser.rank) {
       setAddUserError("Email, Name, Badge, and Rank are required.");
       return;
     }
+
     if (!/\S+@\S+\.\S+/.test(newUser.email)) {
       setAddUserError("Please enter a valid email address.");
       return;
     }
 
     const userDocRef = doc(dbFirestore, "users", newUser.email);
-
     const userDataToAdd = {
       name: newUser.name,
       rank: newUser.rank,
@@ -346,11 +495,17 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
         loaEndDate: userDataToAdd.loaEndDate || undefined,
         isActive: userDataToAdd.isActive,
         discordId: userDataToAdd.discordId,
+        isPlaceholder: false,
       };
 
-      const updatedRosterList = [...roster, addedUser];
+      const updatedRosterList = [
+        ...roster.filter((u) => u.callsign !== addedUser.callsign),
+        addedUser,
+      ];
+
       const { sortedRoster, groupedRoster: updatedGroupedRoster } =
         processRosterData(updatedRosterList);
+
       setRoster(sortedRoster);
       setGroupedRoster(updatedGroupedRoster);
 
@@ -362,6 +517,7 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
         isActive: true,
         certifications: {},
       });
+
       setShowAddUserForm(false);
       alert("Trooper added successfully!");
     } catch (err) {
@@ -452,6 +608,16 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
           </div>
         )}
 
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search by Name, Badge, or Callsign..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input w-full md:w-1/2 lg:w-1/3"
+          />
+        </div>
+
         {loading && <p className="text-yellow-400 italic">Loading roster...</p>}
         {error && <p className="text-red-500">{error}</p>}
 
@@ -486,293 +652,339 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                 ([category, usersInCategory]) =>
                   usersInCategory.length > 0 ? (
                     <tbody key={category} className="text-gray-300">
-                      {usersInCategory.map((u, index) => (
-                        <tr
-                          key={u.id}
-                          className="border-t border-gray-700 hover:bg-gray-800/50"
-                        >
-                          {index === 0 && (
-                            <td
-                              rowSpan={usersInCategory.length}
-                              className="p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300 category-vertical"
-                              style={{ writingMode: "vertical-lr" }}
-                            >
-                              {category}
-                            </td>
-                          )}
-                          {editingUser?.id === u.id ? (
-                            <>
-                              <td className="p-1 border-r border-gray-600">
-                                <input
-                                  type="text"
-                                  value={editingUser.badge || ""}
-                                  onChange={(e) =>
-                                    handleEditChange("badge", e.target.value)
-                                  }
-                                  className="input-table"
-                                />
-                              </td>
-                              <td className="p-1 border-r border-gray-600">
-                                <select
-                                  value={editingUser.rank}
-                                  onChange={(e) =>
-                                    handleEditChange("rank", e.target.value)
-                                  }
-                                  className="input-table bg-[#f3c700] text-black font-semibold"
-                                >
-                                  {Object.keys(rankOrder)
-                                    .filter((r) => r !== "Unknown")
-                                    .sort((a, b) => rankOrder[a] - rankOrder[b])
-                                    .map((rank) => (
-                                      <option
-                                        key={rank}
-                                        value={rank}
-                                        className="text-white bg-gray-700 font-normal"
-                                      >
-                                        {rank}
-                                      </option>
-                                    ))}
-                                </select>
-                              </td>
-                              <td className="p-1 border-r border-gray-600">
-                                {u.name}
-                              </td>
-                              <td className="p-1 border-r border-gray-600">
-                                <input
-                                  type="text"
-                                  value={editingUser.callsign || ""}
-                                  onChange={(e) =>
-                                    handleEditChange("callsign", e.target.value)
-                                  }
-                                  className="input-table"
-                                />
-                              </td>
-                              {certificationKeys.map((certKey) => {
-                                const currentStatus =
-                                  editingUser.certifications?.[certKey] || null;
-                                const style = getCertStyle(currentStatus);
-                                return (
-                                  <td
-                                    key={certKey}
-                                    className="p-1 border-r border-gray-600"
-                                  >
-                                    <select
-                                      value={currentStatus || ""}
-                                      onChange={(e) =>
-                                        handleCertChange(
-                                          certKey,
-                                          e.target.value as CertStatus
-                                        )
-                                      }
-                                      className={`input-table ${style.bgColor} ${style.textColor}`}
-                                      style={{ colorScheme: "dark" }}
-                                    >
-                                      {certOptions.map((opt) => (
-                                        <option
-                                          key={opt.label}
-                                          value={opt.value || ""}
-                                          className={`${opt.bgColor} ${opt.textColor}`}
-                                        >
-                                          {opt.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                );
-                              })}
-                              {divisionKeys.map((divKey) => {
-                                const currentStatus =
-                                  editingUser.certifications?.[divKey] || null;
-                                const style = getCertStyle(currentStatus);
-                                return (
-                                  <td
-                                    key={divKey}
-                                    className="p-1 border-r border-gray-600"
-                                  >
-                                    <select
-                                      value={currentStatus || ""}
-                                      onChange={(e) =>
-                                        handleCertChange(
-                                          divKey,
-                                          e.target.value as CertStatus
-                                        )
-                                      }
-                                      className={`input-table ${style.bgColor} ${style.textColor}`}
-                                      style={{ colorScheme: "dark" }}
-                                    >
-                                      {certOptions.map((opt) => (
-                                        <option
-                                          key={opt.label}
-                                          value={opt.value || ""}
-                                          className={`${opt.bgColor} ${opt.textColor}`}
-                                        >
-                                          {opt.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                );
-                              })}
-                              <td className="p-1 border-r border-gray-600">
-                                <input
-                                  type="date"
-                                  value={formatDateForInput(
-                                    editingUser.loaStartDate
-                                  )}
-                                  onChange={(e) =>
-                                    handleEditChange(
-                                      "loaStartDate",
-                                      e.target.value || null
-                                    )
-                                  }
-                                  className="input-table"
-                                />
-                              </td>
-                              <td className="p-1 border-r border-gray-600">
-                                <input
-                                  type="date"
-                                  value={formatDateForInput(
-                                    editingUser.loaEndDate
-                                  )}
-                                  onChange={(e) =>
-                                    handleEditChange(
-                                      "loaEndDate",
-                                      e.target.value || null
-                                    )
-                                  }
-                                  className="input-table"
-                                />
-                              </td>
-                              <td className="p-1 border-r border-gray-600 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={!!editingUser.isActive}
-                                  onChange={(e) =>
-                                    handleEditChange(
-                                      "isActive",
-                                      e.target.checked
-                                    )
-                                  }
-                                  className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
-                                />
-                              </td>
-                              <td className="p-1 border-r border-gray-600">
-                                <input
-                                  type="text"
-                                  value={editingUser.discordId || ""}
-                                  onChange={(e) =>
-                                    handleEditChange(
-                                      "discordId",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="input-table"
-                                />
-                              </td>
-                              <td className="p-1 flex gap-1">
-                                <button
-                                  onClick={saveUserChanges}
-                                  className="button-primary text-xs px-1 py-0.5"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={() => setEditingUser(null)}
-                                  className="button-secondary text-xs px-1 py-0.5"
-                                >
-                                  Cancel
-                                </button>
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="p-2 border-r border-gray-600">
-                                {u.badge}
-                              </td>
-                              <td className="p-2 border-r border-gray-600 bg-[#f3c700] text-black font-semibold">
-                                {u.rank}
-                              </td>
-                              <td className="p-2 border-r border-gray-600">
-                                {u.name}
-                              </td>
-                              <td className="p-2 border-r border-gray-600">
-                                {u.callsign}
-                              </td>
-                              {certificationKeys.map((certKey) => {
-                                const currentStatus =
-                                  u.certifications?.[certKey] || null;
-                                const style = getCertStyle(currentStatus);
-                                return (
-                                  <td
-                                    key={certKey}
-                                    className={`p-0 border-r border-gray-600 text-center align-middle`}
-                                  >
-                                    <span
-                                      className={`block w-full h-full px-2 py-2 font-semibold ${style.bgColor} ${style.textColor}`}
-                                    >
-                                      {currentStatus || "-"}
-                                    </span>
-                                  </td>
-                                );
-                              })}
-                              {divisionKeys.map((divKey) => {
-                                const currentStatus =
-                                  u.certifications?.[divKey] || null;
-                                const style = getCertStyle(currentStatus);
-                                return (
-                                  <td
-                                    key={divKey}
-                                    className={`p-0 border-r border-gray-600 text-center align-middle`}
-                                  >
-                                    <span
-                                      className={`block w-full h-full px-2 py-2 font-semibold ${style.bgColor} ${style.textColor}`}
-                                    >
-                                      {currentStatus || "-"}
-                                    </span>
-                                  </td>
-                                );
-                              })}
-                              <td className="p-2 border-r border-gray-600">
-                                {u.loaStartDate
-                                  ? formatDateForInput(u.loaStartDate)
-                                  : "-"}
-                              </td>
-                              <td className="p-2 border-r border-gray-600">
-                                {u.loaEndDate
-                                  ? formatDateForInput(u.loaEndDate)
-                                  : "-"}
-                              </td>
+                      {usersInCategory.map((u, index) => {
+                        const isVacant = u.name === "VACANT";
+                        return (
+                          <tr
+                            key={u.id}
+                            className={`border-t border-gray-700 hover:bg-gray-800/50 ${
+                              isVacant ? "italic opacity-60" : ""
+                            } ${!isVacant && !u.isActive ? "opacity-60" : ""}`}
+                          >
+                            {index === 0 && (
                               <td
-                                className={`p-0 border-r border-gray-600 text-center align-middle`}
+                                rowSpan={usersInCategory.length}
+                                className="p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300 category-vertical"
+                                style={{ writingMode: "vertical-lr" }}
                               >
-                                <span
-                                  className={`block w-full h-full px-2 py-2 font-semibold ${
-                                    u.isActive
-                                      ? "bg-green-600 text-white"
-                                      : "bg-red-600 text-white"
+                                {category}
+                              </td>
+                            )}
+
+                            {editingUser?.id === u.id && !isVacant ? (
+                              <>
+                                <td className="p-1 border-r border-gray-600">
+                                  <input
+                                    type="text"
+                                    value={editingUser.badge || ""}
+                                    onChange={(e) =>
+                                      handleEditChange("badge", e.target.value)
+                                    }
+                                    className="input-table"
+                                  />
+                                </td>
+                                <td className="p-1 border-r border-gray-600">
+                                  <select
+                                    value={editingUser.rank}
+                                    onChange={(e) =>
+                                      handleEditChange("rank", e.target.value)
+                                    }
+                                    className="input-table bg-[#f3c700] text-black font-semibold"
+                                  >
+                                    {Object.keys(rankOrder)
+                                      .filter((r) => r !== "Unknown")
+                                      .sort(
+                                        (a, b) => rankOrder[a] - rankOrder[b]
+                                      )
+                                      .map((rank) => (
+                                        <option
+                                          key={rank}
+                                          value={rank}
+                                          className="text-white bg-gray-700 font-normal"
+                                        >
+                                          {rank}
+                                        </option>
+                                      ))}
+                                  </select>
+                                </td>
+                                <td className="p-1 border-r border-gray-600">
+                                  {u.name}
+                                </td>
+                                <td className="p-1 border-r border-gray-600">
+                                  <input
+                                    type="text"
+                                    value={editingUser.callsign || ""}
+                                    onChange={(e) =>
+                                      handleEditChange(
+                                        "callsign",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="input-table"
+                                  />
+                                </td>
+                                {certificationKeys.map((certKey) => {
+                                  const currentStatus =
+                                    editingUser.certifications?.[certKey] ||
+                                    null;
+                                  const style = getCertStyle(currentStatus);
+                                  return (
+                                    <td
+                                      key={certKey}
+                                      className="p-1 border-r border-gray-600"
+                                    >
+                                      <select
+                                        value={currentStatus || ""}
+                                        onChange={(e) =>
+                                          handleCertChange(
+                                            certKey,
+                                            e.target.value as CertStatus
+                                          )
+                                        }
+                                        className={`input-table ${style.bgColor} ${style.textColor}`}
+                                        style={{ colorScheme: "dark" }}
+                                      >
+                                        {certOptions.map((opt) => (
+                                          <option
+                                            key={opt.label}
+                                            value={opt.value || ""}
+                                            className={`${opt.bgColor} ${opt.textColor}`}
+                                          >
+                                            {opt.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                  );
+                                })}
+                                {divisionKeys.map((divKey) => {
+                                  const currentStatus =
+                                    editingUser.certifications?.[divKey] ||
+                                    null;
+                                  const style = getCertStyle(currentStatus);
+                                  return (
+                                    <td
+                                      key={divKey}
+                                      className="p-1 border-r border-gray-600"
+                                    >
+                                      <select
+                                        value={currentStatus || ""}
+                                        onChange={(e) =>
+                                          handleCertChange(
+                                            divKey,
+                                            e.target.value as CertStatus
+                                          )
+                                        }
+                                        className={`input-table ${style.bgColor} ${style.textColor}`}
+                                        style={{ colorScheme: "dark" }}
+                                      >
+                                        {certOptions.map((opt) => (
+                                          <option
+                                            key={opt.label}
+                                            value={opt.value || ""}
+                                            className={`${opt.bgColor} ${opt.textColor}`}
+                                          >
+                                            {opt.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                  );
+                                })}
+                                <td className="p-1 border-r border-gray-600">
+                                  <input
+                                    type="date"
+                                    value={formatDateForInput(
+                                      editingUser.loaStartDate
+                                    )}
+                                    onChange={(e) =>
+                                      handleEditChange(
+                                        "loaStartDate",
+                                        e.target.value || null
+                                      )
+                                    }
+                                    className="input-table"
+                                  />
+                                </td>
+                                <td className="p-1 border-r border-gray-600">
+                                  <input
+                                    type="date"
+                                    value={formatDateForInput(
+                                      editingUser.loaEndDate
+                                    )}
+                                    onChange={(e) =>
+                                      handleEditChange(
+                                        "loaEndDate",
+                                        e.target.value || null
+                                      )
+                                    }
+                                    className="input-table"
+                                  />
+                                </td>
+                                <td className="p-1 border-r border-gray-600 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!editingUser.isActive}
+                                    onChange={(e) =>
+                                      handleEditChange(
+                                        "isActive",
+                                        e.target.checked
+                                      )
+                                    }
+                                    className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                                  />
+                                </td>
+                                <td className="p-1 border-r border-gray-600">
+                                  <input
+                                    type="text"
+                                    value={editingUser.discordId || ""}
+                                    onChange={(e) =>
+                                      handleEditChange(
+                                        "discordId",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="input-table"
+                                  />
+                                </td>
+                                <td className="p-1 flex gap-1">
+                                  <button
+                                    onClick={saveUserChanges}
+                                    className="button-primary text-xs px-1 py-0.5"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingUser(null)}
+                                    className="button-secondary text-xs px-1 py-0.5"
+                                  >
+                                    Cancel
+                                  </button>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="p-2 border-r border-gray-600 font-mono">
+                                  {u.badge}
+                                </td>
+                                <td
+                                  className={`p-2 border-r border-gray-600 ${
+                                    u.rank
+                                      ? "bg-[#f3c700] text-black font-semibold"
+                                      : ""
                                   }`}
                                 >
-                                  {u.isActive ? "YES" : "NO"}
-                                </span>
-                              </td>
-                              <td className="p-2 border-r border-gray-600">
-                                {u.discordId || "-"}
-                              </td>
-                              <td className="p-2">
-                                <button
-                                  onClick={() => setEditingUser(u)}
-                                  className="button-secondary text-xs px-1 py-0.5"
+                                  {u.rank || "-"}
+                                </td>
+                                <td className="p-2 border-r border-gray-600">
+                                  {u.name}
+                                </td>
+                                <td className="p-2 border-r border-gray-600">
+                                  {u.callsign}
+                                </td>
+                                {certificationKeys.map((certKey) => {
+                                  const currentStatus =
+                                    u.certifications?.[certKey] || null;
+                                  const style = getCertStyle(currentStatus);
+                                  return (
+                                    <td
+                                      key={certKey}
+                                      className={`p-0 border-r border-gray-600 text-center align-middle`}
+                                    >
+                                      <span
+                                        className={`block w-full h-full px-2 py-2 font-semibold ${style.bgColor} ${style.textColor}`}
+                                      >
+                                        {currentStatus || "-"}
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                                {divisionKeys.map((divKey) => {
+                                  const currentStatus =
+                                    u.certifications?.[divKey] || null;
+                                  const style = getCertStyle(currentStatus);
+                                  return (
+                                    <td
+                                      key={divKey}
+                                      className={`p-0 border-r border-gray-600 text-center align-middle`}
+                                    >
+                                      <span
+                                        className={`block w-full h-full px-2 py-2 font-semibold ${style.bgColor} ${style.textColor}`}
+                                      >
+                                        {currentStatus || "-"}
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                                <td className="p-2 border-r border-gray-600">
+                                  {u.loaStartDate
+                                    ? formatDateForInput(u.loaStartDate)
+                                    : "-"}
+                                </td>
+                                <td className="p-2 border-r border-gray-600">
+                                  {u.loaEndDate
+                                    ? formatDateForInput(u.loaEndDate)
+                                    : "-"}
+                                </td>
+                                <td
+                                  className={`p-0 border-r border-gray-600 text-center align-middle`}
                                 >
-                                  Edit
-                                </button>
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
+                                  {u.name === "VACANT" ? (
+                                    <span className="block w-full h-full px-2 py-2 text-gray-500">
+                                      -
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={`block w-full h-full px-2 py-2 font-semibold ${
+                                        u.isActive
+                                          ? "bg-green-600 text-white"
+                                          : "bg-red-600 text-white"
+                                      }`}
+                                    >
+                                      {u.isActive ? "YES" : "NO"}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-2 border-r border-gray-600">
+                                  {u.discordId || "-"}
+                                </td>
+                                <td className="p-2">
+                                  <button
+                                    onClick={() =>
+                                      u.name !== "VACANT" && setEditingUser(u)
+                                    }
+                                    className={`button-secondary text-xs px-1 py-0.5 ${
+                                      u.name === "VACANT"
+                                        ? "opacity-30 cursor-not-allowed"
+                                        : ""
+                                    }`}
+                                    disabled={u.name === "VACANT"}
+                                  >
+                                    Edit
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   ) : null
               )}
+              {Object.keys(groupedRoster).length === 0 &&
+                !loading &&
+                searchTerm && (
+                  <tbody>
+                    <tr>
+                      <td
+                        colSpan={15}
+                        className="text-center p-4 text-gray-400 italic"
+                      >
+                        No troopers found matching "{searchTerm}".
+                      </td>
+                    </tr>
+                  </tbody>
+                )}
             </table>
           </div>
         )}
@@ -793,7 +1005,7 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                     color-scheme: dark;
                 }
                 .input-table select {
-                    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="%23a0aec0"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 111.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 010-1.414z" clip-rule="evenodd"/></svg>');
+                    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="%23a0aec0"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 111.414 1.414l-4 4a1 1 01-1.414 0l-4-4a 1 1 010-1.414z" clip-rule="evenodd"/></svg>');
                     background-repeat: no-repeat;
                     background-position: right 0.5rem center;
                     background-size: 1.5em 1.5em;

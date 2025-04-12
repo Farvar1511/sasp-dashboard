@@ -110,13 +110,15 @@ export default function Dashboard({ user }: { user: User }) {
           {topLinks.map((link) => (
             <button
               key={link.Label}
-              // Conditionally set onClick based on the link label
-              onClick={
-                () =>
-                  link.Label === "SASP Roster"
-                    ? navigate("/sasp-roster") // Navigate for SASP Roster
-                    : openModal(link.Url) // Open modal for others
-              }
+              onClick={() => {
+                if (link.Label === "SASP Roster") {
+                  navigate("/sasp-roster");
+                } else if (link.Label === "Fleet Management") {
+                  navigate("/fleet"); // Navigate to /fleet for Fleet Management button
+                } else {
+                  openModal(link.Url); // Fallback for any other unexpected top links
+                }
+              }}
               className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-lg shadow hover:scale-105 hover:bg-yellow-300 transition-transform duration-150"
             >
               {link.Label}

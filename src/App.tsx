@@ -5,9 +5,11 @@ import Tasks from "./components/Tasks";
 import Bulletins from "./components/Bulletins";
 import BadgeLookup from "./components/BadgeLookup";
 import AdminMenu from "./components/AdminMenu";
-import DisciplineNotes from "./components/DisciplineNotes"; // Ensure the file exists at this path
+import DisciplineNotes from "./components/DisciplineNotes";
 import RosterManagement from "./components/RosterManagement";
-import SASPRoster from "./components/SASPRoster"; // Import the new component
+import SASPRoster from "./components/SASPRoster";
+import FleetManagement from "./components/FleetManagement"; // Import Admin Fleet
+import Fleet from "./components/Fleet"; // Import User Fleet View
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -33,8 +35,9 @@ function AppContent() {
         <Route path="/tasks" element={<Tasks user={user!} />} />
         <Route path="/bulletins" element={<Bulletins user={user!} />} />
         <Route path="/badge-lookup" element={<BadgeLookup />} />
-        <Route path="/sasp-roster" element={<SASPRoster user={user!} />} />{" "}
-        {/* Add route for SASPRoster */}
+        <Route path="/sasp-roster" element={<SASPRoster user={user!} />} />
+        <Route path="/fleet" element={<Fleet user={user!} />} />{" "}
+        {/* Add route for Fleet view */}
         {/* Admin Routes */}
         <Route element={<AdminRoute user={user} />}>
           <Route path="/admin" element={<AdminMenu user={user!} />} />
@@ -45,6 +48,10 @@ function AppContent() {
           <Route
             path="/admin/roster"
             element={<RosterManagement user={user!} />}
+          />
+          <Route
+            path="/admin/fleet"
+            element={<FleetManagement user={user!} />} // Add route for Fleet Management
           />
         </Route>
       </Route>

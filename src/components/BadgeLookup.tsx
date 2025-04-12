@@ -1,250 +1,475 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  getDoc,
+  Timestamp,
+} from "firebase/firestore";
+import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
-import { images } from "../data/images"; // Import images
+import { useAuth } from "../context/AuthContext";
 
-// Define the data structure for a trooper from the Roster sheet
-interface RosterData {
-  Badge: string; // e.g. "204"
-  Name: string; // e.g. "John Smith"
-  Rank: string; // e.g. "Corporal"
-  Callsign: string; // e.g. "1K-100"
-  SWAT?: string; // Optional SWAT info
-  AssignedVehicles?: string; // Optional comma-separated list of assigned vehicles
+// --- Types ---
+type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
+
+// Use rankOrder for comparisons
+const rankOrder: { [key: string]: number } = {
+  Commissioner: 1,
+  "Assistant Deputy Commissioner": 2,
+  "Deputy Commissioner": 3,
+  "Assistant Commissioner": 4,
+  Commander: 5,
+  Captain: 6,
+  Lieutenant: 7, // Command starts here
+  "Staff Sergeant": 8,
+  Sergeant: 9, // Supervisors start here
+  Corporal: 10,
+  "Trooper First Class": 11,
+  Trooper: 12,
+  Cadet: 13,
+  Unknown: 99,
+};
+
+interface RosterUser {
+  id: string;
+  name: string;
+  rank: string;
+  badge?: string;
+  callsign?: string;
+  certifications?: { [key: string]: CertStatus | undefined };
+  loaStartDate?: string | Timestamp;
+  loaEndDate?: string | Timestamp;
+  isActive?: boolean;
+  discordId?: string;
+  assignedVehicleId?: string;
+  email?: string; // Keep email if it's the ID
 }
 
-// Define the structure for fleet entries from the Fleet sheet
-interface FleetData {
-  Vehicle: string; // e.g. "Nagasaki Outlaw (Offroad)"
-  Ranks: string; // Comma-separated list e.g. "Trooper, Corporal, Sergeant"
-  Type: string; // "Communal" or "Assigned"
+// Updated Vehicle interface based on prompt
+interface Vehicle {
+  id: string;
+  vehicle: string; // Model name
+  plate?: string;
+  division?: string; // e.g., Patrol, HEAT, MOTO, ACU, SWAT
+  restrictions?: string; // e.g., "", "Supervisors", "Command", "HEAT"
+  assignee?: string; // Name or ID of assignee
+  inService?: boolean;
+  // Add other fields like 'type' if they exist and are needed
 }
 
-export default function BadgeLookup() {
-  const navigate = useNavigate();
+// --- Helper Function: Determine allowed vehicles ---
+const determineAllowedVehicles = (
+  user: RosterUser,
+  allVehicles: Vehicle[]
+): Vehicle[] => {
+  if (!user || !user.rank) return []; // Need user and rank
 
-  // Input state for badge lookup
-  const [badgeInput, setBadgeInput] = useState("");
-  const [rosterError, setRosterError] = useState(""); // Separate error for roster
-  const [fleetError, setFleetError] = useState(""); // Separate error for fleet
+  const userRankOrder = rankOrder[user.rank] ?? rankOrder.Unknown;
+  const userCerts = user.certifications || {};
+  console.log(
+    `Determining vehicles for ${user.name} (Rank: ${user.rank}, RankOrder: ${userRankOrder})`,
+    userCerts
+  ); // Log user context
 
-  // Data states for roster and fleet
-  const [roster, setRoster] = useState<RosterData[]>([]);
-  const [fleet, setFleet] = useState<FleetData[]>([]);
+  // Helper to check if user has a valid certification (CERT, SUPER, or LEAD), case-insensitive value check
+  const hasCertAccess = (certKey: string | null): boolean => {
+    if (!certKey) return true; // If no specific cert is required by the check, pass the check
+    const status = userCerts[certKey.toUpperCase()]; // Get status using uppercase key
+    // Check if the status (converted to uppercase) is one of the valid access levels
+    return ["CERT", "SUPER", "LEAD"].includes((status || "").toUpperCase());
+  };
 
-  // The selected trooper that matches the entered badge
-  const [selectedTrooper, setSelectedTrooper] = useState<RosterData | null>(
-    null
-  );
+  return allVehicles.filter((vehicle) => {
+    const division = (vehicle.division || "").trim().toUpperCase();
+    const restriction = (vehicle.restrictions || "").trim().toLowerCase(); // Keep restriction check lowercase
+    const assignee = (vehicle.assignee || "").trim().toUpperCase();
 
-  // State for background image
-  const [background, setBackground] = useState("");
+    console.log(`\n🚗 ${vehicle.vehicle} (ID: ${vehicle.id})`); // Use newline for better separation
+    console.log(
+      ` - Division Raw: '${vehicle.division}', Normalized: '${division}'`
+    );
+    console.log(
+      ` - Restrictions Raw: '${vehicle.restrictions}', Normalized: '${restriction}'`
+    );
+    console.log(
+      ` - Assignee Raw: '${vehicle.assignee}', Normalized: '${assignee}'`
+    );
 
-  // Fetch both Roster, Fleet data, and set background on mount
-  useEffect(() => {
-    // Set background
-    const randomImage = images[Math.floor(Math.random() * images.length)];
-    setBackground(randomImage);
+    // Assignee check
+    const isCommunal = !assignee || assignee === "COMMUNAL";
+    console.log(` - Communal Check: ${isCommunal}`);
+    if (!isCommunal) {
+      console.log(" ❌ Rejected: Not communal");
+      return false;
+    }
 
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/api/roster`, {
-        headers: { "x-api-key": import.meta.env.VITE_API_KEY },
-      })
-      .then((res) => setRoster(res.data))
-      .catch((err) => {
-        console.error("Error fetching roster data:", err);
-        setRosterError("Failed to load roster data.");
-      });
+    // Rank check
+    let meetsRankRequirement = true;
+    let requiredRankLevel = Infinity; // Use Infinity to represent no restriction initially
+    if (restriction.includes("high command"))
+      requiredRankLevel = rankOrder.Commander;
+    else if (restriction.includes("command"))
+      requiredRankLevel = rankOrder.Lieutenant;
+    else if (restriction.includes("supervisor"))
+      requiredRankLevel = rankOrder.Sergeant;
+    else if (restriction.includes("trooper first class"))
+      requiredRankLevel = rankOrder["Trooper First Class"];
 
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/api/fleet`, {
-        headers: { "x-api-key": import.meta.env.VITE_API_KEY },
-      })
-      .then((res) => setFleet(res.data))
-      .catch((err) => {
-        console.error("Error fetching fleet data:", err);
-        setFleetError("Failed to load fleet data.");
-      });
-  }, []);
+    if (userRankOrder > requiredRankLevel) {
+      meetsRankRequirement = false;
+    }
+    // Log the comparison clearly
+    const rankCheckMsg =
+      requiredRankLevel === Infinity
+        ? "No rank restriction"
+        : `userRank ${userRankOrder} <= ${requiredRankLevel}`;
+    console.log(` - Rank Check: ${rankCheckMsg} => ${meetsRankRequirement}`);
+    if (!meetsRankRequirement) {
+      console.log(" ❌ Rejected: Rank too low");
+      return false;
+    }
 
-  // Lookup function for badge number
-  const handleLookup = () => {
-    console.log("Badge input:", badgeInput); // Debugging
+    // Cert check
+    let requiredCert: string | null = null;
+    // Prioritize division for determining required cert
+    if (division.includes("HEAT")) requiredCert = "HEAT";
+    // Use includes for flexibility e.g., "Patrol [HEAT]"
+    else if (division.includes("MOTO")) requiredCert = "MOTO";
+    else if (division.includes("ACU")) requiredCert = "ACU";
+    else if (division.includes("SWAT")) requiredCert = "SWAT";
+    else if (division.includes("K9")) requiredCert = "K9";
+    else if (division.includes("CIU")) requiredCert = "CIU";
+
+    // If division didn't set it, check restrictions (lowercase already)
+    if (!requiredCert) {
+      if (restriction.includes("heat")) requiredCert = "HEAT";
+      else if (restriction.includes("moto")) requiredCert = "MOTO";
+      else if (restriction.includes("acu")) requiredCert = "ACU";
+      else if (restriction.includes("swat")) requiredCert = "SWAT";
+      else if (restriction.includes("k9")) requiredCert = "K9";
+      else if (restriction.includes("ciu")) requiredCert = "CIU";
+    }
+
+    const certOK = hasCertAccess(requiredCert);
+    console.log(` - Cert Required: ${requiredCert || "None"}`);
+    console.log(` - Has Cert Access? ${certOK}`);
+
+    if (!certOK) {
+      console.log(" ❌ Rejected: Missing cert");
+      return false;
+    }
+
+    console.log(" ✅ ALLOWED!");
+    return true;
+  });
+};
+
+// --- Component ---
+const BadgeLookup: React.FC = () => {
+  const { user: authUser } = useAuth();
+  const [badgeInput, setBadgeInput] = useState<string>("");
+  const [foundUser, setFoundUser] = useState<RosterUser | null>(null);
+  const [assignedVehicle, setAssignedVehicle] = useState<Vehicle | null>(null);
+  const [allowedVehicles, setAllowedVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLookup = async () => {
     if (!badgeInput.trim()) {
-      setRosterError("Please enter a badge number.");
-      setSelectedTrooper(null);
+      setError("Please enter a badge number.");
+      setFoundUser(null);
+      setAssignedVehicle(null);
+      setAllowedVehicles([]);
       return;
     }
 
-    // Find the trooper matching the badge number (case-insensitive)
-    const foundTrooper = roster.find((trooper) => {
-      console.log("Checking trooper:", trooper); // Debugging
-      return (
-        trooper.Badge.trim().toLowerCase() === badgeInput.trim().toLowerCase()
-      );
-    });
+    setLoading(true);
+    setError(null);
+    setFoundUser(null);
+    setAssignedVehicle(null);
+    setAllowedVehicles([]);
 
-    if (!foundTrooper) {
-      console.warn(`No trooper found for badge #${badgeInput}`); // Debugging
-      setSelectedTrooper(null);
-      setRosterError(`No trooper found for badge #${badgeInput}.`);
-    } else {
-      console.log("Trooper found:", foundTrooper); // Debugging
-      setSelectedTrooper(foundTrooper);
-      setRosterError("");
+    try {
+      const usersRef = collection(dbFirestore, "users");
+      const q = query(usersRef, where("badge", "==", badgeInput.trim()));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        setError(`No user found with badge number ${badgeInput}.`);
+        setLoading(false);
+        return;
+      }
+
+      const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data() as Omit<RosterUser, "id">;
+
+      // Normalize cert keys AND values to uppercase
+      const normalizedCerts = userData.certifications
+        ? Object.entries(userData.certifications).reduce(
+            (acc, [key, value]) => {
+              const upperValue = (
+                value as string | null | undefined
+              )?.toUpperCase();
+              if (
+                upperValue === "CERT" ||
+                upperValue === "SUPER" ||
+                upperValue === "LEAD"
+              ) {
+                acc[key.toUpperCase()] = upperValue as CertStatus;
+              } else {
+                acc[key.toUpperCase()] = null;
+              }
+              return acc;
+            },
+            {} as { [key: string]: CertStatus | null }
+          )
+        : {};
+
+      console.log("Normalized Certs for User:", normalizedCerts); // Log normalized certifications
+
+      const userResult: RosterUser = {
+        id: userDoc.id,
+        ...userData,
+        certifications: normalizedCerts,
+      };
+      setFoundUser(userResult);
+
+      // Fetch vehicles from the correct 'fleet' collection
+      const vehiclesSnapshot = await getDocs(
+        collection(dbFirestore, "fleet") // <-- Changed "vehicles" to "fleet"
+      );
+      const allVehicles: Vehicle[] = vehiclesSnapshot.docs.map(
+        (doc) =>
+          ({
+            id: doc.id,
+            ...doc.data(),
+          } as Vehicle)
+      );
+
+      console.log(`Fetched ${allVehicles.length} total vehicles.`); // Log total vehicles fetched
+
+      const allowed = determineAllowedVehicles(userResult, allVehicles);
+      console.log(`Determined ${allowed.length} allowed vehicles.`, allowed); // Log allowed vehicles
+      setAllowedVehicles(allowed);
+
+      // --- Find Assigned Vehicle ---
+      let foundAssignedVehicle: Vehicle | null = null;
+
+      // 1. Try matching by assignee name (full name or Initial. LastName)
+      const userNameUpper = userResult.name.toUpperCase();
+      const nameParts = userResult.name.split(" ").filter((part) => part); // Split name and remove empty parts
+      let initialLastNameFormat = "";
+      if (nameParts.length >= 2) {
+        const firstNameInitial = nameParts[0].charAt(0).toUpperCase();
+        const lastName = nameParts[nameParts.length - 1]; // Get the last part as last name
+        initialLastNameFormat =
+          `${firstNameInitial}. ${lastName}`.toUpperCase(); // Format as "F. Lastname" and uppercase
+      }
+
+      console.log(
+        `Looking for assigned vehicle for user: ${userResult.name} (Formats: '${userNameUpper}', '${initialLastNameFormat}')`
+      );
+
+      for (const vehicle of allVehicles) {
+        const assigneeName = vehicle.assignee?.trim();
+        if (!assigneeName) continue; // Skip if assignee is empty
+
+        const assigneeNameUpper = assigneeName.toUpperCase();
+
+        // Check for exact full name match
+        if (assigneeNameUpper === userNameUpper) {
+          foundAssignedVehicle = vehicle;
+          console.log(
+            `Found assigned vehicle by FULL name match: ${vehicle.vehicle} (Assignee: ${vehicle.assignee})`
+          );
+          break;
+        }
+
+        // Check for "Initial. LastName" match (if applicable)
+        if (
+          initialLastNameFormat &&
+          assigneeNameUpper === initialLastNameFormat
+        ) {
+          foundAssignedVehicle = vehicle;
+          console.log(
+            `Found assigned vehicle by INITIAL.LASTNAME match: ${vehicle.vehicle} (Assignee: ${vehicle.assignee})`
+          );
+          break;
+        }
+      }
+
+      // 2. Fallback to assignedVehicleId if no name match found
+      if (!foundAssignedVehicle && userResult.assignedVehicleId) {
+        console.log(
+          `No name match, trying assignedVehicleId: ${userResult.assignedVehicleId}`
+        );
+        const vehicleDocRef = doc(
+          dbFirestore,
+          "fleet", // Changed from "vehicles"
+          userResult.assignedVehicleId
+        );
+        const vehicleDocSnap = await getDoc(vehicleDocRef);
+        if (vehicleDocSnap.exists()) {
+          foundAssignedVehicle = {
+            id: vehicleDocSnap.id,
+            ...vehicleDocSnap.data(),
+          } as Vehicle;
+          console.log(
+            `Found assigned vehicle by ID: ${foundAssignedVehicle.vehicle}`
+          );
+        } else {
+          console.warn(
+            `Assigned vehicle with ID ${userResult.assignedVehicleId} not found in 'fleet' collection.`
+          );
+        }
+      }
+
+      // Set the state
+      setAssignedVehicle(foundAssignedVehicle);
+    } catch (err) {
+      console.error("Error looking up badge:", err);
+      setError("An error occurred during lookup. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Generate list of communal vehicles allowed for this trooper's rank.
-  const getAuthorizedVehicles = (trooperRank: string): string[] => {
-    return fleet
-      .filter((entry) => {
-        // Only interested in communal vehicles.
-        if (entry.Type.trim().toLowerCase() !== "communal") return false;
-        // Check if the trooper's rank (or a substring) is included
-        return entry.Ranks.toLowerCase().includes(trooperRank.toLowerCase());
-      })
-      .map((entry) => entry.Vehicle);
+  const renderCertifications = (certs: RosterUser["certifications"]) => {
+    if (!certs) return <span className="text-gray-400">None</span>;
+    const activeCerts = Object.entries(certs)
+      .filter(([key, value]) => value !== null)
+      .map(([key, value]) => `${key}: ${value}`);
+    return activeCerts.length > 0 ? (
+      activeCerts.join(", ")
+    ) : (
+      <span className="text-gray-400">None</span>
+    );
   };
 
   return (
-    <Layout
-      user={
-        {
-          /* Add appropriate user data here */
-        }
-      }
-    >
-      {/* Background Image */}
-      {background && (
-        <div
-          className="fixed top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10 backdrop-blur-md"
-          style={{
-            backgroundImage: `url('${background}')`,
-            backgroundRepeat: "no-repeat",
-            backgroundSize: "cover",
-            backgroundAttachment: "fixed",
-          }}
-        />
-      )}
+    <Layout user={authUser!}>
+      <div className="page-content space-y-6">
+        <h1 className="text-3xl font-bold text-[#f3c700]">Badge Lookup</h1>
 
-      <div className="page-content">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            paddingTop: "2rem",
-          }}
-        >
-          <div
-            style={{
-              background: "#222",
-              padding: "2rem",
-              borderRadius: "8px",
-              width: "100%",
-              maxWidth: "900px",
-            }}
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={badgeInput}
+            onChange={(e) => setBadgeInput(e.target.value)}
+            placeholder="Enter Badge Number"
+            className="input"
+            onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+          />
+          <button
+            onClick={handleLookup}
+            className="button-primary"
+            disabled={loading}
           >
-            <h2 style={{ textAlign: "center", color: "#fff" }}>
-              <img
-                src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
-                style={{ width: 30, verticalAlign: "middle", marginRight: 10 }}
-                alt="SASP Badge"
-              />
-              SASP Trooper Reference Page
-            </h2>
+            {loading ? "Looking up..." : "Lookup"}
+          </button>
+        </div>
 
-            {/* Badge Lookup Input */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                margin: "1rem 0",
-              }}
-            >
-              <label style={{ color: "#fff", marginRight: 10 }}>
-                Badge Number:
-              </label>
-              <input
-                type="text"
-                value={badgeInput}
-                onChange={(e) => setBadgeInput(e.target.value)}
-                style={{ padding: "5px", fontSize: "1rem", width: 150 }}
-              />
-              <button
-                className="button-primary"
-                style={{ marginLeft: 10 }}
-                onClick={handleLookup}
-              >
-                Lookup
-              </button>
+        {error && <p className="text-red-500">{error}</p>}
+
+        {foundUser && (
+          <div className="space-y-6">
+            <div className="admin-section p-4">
+              <h2 className="section-header text-xl mb-3">
+                Trooper Information
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <p>
+                  <strong className="text-yellow-400">Name:</strong>{" "}
+                  {foundUser.name}
+                </p>
+                <p>
+                  <strong className="text-yellow-400">Rank:</strong>{" "}
+                  {foundUser.rank}
+                </p>
+                <p>
+                  <strong className="text-yellow-400">Badge:</strong>{" "}
+                  {foundUser.badge}
+                </p>
+                <p>
+                  <strong className="text-yellow-400">Callsign:</strong>{" "}
+                  {foundUser.callsign || "-"}
+                </p>
+                <p>
+                  <strong className="text-yellow-400">Status:</strong>{" "}
+                  {foundUser.isActive ? (
+                    <span className="text-green-400">Active</span>
+                  ) : (
+                    <span className="text-red-400">Inactive</span>
+                  )}
+                </p>
+                <p>
+                  <strong className="text-yellow-400">Discord ID:</strong>{" "}
+                  {foundUser.discordId || "-"}
+                </p>
+                <p className="md:col-span-2">
+                  <strong className="text-yellow-400">Certifications:</strong>{" "}
+                  {renderCertifications(foundUser.certifications)}
+                </p>
+              </div>
             </div>
 
-            {/* Display Errors */}
-            {rosterError && (
-              <p style={{ color: "red", textAlign: "center" }}>{rosterError}</p>
-            )}
-            {fleetError && (
-              <p style={{ color: "red", textAlign: "center" }}>{fleetError}</p>
-            )}
+            <div className="admin-section p-4">
+              <h2 className="section-header text-xl mb-3">Assigned Vehicle</h2>
+              {assignedVehicle ? (
+                <p className="text-sm">
+                  <strong className="text-yellow-400">Vehicle:</strong>{" "}
+                  {assignedVehicle.vehicle} |{" "}
+                  <strong className="text-yellow-400"> Plate:</strong>{" "}
+                  {assignedVehicle.plate || "N/A"} |{" "}
+                  <strong className="text-yellow-400"> Division:</strong>{" "}
+                  {assignedVehicle.division || "N/A"} |{" "}
+                  <strong className="text-yellow-400"> Restrictions:</strong>{" "}
+                  {assignedVehicle.restrictions || "None"}
+                </p>
+              ) : (
+                <p className="text-gray-400 italic text-sm">
+                  No vehicle assigned.
+                </p>
+              )}
+            </div>
 
-            {/* Display Trooper Info if Available */}
-            {selectedTrooper && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "1rem",
-                  marginTop: "1rem",
-                }}
-              >
-                {/* Trooper Information */}
-                <div>
-                  <h3 style={{ color: "orange" }}>Trooper Information</h3>
-                  <div className="info-box">Name: {selectedTrooper.Name}</div>
-                  <div className="info-box">Rank: {selectedTrooper.Rank}</div>
-                  <div className="info-box">Badge: {selectedTrooper.Badge}</div>
-                  <div className="info-box">
-                    Callsign: {selectedTrooper.Callsign}
-                  </div>
-                </div>
-
-                {/* Assigned Vehicles */}
-                <div>
-                  <h3 style={{ color: "orange" }}>Assigned Vehicles</h3>
-                  <div className="info-box">
-                    {selectedTrooper.AssignedVehicles
-                      ? selectedTrooper.AssignedVehicles
-                      : "None listed."}
-                  </div>
-                </div>
-
-                {/* SWAT Information */}
-                <div>
-                  <h3 style={{ color: "orange" }}>SWAT Information</h3>
-                  <div className="info-box">
-                    {selectedTrooper.SWAT
-                      ? selectedTrooper.SWAT
-                      : "No SWAT info available"}
-                  </div>
-                </div>
-
-                {/* Authorized Communal Vehicles */}
-                <div>
-                  <h3 style={{ color: "orange" }}>
-                    Authorized Communal Vehicles
-                  </h3>
-                  <div className="info-box">
-                    {getAuthorizedVehicles(selectedTrooper.Rank).join(", ") ||
-                      "None available for this rank."}
-                  </div>
-                </div>
-              </div>
-            )}
+            <div className="admin-section p-4">
+              <h2 className="section-header text-xl mb-3">
+                Allowed Vehicles (Based on Rank/Certs)
+              </h2>
+              {allowedVehicles.length > 0 ? (
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  {allowedVehicles.map((vehicle) => (
+                    <li key={vehicle.id}>
+                      {vehicle.vehicle} ({vehicle.plate || "No Plate"})
+                      {vehicle.division && (
+                        <span className="text-xs text-gray-400 ml-2">
+                          [{vehicle.division}]
+                        </span>
+                      )}
+                      {vehicle.restrictions && (
+                        <span className="text-xs text-orange-400 ml-2">
+                          ({vehicle.restrictions})
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-400 italic text-sm">
+                  No vehicles found matching user's rank and certifications, or
+                  only standard vehicles allowed.
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </Layout>
   );
-}
+};
+
+export default BadgeLookup;

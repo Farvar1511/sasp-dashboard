@@ -1,103 +1,147 @@
-import { useEffect, useState } from "react";
-import {
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
-import { images } from "../data/images";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useAuth } from "../context/AuthContext";
 
-const schema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-});
-
-export default function Login() {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(schema),
-  });
-  const [background, setBackground] = useState("");
+const Login: React.FC = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const randomImage = images[Math.floor(Math.random() * images.length)];
-    setBackground(randomImage);
-  }, []);
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
 
-  const onSubmit = async (data: { email: string; password: string }) => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
+    setLoading(true);
+
+    if (!email || !password) {
+      setError("Please enter both email and password.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        data.email,
-        data.password
-      );
-      console.log("User logged in:", userCredential.user);
-    } catch (error: any) {
-      console.error("Login error:", error);
-      setError("Invalid email or password.");
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      console.error("Login error:", err);
+      if (err instanceof Error) {
+        switch ((err as any).code) {
+          case "auth/user-not-found":
+          case "auth/wrong-password":
+          case "auth/invalid-credential":
+            setError("Invalid email or password.");
+            break;
+          case "auth/invalid-email":
+            setError("Invalid email format.");
+            break;
+          default:
+            setError("Failed to log in. Please try again.");
+        }
+      } else {
+        setError("An unknown error occurred during login.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleForgotPassword = async () => {
-    const emailInput = document.querySelector(
-      'input[name="email"]'
-    ) as HTMLInputElement;
-    const email = emailInput?.value;
-    if (!email) return setError("Please enter your email first.");
-    try {
-      await sendPasswordResetEmail(auth, email);
-      alert("📩 Password reset email sent!");
-    } catch (err: any) {
-      setError("Error sending reset email: " + err.message);
-    }
-  };
+  if (user) {
+    return null;
+  }
 
   return (
-    <div className="relative h-screen w-screen">
-      <div
-        className="absolute inset-0 bg-cover bg-center blur-sm opacity-50 z-0 backdrop-blur-md"
-        style={{ backgroundImage: `url(${background})` }}
-      />
-      <div className="relative z-10 flex flex-col justify-center items-center h-full">
-        <div className="login-form w-full max-w-md p-6 bg-gray-800 rounded-lg shadow-lg">
-          <h2>SASP Login</h2>
-          {error && <p>{error}</p>}
-          <form onSubmit={handleSubmit(onSubmit)}>
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800">
+      <div className="w-full max-w-md p-8 space-y-6 bg-gray-800/80 rounded-lg shadow-xl border border-yellow-400/50">
+        <div className="text-center">
+          <img
+            src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
+            alt="SASP Logo"
+            className="w-20 h-auto mx-auto mb-4"
+          />
+          <h2 className="text-2xl font-bold text-yellow-400">
+            SASP Portal Login
+          </h2>
+        </div>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-300"
+            >
+              Email Address
+            </label>
             <input
-              {...register("email")}
-              placeholder="Email"
-              className="w-full p-2 rounded-md bg-gray-700 text-yellow-400 border border-yellow-400 mb-2"
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="input mt-1 w-full"
+              placeholder="trooper@sasp.gov"
             />
-            {errors.email && <p>{errors.email.message}</p>}
+          </div>
+          <div>
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-300"
+            >
+              Password
+            </label>
             <input
-              {...register("password")}
+              id="password"
+              name="password"
               type="password"
-              placeholder="Password"
-              className="w-full p-2 rounded-md bg-gray-700 text-yellow-400 border border-yellow-400 mb-2"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input mt-1 w-full"
+              placeholder="••••••••"
             />
-            {errors.password && <p>{errors.password.message}</p>}
+          </div>
+
+          {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+
+          <div>
             <button
               type="submit"
-              className="w-full px-4 py-2 rounded-md bg-yellow-400 text-black font-semibold shadow hover:bg-yellow-300"
+              disabled={loading}
+              className="w-full button-primary disabled:opacity-50"
             >
-              Login
+              {loading ? "Logging In..." : "Log In"}
             </button>
-          </form>
-          <p
-            className="text-sm mt-4 text-yellow-400 text-center hover:underline cursor-pointer"
-            onClick={handleForgotPassword}
-          >
-            Forgot your password?
-          </p>
-        </div>
+          </div>
+        </form>
       </div>
+      <style>{`
+        .input {
+          background-color: #1f2937;
+          color: white;
+          border: 1px solid #4b5563;
+          border-radius: 0.375rem;
+          padding: 0.5rem 0.75rem;
+          font-size: 0.875rem;
+          line-height: 1.25rem;
+        }
+        .input:focus {
+          outline: none;
+          border-color: #f3c700;
+          box-shadow: 0 0 0 2px rgba(243, 199, 0, 0.5);
+        }
+      `}</style>
     </div>
   );
-}
+};
+
+export default Login;

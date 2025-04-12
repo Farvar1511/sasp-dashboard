@@ -411,6 +411,12 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
           >
             Roster Management
           </button>
+          <button
+            className="button-secondary px-3 py-1.5 text-sm"
+            onClick={() => navigate("/admin/fleet")}
+          >
+            Fleet Management
+          </button>
         </div>
 
         {showAddBulletin && (
