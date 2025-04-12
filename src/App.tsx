@@ -77,7 +77,7 @@ function App() {
             user ? (
               <Navigate to="/" replace />
             ) : (
-              <Login onLogin={(loggedInUser) => setUser(loggedInUser)} />
+              <Login /> // Removed onLogin prop
             )
           }
         />
