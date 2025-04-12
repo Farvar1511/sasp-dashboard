@@ -27,25 +27,9 @@ export default function Dashboard({ user }: { user: User }) {
 
   useEffect(() => {
     const hours = new Date().getHours();
-    const greeting = hours < 12 ? "Good Morning" : hours < 18 ? "Good Afternoon" : "Good Evening";
-    const lastName = user.name.split(' ').slice(-1)[0];
-    const message = `${greeting}, ${user.rank} ${lastName}`;
-
-    let index = 0;
-    let current = '';
-    const timeoutRef = { current: 0 } as { current: number };
-
-    const type = () => {
-      if (index < message.length) {
-        current += message.charAt(index);
-        setWelcomeMessage(current);
-        index++;
-        timeoutRef.current = window.setTimeout(type, 100);
-      }
-    };
-
-    type();
-    return () => clearTimeout(timeoutRef.current);
+    const greeting = hours < 12 ? 'Good Morning' : hours < 18 ? 'Good Afternoon' : 'Good Evening';
+    const lastName = user.name.split(' ').slice(-1)[0]; // Extract last name
+    setWelcomeMessage(`${greeting}, ${user.rank} ${lastName}`);
   }, [user]);
 
   // Filter links into top bar and categorized groups, excluding specified categories

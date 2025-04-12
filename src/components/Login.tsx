@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../firebase'; // Removed Firestore imports
+import { auth, db } from '../firebase'; // Import Firestore
+import { doc, getDoc } from 'firebase/firestore'; // Firestore functions
 import { images } from '../data/images'; // Import images data
 
 interface Props {
@@ -23,11 +24,18 @@ export default function Login({ onLogin }: Props) {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
-      // Pass the authenticated user data to the app
-      onLogin({
-        email: firebaseUser.email,
-        uid: firebaseUser.uid,
-      });
+      const userDocRef = doc(db, 'users', firebaseUser.email!);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        onLogin({
+          email: firebaseUser.email,
+          ...userData, // Populate additional user data from Firestore
+        });
+      } else {
+        alert('User data not found in the database.');
+      }
     } catch (error) {
       console.error('Login error:', error);
       alert('Invalid email or password.');

@@ -19,14 +19,19 @@ const db = getFirestore(app);
 
 (async () => {
   for (const user of users) {
-    const docId = user.email || `badge-${user.badge}`;
+    if (!user.email) {
+      console.warn(`Skipping user with no email: ${user.name}`);
+      continue;
+    }
+
     const userData = {
       name: user.name,
       rank: user.rank,
-      tasks: user.tasks || {} // Include tasks if available
+      tasks: user.tasks || {}, // Include tasks if available
     };
-    await setDoc(doc(db, 'users', docId), userData);
-    console.log(`✅ Uploaded: ${user.name} (${docId})`);
+
+    await setDoc(doc(db, 'users', user.email), userData); // Use email as document ID
+    console.log(`✅ Uploaded: ${user.name} (${user.email})`);
   }
   console.log('🎉 All users uploaded!');
 })();

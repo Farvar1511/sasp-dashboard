@@ -24,7 +24,7 @@ export default function Tasks({ user }: { user: User }) {
   useEffect(() => {
     if (!user.email) return;
 
-    const tasksRef = collection(db, 'users', user.email, 'tasks');
+    const tasksRef = collection(db, 'users', user.email, 'tasks'); // Fetch tasks for the logged-in user
 
     const unsubscribe = onSnapshot(
       tasksRef,

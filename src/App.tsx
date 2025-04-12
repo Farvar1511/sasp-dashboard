@@ -18,7 +18,7 @@ function App() {
   // Handler function to be called when a user logs in
   const handleLogin = (loggedInUser: User) => {
     console.log('User logged in:', loggedInUser);
-    setUser(loggedInUser); // Update the user state
+    setUser(loggedInUser); // Set the user state with Firestore data
   };
 
   // Handler function to log the user out
