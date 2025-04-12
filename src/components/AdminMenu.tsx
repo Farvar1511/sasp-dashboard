@@ -197,22 +197,21 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
                 <ul>
                   {user.tasks.length > 0 ? (
                     user.tasks.map((task) => (
-                      <li
-                        key={task.id}
-                        className={task.completed ? 'completed' : ''}
-                      >
-                        {task.description}
-                        {!task.completed && (
-                          <button
-                            className="delete-button"
-                            onClick={() => deleteTask(user.email, task.id)}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                              <path d="M3 6h18v2H3V6zm2 3h14v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm5 2v8h2v-8H8zm4 0v8h2v-8h-2zM9 4V2h6v2h5v2H4V4h5z" />
-                            </svg>
-                            Delete
-                          </button>
-                        )}
+                      <li key={task.id} className={task.completed ? 'completed' : ''}>
+                        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          {task.description}
+                          {task.completed ? (
+                            <span style={{ color: 'limegreen', fontSize: '1.2rem' }}>✅</span>
+                          ) : (
+                            <button
+                              className="delete-button small"
+                              onClick={() => deleteTask(user.email, task.id)}
+                              title="Delete Task"
+                            >
+                              ❌
+                            </button>
+                          )}
+                        </span>
                       </li>
                     ))
                   ) : (
