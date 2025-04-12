@@ -19,6 +19,9 @@ export default function Dashboard({ user }: { user: User }) {
     const randomImage = images[Math.floor(Math.random() * images.length)];
     setBackground(randomImage);
 
+    // Uncomment this line to test with a specific fallback image
+    // setBackground("https://i.gyazo.com/7430c1fff7bd872edb76a0d5724c15e9.png");
+
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
@@ -58,10 +61,17 @@ export default function Dashboard({ user }: { user: User }) {
   return (
     <Layout user={user}>
       {/* Background Image */}
-      <div
-        className="fixed inset-0 bg-cover bg-center blur-sm opacity-50 -z-10"
-        style={{ backgroundImage: `url(${background})` }}
-      ></div>
+      {background && (
+        <div
+          className="fixed inset-0 bg-cover bg-center opacity-40 z-[-1]"
+          style={{
+            backgroundImage: `url('${background}')`,
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+      )}
 
       {/* Main Content */}
       <div className="relative z-10 flex flex-col items-center px-6 pt-12 max-w-7xl mx-auto">
