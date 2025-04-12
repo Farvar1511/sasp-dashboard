@@ -52,7 +52,7 @@
 
 .user-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive grid with min 250px width */
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive grid with 4 boxes per row */
   gap: 1rem; /* Space between grid items */
   margin-top: 1rem;
 }
@@ -92,6 +92,48 @@
 .user-task-card li.completed {
   text-decoration: line-through;
   color: #aaa;
+}
+
+.user-task-card button {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #FFD700;
+  color: #222;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s ease;
+}
+
+.user-task-card button:hover {
+  background-color: #FFC107;
+}
+
+.user-task-card button.delete-button {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #FF4D4D; /* Red background */
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem; /* Space between icon and text */
+  transition: background 0.3s ease;
+}
+
+.user-task-card button.delete-button:hover {
+  background-color: #FF1A1A; /* Darker red on hover */
+}
+
+.user-task-card button.delete-button svg {
+  width: 1rem;
+  height: 1rem;
+  fill: #fff; /* White trash can icon */
 }
 
 .error-message {
