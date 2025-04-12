@@ -66,12 +66,19 @@ export default function Dashboard({ user }: { user: User }) {
       {/* Main Content */}
       <div className="relative z-10 flex flex-col items-center px-6 pt-12 max-w-7xl mx-auto">
         {/* Header */}
-        <h1 className="text-4xl font-black uppercase text-center mb-4 drop-shadow-md">
-          San Andreas State Police
-        </h1>
-        <p className="text-lg font-semibold text-center mb-8">
-          {welcomeMessage}
-        </p>
+        <div className="flex flex-col items-center mb-8">
+          <img
+            src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
+            alt="SASP Logo"
+            className="w-20 mb-4"
+          />
+          <h1 className="text-4xl font-black uppercase text-center mb-2 drop-shadow-md">
+            San Andreas State Police
+          </h1>
+          <p className="text-lg font-semibold text-center">
+            {welcomeMessage}
+          </p>
+        </div>
 
         {/* Clock */}
         <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-52 mb-8 shadow">
@@ -96,7 +103,7 @@ export default function Dashboard({ user }: { user: User }) {
         </div>
 
         {/* Grouped Links */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {Object.entries(groupedLinks).map(([category, items]) => (
             <div
               key={category}
@@ -115,6 +122,13 @@ export default function Dashboard({ user }: { user: User }) {
             </div>
           ))}
         </div>
+
+        {/* Star Badge */}
+        <img
+          src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
+          alt="SASP Star Badge"
+          className="w-16 mt-8"
+        />
       </div>
 
       {/* Modal Overlay */}
