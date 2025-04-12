@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { auth, db } from '../firebase'; // Import Firestore
-import { doc, getDoc } from 'firebase/firestore'; // Firestore functions
-import { images } from '../data/images'; // Import images data
+import { auth, db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { images } from '../data/images';
 
 interface Props {
   onLogin: (user: any) => void;
@@ -12,59 +12,56 @@ export default function Login({ onLogin }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [background, setBackground] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Randomly select a background image from images.ts
     const randomImage = images[Math.floor(Math.random() * images.length)];
     setBackground(randomImage);
   }, []);
 
   const handleLogin = async () => {
+    setError(null); // Clear previous errors
     try {
-      const userDocRef = doc(db, 'users', email);
+      // Authenticate the user with Firebase Authentication
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // Fetch user data from Firestore using email as the document ID
+      const userDocRef = doc(db, 'users', firebaseUser.email!);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
-
-        // If the user has not set a custom password, default to their CID
-        const defaultPassword = userData.CID || userData.badge || 'defaultPassword';
-        const loginPassword = password || defaultPassword;
-
-        const userCredential = await signInWithEmailAndPassword(auth, email, loginPassword);
-        const firebaseUser = userCredential.user;
-
         onLogin({
           email: firebaseUser.email,
           ...userData, // Populate additional user data from Firestore
         });
       } else {
-        alert('User data not found in the database.');
+        setError('User data not found in the database.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      alert('Invalid email or password.');
+      setError('Invalid email or password.');
     }
   };
 
   const handleForgotPassword = async () => {
     if (!email) {
-      alert("Please enter your email first.");
+      setError('Please enter your email first.');
       return;
     }
 
     try {
       await sendPasswordResetEmail(auth, email);
-      alert("📩 Password reset email sent!");
+      alert('📩 Password reset email sent!');
     } catch (err: any) {
-      console.error("Forgot password error:", err);
-      alert("Error sending reset email: " + err.message);
+      console.error('Forgot password error:', err);
+      setError('Error sending reset email: ' + err.message);
     }
   };
 
   return (
     <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
-      {/* Ensure the background image is properly set */}
       <div
         style={{
           position: 'fixed',
@@ -97,11 +94,12 @@ export default function Login({ onLogin }: Props) {
             padding: '20px',
             borderRadius: '8px',
             boxShadow: '0 0 10px rgba(0, 0, 0, 0.5)',
-            maxWidth: '400px', // Ensure the login box is not too wide
-            width: '90%', // Make it responsive
+            maxWidth: '400px',
+            width: '90%',
           }}
         >
           <h2 style={{ color: '#FFD700', textAlign: 'center' }}>SASP Login</h2>
+          {error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}

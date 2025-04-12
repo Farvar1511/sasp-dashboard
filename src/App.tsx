@@ -29,9 +29,9 @@ function App() {
             const userData = userDoc.data();
             setUser({
               email: firebaseUser.email!,
-              name: userData.name || 'Unknown', // Provide default value if missing
-              rank: userData.rank || 'Unknown', // Provide default value if missing
-              tasks: userData.tasks || [], // Provide default value if missing
+              name: userData.name || 'Unknown',
+              rank: userData.rank || 'Unknown',
+              tasks: userData.tasks || [],
             });
           } else {
             console.error('User data not found in Firestore.');
@@ -44,7 +44,7 @@ function App() {
       } else {
         setUser(null);
       }
-      setLoading(false); // Set loading to false after processing
+      setLoading(false);
     });
 
     return () => unsubscribe();

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase'; // Import Firebase auth
 
 export default function Sidebar({ navigate, user }: { navigate: (path: string) => void; user?: { rank?: string } }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -49,9 +51,13 @@ export default function Sidebar({ navigate, user }: { navigate: (path: string) =
           )}
           <button
             className="button-primary logout-button"
-            onClick={() => {
-              navigate('/'); // Navigate to the login page
-              window.location.reload(); // Clear user session
+            onClick={async () => {
+              try {
+                await signOut(auth); // Sign out the user from Firebase Authentication
+                navigate('/login'); // Redirect to the login page
+              } catch (error) {
+                console.error('Error logging out:', error);
+              }
             }}
           >
             Logout
