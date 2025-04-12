@@ -23,7 +23,7 @@ export default function Login({ onLogin }: Props) {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
-      // Directly pass the authenticated user data to the app
+      // Pass the authenticated user data to the app
       onLogin({
         email: firebaseUser.email,
         uid: firebaseUser.uid,
@@ -51,6 +51,7 @@ export default function Login({ onLogin }: Props) {
 
   return (
     <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
+      {/* Ensure the background image is properly set */}
       <div
         style={{
           position: 'fixed',
@@ -83,6 +84,8 @@ export default function Login({ onLogin }: Props) {
             padding: '20px',
             borderRadius: '8px',
             boxShadow: '0 0 10px rgba(0, 0, 0, 0.5)',
+            maxWidth: '400px', // Ensure the login box is not too wide
+            width: '90%', // Make it responsive
           }}
         >
           <h2 style={{ color: '#FFD700', textAlign: 'center' }}>SASP Login</h2>

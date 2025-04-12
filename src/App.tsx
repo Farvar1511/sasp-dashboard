@@ -18,13 +18,13 @@ function App() {
   // Handler function to be called when a user logs in
   const handleLogin = (loggedInUser: User) => {
     console.log('User logged in:', loggedInUser);
-    setUser(loggedInUser);
+    setUser(loggedInUser); // Update the user state
   };
 
   // Handler function to log the user out
   const handleLogout = () => {
     console.log('User logged out');
-    setUser(null);
+    setUser(null); // Clear the user state
   };
 
   return (
@@ -35,9 +35,9 @@ function App() {
           path="/"
           element={
             user ? (
-              <Dashboard user={user} />
+              <Dashboard user={user} /> // Render Dashboard if user is logged in
             ) : (
-              <Login onLogin={handleLogin} />
+              <Login onLogin={handleLogin} /> // Render Login if no user is logged in
             )
           }
         />
