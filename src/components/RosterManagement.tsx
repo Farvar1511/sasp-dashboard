@@ -518,7 +518,7 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                                   onChange={(e) =>
                                     handleEditChange("rank", e.target.value)
                                   }
-                                  className="input-table bg-[#f3c700]/30 text-black"
+                                  className="input-table bg-[#f3c700] text-black font-semibold"
                                 >
                                   {Object.keys(rankOrder)
                                     .filter((r) => r !== "Unknown")
@@ -527,7 +527,7 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                                       <option
                                         key={rank}
                                         value={rank}
-                                        className="text-white bg-gray-700"
+                                        className="text-white bg-gray-700 font-normal"
                                       >
                                         {rank}
                                       </option>
@@ -689,7 +689,7 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                               <td className="p-2 border-r border-gray-600">
                                 {u.badge}
                               </td>
-                              <td className="p-2 border-r border-gray-600 bg-[#f3c700]/20">
+                              <td className="p-2 border-r border-gray-600 bg-[#f3c700] text-black font-semibold">
                                 {u.rank}
                               </td>
                               <td className="p-2 border-r border-gray-600">
