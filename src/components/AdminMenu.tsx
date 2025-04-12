@@ -33,7 +33,7 @@ interface AdminMenuProps {
   currentUser: User;
 }
 
-const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
+const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
@@ -159,7 +159,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
   }
 
   return (
-    <Layout>
+    <Layout user={currentUser}>
       <div className="admin-menu-container">
         <h2>Admin Menu</h2>
         <div className="admin-menu">

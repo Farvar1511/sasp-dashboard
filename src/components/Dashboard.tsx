@@ -53,7 +53,7 @@ export default function Dashboard({ user }: { user: User }) {
   };
 
   return (
-    <Layout>
+    <Layout user={user}>
       <div
         style={{
           position: 'fixed',
