@@ -3,7 +3,6 @@ import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/aut
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { images } from '../data/images'; // Import images data
-import './Login.css';
 
 interface Props {
   onLogin: (user: any) => void;
