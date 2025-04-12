@@ -84,7 +84,7 @@ export default function Dashboard({ user }: { user: User }) {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col items-center px-6 pt-6 max-w-7xl mx-auto">
+      <div className="relative z-10 flex flex-col w-full max-w-[1600px] px-10 pt-6 mx-auto">
         {/* Header */}
         <div className="flex flex-col items-center mb-8 space-y-2">
           <img
@@ -127,11 +127,11 @@ export default function Dashboard({ user }: { user: User }) {
         </div>
 
         {/* Grouped Links */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
           {Object.entries(groupedLinks).map(([category, items]) => (
             <div
               key={category}
-              className="bg-black/70 border border-yellow-400 rounded-lg p-8 shadow-lg"
+              className="w-full bg-black/70 border border-yellow-400 rounded-lg p-8 shadow-lg transition hover:shadow-yellow-400"
             >
               <h3 className="text-xl font-bold text-yellow-400 mb-4 border-b border-yellow-400 pb-2">
                 {category}
@@ -152,7 +152,7 @@ export default function Dashboard({ user }: { user: User }) {
 
       {/* Modal Overlay */}
       {overlayUrl && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center pt-4 px-4">
+        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center pt-12 px-4">
           <div className="w-full max-w-7xl flex justify-end gap-2 mb-4">
             <a
               href={overlayUrl}

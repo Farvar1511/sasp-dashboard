@@ -35,54 +35,58 @@ export default function Sidebar({
 
   return (
     <div
-      className={`sidebar fixed top-0 left-0 h-full bg-black text-yellow-400 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out ${
+      className={`sidebar fixed top-0 left-0 h-full bg-black text-white flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out ${
         isCollapsed ? "w-16" : "w-40"
       }`}
     >
       <button
-        className="px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-gray-200 transition-colors"
+        className="px-4 py-2 rounded-md bg-[#f3c700] text-black font-semibold hover:bg-yellow-300 transition-colors"
         onClick={toggleCollapse}
       >
         {isCollapsed ? "☰" : "Collapse"}
       </button>
-      {!isCollapsed && (
-        <>
-          {buttons.map((button) =>
-            button.path ? (
-              button.path !== location.pathname && (
-                <button
-                  key={button.path}
-                  className="px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-gray-200 transition-colors"
-                  onClick={() => navigate(button.path)}
-                >
-                  {button.label}
-                </button>
-              )
-            ) : (
+      <div className={`${isCollapsed ? "space-y-2" : "space-y-4"}`}>
+        {buttons.map((button) =>
+          button.path ? (
+            button.path !== location.pathname && (
               <button
-                key={button.label}
-                className="px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-gray-200 transition-colors"
-                onClick={button.action}
+                key={button.path}
+                className={`${
+                  isCollapsed ? "text-center text-xs" : "px-4 py-2"
+                } rounded-md bg-[#f3c700] text-black font-semibold hover:bg-yellow-300 transition-colors`}
+                onClick={() => navigate(button.path)}
               >
                 {button.label}
               </button>
             )
-          )}
-          <button
-            className="px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-red-500 transition-colors mt-4"
-            onClick={async () => {
-              try {
-                await signOut(auth);
-                navigate("/login");
-              } catch (error) {
-                console.error("Error logging out:", error);
-              }
-            }}
-          >
-            Logout
-          </button>
-        </>
-      )}
+          ) : (
+            <button
+              key={button.label}
+              className={`${
+                isCollapsed ? "text-center text-xs" : "px-4 py-2"
+              } rounded-md bg-[#f3c700] text-black font-semibold hover:bg-yellow-300 transition-colors`}
+              onClick={button.action}
+            >
+              {button.label}
+            </button>
+          )
+        )}
+        <button
+          className={`${
+            isCollapsed ? "text-center text-xs" : "px-4 py-2"
+          } rounded-md bg-[#f3c700] text-black font-semibold hover:bg-red-500 transition-colors mt-4`}
+          onClick={async () => {
+            try {
+              await signOut(auth);
+              navigate("/login");
+            } catch (error) {
+              console.error("Error logging out:", error);
+            }
+          }}
+        >
+          Logout
+        </button>
+      </div>
     </div>
   );
 }
