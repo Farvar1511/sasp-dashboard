@@ -18,6 +18,7 @@ export default function Sidebar({ navigate, user }: { navigate: (path: string) =
     ...(user?.isAdmin || (user?.rank && ['Staff Sergeant', 'SSgt.', 'Commander', 'Commissioner'].includes(user.rank))
       ? [{ label: 'Admin Menu', path: '/admin-menu' }]
       : []),
+    { label: 'Bulletins', path: '/bulletins' }, // Add Bulletins tab
   ];
 
   return (

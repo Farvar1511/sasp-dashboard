@@ -1,0 +1,41 @@
+.page-content {
+  padding: 2rem;
+}
+
+input, textarea {
+  display: block;
+  width: 100%;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  border: 1px solid #FFD700;
+  border-radius: 0.5rem;
+  background-color: #333;
+  color: #FFD700;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  background-color: #FFD700;
+  color: #222;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background-color: #FFC107;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  background: #222;
+  border: 1px solid #FFD700;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}

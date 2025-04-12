@@ -6,6 +6,7 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
+  addDoc,
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import Layout from './Layout';
@@ -40,6 +41,8 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [taskType, setTaskType] = useState<'normal' | 'goal-oriented'>('normal');
   const [taskGoal, setTaskGoal] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const [bulletinTitle, setBulletinTitle] = useState('');
+  const [bulletinBody, setBulletinBody] = useState('');
   const navigate = useNavigate();
 
   // 🔄 Load users and their tasks
@@ -148,6 +151,29 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     }
   };
 
+  // 📢 Create a bulletin
+  const createBulletin = async () => {
+    if (!bulletinTitle || !bulletinBody) {
+      alert('Please provide both a title and body for the bulletin.');
+      return;
+    }
+
+    try {
+      const newBulletin = {
+        title: bulletinTitle,
+        body: bulletinBody,
+        createdAt: new Date().toISOString(),
+      };
+      await addDoc(collection(db, 'bulletins'), newBulletin); // Add to Firestore
+      alert('✅ Bulletin created successfully!');
+      setBulletinTitle('');
+      setBulletinBody('');
+    } catch (err) {
+      console.error('Error creating bulletin:', err);
+      alert('Failed to create bulletin.');
+    }
+  };
+
   if (error) {
     return (
       <div className="error-message">
@@ -214,6 +240,22 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
             </div>
           )}
           <button onClick={assignTask}>Assign Task</button>
+        </div>
+
+        <div className="admin-menu">
+          <h3>Create Bulletin</h3>
+          <input
+            type="text"
+            placeholder="Bulletin Title"
+            value={bulletinTitle}
+            onChange={(e) => setBulletinTitle(e.target.value)}
+          />
+          <textarea
+            placeholder="Bulletin Body"
+            value={bulletinBody}
+            onChange={(e) => setBulletinBody(e.target.value)}
+          />
+          <button onClick={createBulletin}>Create Bulletin</button>
         </div>
 
         <div className="user-tasks">

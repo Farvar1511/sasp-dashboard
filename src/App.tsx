@@ -10,6 +10,7 @@ import Dashboard from './components/Dashboard';
 import Tasks from './components/Tasks';
 import BadgeLookup from './components/BadgeLookup';
 import AdminMenu from './components/AdminMenu';
+import Bulletins from './components/Bulletins'; // Ensure correct path
 
 // Import the shared User interface
 import { User } from './types/User';
@@ -22,7 +23,7 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          const userDocRef = doc(db, 'users', firebaseUser.email!);
+          const userDocRef = doc(db, 'users', firebaseUser.email!.toLowerCase()); // Normalize email
           const userDoc = await getDoc(userDocRef);
 
           if (userDoc.exists()) {
@@ -85,6 +86,7 @@ function App() {
         {user && (user.isAdmin || ['Staff Sergeant', 'SSgt.', 'Commander', 'Commissioner'].includes(user.rank)) && (
           <Route path="/admin-menu" element={<AdminMenu currentUser={user} />} />
         )}
+        {user && <Route path="/bulletins" element={<Bulletins user={user} />} />} {/* Ensure user is passed */}
       </Routes>
     </Router>
   );
