@@ -108,119 +108,120 @@ export default function BadgeLookup() {
         }
       }
     >
-      <div
-        className="page-content"
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          paddingTop: "2rem",
-        }}
-      >
+      <div className="page-content">
         <div
           style={{
-            background: "#222",
-            padding: "2rem",
-            borderRadius: "8px",
-            width: "100%",
-            maxWidth: "900px",
+            display: "flex",
+            justifyContent: "center",
+            paddingTop: "2rem",
           }}
         >
-          <h2 style={{ textAlign: "center", color: "#fff" }}>
-            <img
-              src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
-              style={{ width: 30, verticalAlign: "middle", marginRight: 10 }}
-              alt="SASP Badge"
-            />
-            SASP Trooper Reference Page
-          </h2>
-
-          {/* Badge Lookup Input */}
           <div
             style={{
-              display: "flex",
-              justifyContent: "center",
-              margin: "1rem 0",
+              background: "#222",
+              padding: "2rem",
+              borderRadius: "8px",
+              width: "100%",
+              maxWidth: "900px",
             }}
           >
-            <label style={{ color: "#fff", marginRight: 10 }}>
-              Badge Number:
-            </label>
-            <input
-              type="text"
-              value={badgeInput}
-              onChange={(e) => setBadgeInput(e.target.value)}
-              style={{ padding: "5px", fontSize: "1rem", width: 150 }}
-            />
-            <button
-              className="button-primary"
-              style={{ marginLeft: 10 }}
-              onClick={handleLookup}
-            >
-              Lookup
-            </button>
-          </div>
+            <h2 style={{ textAlign: "center", color: "#fff" }}>
+              <img
+                src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
+                style={{ width: 30, verticalAlign: "middle", marginRight: 10 }}
+                alt="SASP Badge"
+              />
+              SASP Trooper Reference Page
+            </h2>
 
-          {/* Display Errors */}
-          {rosterError && (
-            <p style={{ color: "red", textAlign: "center" }}>{rosterError}</p>
-          )}
-          {fleetError && (
-            <p style={{ color: "red", textAlign: "center" }}>{fleetError}</p>
-          )}
-
-          {/* Display Trooper Info if Available */}
-          {selectedTrooper && (
+            {/* Badge Lookup Input */}
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "1rem",
-                marginTop: "1rem",
+                display: "flex",
+                justifyContent: "center",
+                margin: "1rem 0",
               }}
             >
-              {/* Trooper Information */}
-              <div>
-                <h3 style={{ color: "orange" }}>Trooper Information</h3>
-                <div className="info-box">Name: {selectedTrooper.Name}</div>
-                <div className="info-box">Rank: {selectedTrooper.Rank}</div>
-                <div className="info-box">Badge: {selectedTrooper.Badge}</div>
-                <div className="info-box">
-                  Callsign: {selectedTrooper.Callsign}
-                </div>
-              </div>
-
-              {/* Assigned Vehicles */}
-              <div>
-                <h3 style={{ color: "orange" }}>Assigned Vehicles</h3>
-                <div className="info-box">
-                  {selectedTrooper.AssignedVehicles
-                    ? selectedTrooper.AssignedVehicles
-                    : "None listed."}
-                </div>
-              </div>
-
-              {/* SWAT Information */}
-              <div>
-                <h3 style={{ color: "orange" }}>SWAT Information</h3>
-                <div className="info-box">
-                  {selectedTrooper.SWAT
-                    ? selectedTrooper.SWAT
-                    : "No SWAT info available"}
-                </div>
-              </div>
-
-              {/* Authorized Communal Vehicles */}
-              <div>
-                <h3 style={{ color: "orange" }}>
-                  Authorized Communal Vehicles
-                </h3>
-                <div className="info-box">
-                  {getAuthorizedVehicles(selectedTrooper.Rank).join(", ") ||
-                    "None available for this rank."}
-                </div>
-              </div>
+              <label style={{ color: "#fff", marginRight: 10 }}>
+                Badge Number:
+              </label>
+              <input
+                type="text"
+                value={badgeInput}
+                onChange={(e) => setBadgeInput(e.target.value)}
+                style={{ padding: "5px", fontSize: "1rem", width: 150 }}
+              />
+              <button
+                className="button-primary"
+                style={{ marginLeft: 10 }}
+                onClick={handleLookup}
+              >
+                Lookup
+              </button>
             </div>
-          )}
+
+            {/* Display Errors */}
+            {rosterError && (
+              <p style={{ color: "red", textAlign: "center" }}>{rosterError}</p>
+            )}
+            {fleetError && (
+              <p style={{ color: "red", textAlign: "center" }}>{fleetError}</p>
+            )}
+
+            {/* Display Trooper Info if Available */}
+            {selectedTrooper && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "1rem",
+                  marginTop: "1rem",
+                }}
+              >
+                {/* Trooper Information */}
+                <div>
+                  <h3 style={{ color: "orange" }}>Trooper Information</h3>
+                  <div className="info-box">Name: {selectedTrooper.Name}</div>
+                  <div className="info-box">Rank: {selectedTrooper.Rank}</div>
+                  <div className="info-box">Badge: {selectedTrooper.Badge}</div>
+                  <div className="info-box">
+                    Callsign: {selectedTrooper.Callsign}
+                  </div>
+                </div>
+
+                {/* Assigned Vehicles */}
+                <div>
+                  <h3 style={{ color: "orange" }}>Assigned Vehicles</h3>
+                  <div className="info-box">
+                    {selectedTrooper.AssignedVehicles
+                      ? selectedTrooper.AssignedVehicles
+                      : "None listed."}
+                  </div>
+                </div>
+
+                {/* SWAT Information */}
+                <div>
+                  <h3 style={{ color: "orange" }}>SWAT Information</h3>
+                  <div className="info-box">
+                    {selectedTrooper.SWAT
+                      ? selectedTrooper.SWAT
+                      : "No SWAT info available"}
+                  </div>
+                </div>
+
+                {/* Authorized Communal Vehicles */}
+                <div>
+                  <h3 style={{ color: "orange" }}>
+                    Authorized Communal Vehicles
+                  </h3>
+                  <div className="info-box">
+                    {getAuthorizedVehicles(selectedTrooper.Rank).join(", ") ||
+                      "None available for this rank."}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Layout>

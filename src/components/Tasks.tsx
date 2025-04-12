@@ -10,8 +10,7 @@ const Tasks: React.FC<TasksProps> = ({ user }) => {
   return (
     <Layout user={user}>
       <div className="page-content">
-        {/* Your Tasks UI here */}
-        <h1 className="text-2xl font-bold">Hello, {user.name}</h1>
+        <h1 className="text-2xl font-bold">Tasks</h1>
         {/* Add task-related content */}
       </div>
     </Layout>

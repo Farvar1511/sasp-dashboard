@@ -20,7 +20,13 @@ export default function Layout({
         isCollapsed={isSidebarCollapsed}
         toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
-      <main className="page-content flex-1">{children}</main>
+      <main
+        className={`page-content transition-all duration-300 ${
+          isSidebarCollapsed ? "ml-16" : "ml-40"
+        }`}
+      >
+        {children}
+      </main>
     </div>
   );
 }

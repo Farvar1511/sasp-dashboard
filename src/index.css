@@ -20,7 +20,7 @@
 
   /* Page Content */
   .page-content {
-    @apply flex-1 p-6 overflow-y-auto bg-black text-yellow-400;
+    @apply flex-1 p-6 overflow-y-auto bg-black text-yellow-400 ml-16;
   }
 
   /* Sidebar */
