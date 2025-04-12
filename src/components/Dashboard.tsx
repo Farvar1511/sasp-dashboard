@@ -64,13 +64,13 @@ export default function Dashboard({ user }: { user: User }) {
       {/* Background Image */}
       {background && (
         <div
-          className="fixed inset-0 bg-cover bg-center opacity-40 z-[-1]"
+          className="absolute top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10"
           style={{
             backgroundImage: `url('${background}')`,
             backgroundRepeat: "no-repeat",
             backgroundSize: "cover",
             backgroundPosition: "center",
-            border: "2px solid red", // Temporary border for debugging
+            border: "2px solid red", // TEMP: for debug
           }}
         />
       )}
@@ -87,9 +87,7 @@ export default function Dashboard({ user }: { user: User }) {
           <h1 className="text-4xl font-black uppercase text-center mb-2 drop-shadow-md">
             San Andreas State Police
           </h1>
-          <p className="text-lg font-semibold text-center">
-            {welcomeMessage}
-          </p>
+          <p className="text-lg font-semibold text-center">{welcomeMessage}</p>
         </div>
 
         {/* Clock */}
