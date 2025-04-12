@@ -17,7 +17,7 @@ interface Link {
   Category: string;
 }
 
-export default function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
+export default function Dashboard({ user }: { user: User }) {
   const [links, setLinks] = useState<Link[]>([]);
   const [background, setBackground] = useState('');
   const [time, setTime] = useState(new Date());
