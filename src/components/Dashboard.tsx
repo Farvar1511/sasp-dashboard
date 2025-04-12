@@ -64,13 +64,9 @@ export default function Dashboard({ user }: { user: User }) {
       {/* Background Image */}
       {background && (
         <div
-          className="absolute top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10"
+          className="dashboard-background"
           style={{
             backgroundImage: `url('${background}')`,
-            backgroundRepeat: "no-repeat",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            border: "2px solid red", // TEMP: for debug
           }}
         />
       )}
