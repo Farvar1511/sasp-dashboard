@@ -27,6 +27,7 @@ function App() {
 
           if (userDoc.exists()) {
             const userData = userDoc.data();
+            console.log('Fetched user data:', userData); // Debug log
             setUser({
               email: firebaseUser.email!,
               name: userData.name || 'Unknown',
@@ -43,7 +44,7 @@ function App() {
           setUser(null);
         }
       } else {
-        setUser(null);
+        setUser(null); // Ensure user is null if not authenticated
       }
       setLoading(false);
     });
