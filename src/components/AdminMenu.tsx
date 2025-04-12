@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import {
   collection,
@@ -9,13 +8,18 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
+import Layout from './Layout';
 import './AdminMenu.css';
+import { useNavigate } from 'react-router-dom';
 
 interface Task {
   id: string;
   description: string;
   assignedAt: string;
   completed: boolean;
+  type: 'normal' | 'goal-oriented';
+  goal?: number;
+  progress?: number;
 }
 
 interface User {
@@ -30,12 +34,13 @@ interface AdminMenuProps {
 }
 
 const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
-  const navigate = useNavigate();
-
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
+  const [taskType, setTaskType] = useState<'normal' | 'goal-oriented'>('normal');
+  const [taskGoal, setTaskGoal] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // 🔄 Load users and their tasks
   useEffect(() => {
@@ -61,6 +66,9 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
               description: taskData.description,
               assignedAt: taskData.assignedAt,
               completed: taskData.completed,
+              type: taskData.type,
+              goal: taskData.goal,
+              progress: taskData.progress,
             });
           });
 
@@ -90,6 +98,8 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
       description: taskDescription,
       assignedAt: new Date().toISOString(),
       completed: false,
+      type: taskType,
+      ...(taskType === 'goal-oriented' && { goal: taskGoal, progress: 0 }),
     };
 
     try {
@@ -99,6 +109,8 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
       alert('✅ Task assigned!');
       setTaskDescription('');
       setSelectedUserId('');
+      setTaskType('normal');
+      setTaskGoal(0);
 
       // Update local state
       setUsers((prev) =>
@@ -147,14 +159,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
   }
 
   return (
-    <div className="dashboard">
-      <div className="sidebar">
-        <button className="button-primary" onClick={() => navigate('/')}>Dashboard</button>
-        <button className="button-primary" onClick={() => navigate('/tasks')}>Tasks</button>
-        <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button>
-        <button className="button-primary" onClick={() => navigate('/admin-menu')}>Admin Menu</button>
-      </div>
-
+    <Layout>
       <div className="admin-menu-container">
         <h2>Admin Menu</h2>
         <div className="admin-menu">
@@ -184,6 +189,30 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
               />
             </label>
           </div>
+          <div>
+            <label>
+              Task Type:
+              <select
+                value={taskType}
+                onChange={(e) => setTaskType(e.target.value as 'normal' | 'goal-oriented')}
+              >
+                <option value="normal">Normal</option>
+                <option value="goal-oriented">Goal-Oriented</option>
+              </select>
+            </label>
+          </div>
+          {taskType === 'goal-oriented' && (
+            <div>
+              <label>
+                Goal:
+                <input
+                  type="number"
+                  value={taskGoal}
+                  onChange={(e) => setTaskGoal(Number(e.target.value))}
+                />
+              </label>
+            </div>
+          )}
           <button onClick={assignTask}>Assign Task</button>
         </div>
 
@@ -201,6 +230,11 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span>
                             {task.description}
+                            {task.type === 'goal-oriented' && (
+                              <span style={{ marginLeft: '8px' }}>
+                                {task.progress}/{task.goal}
+                              </span>
+                            )}
                             {task.completed && <span style={{ color: 'limegreen', marginLeft: '8px' }}>✅</span>}
                           </span>
                           <button
@@ -224,7 +258,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => {
           </div>
         </div>
       </div>
-    </div>
+    </Layout>
   );
 };
 

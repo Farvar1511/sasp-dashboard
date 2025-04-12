@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import Layout from './Layout';
 import './Dashboard.css';
 
 // Define the data structure for a trooper from the Roster sheet
@@ -97,21 +98,7 @@ export default function BadgeLookup() {
   };
 
   return (
-    <div className="dashboard">
-      {/* Sidebar Navigation */}
-      <div className="sidebar">
-        <button className="button-primary" onClick={() => navigate('/')}>
-          Dashboard
-        </button>
-        <button className="button-primary" onClick={() => navigate('/tasks')}>
-          Tasks
-        </button>
-        <button className="button-primary" onClick={() => navigate('/badge-lookup')}>
-          Badge Lookup
-        </button>
-      </div>
-
-      {/* Main Content */}
+    <Layout>
       <div className="page-content" style={{ display: 'flex', justifyContent: 'center', paddingTop: '2rem' }}>
         <div style={{ background: '#222', padding: '2rem', borderRadius: '8px', width: '100%', maxWidth: '900px' }}>
           <h2 style={{ textAlign: 'center', color: '#fff' }}>
@@ -183,6 +170,6 @@ export default function BadgeLookup() {
           )}
         </div>
       </div>
-    </div>
+    </Layout>
   );
 }

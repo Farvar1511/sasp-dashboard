@@ -8,6 +8,9 @@ interface Task {
   description: string;
   assignedAt: string;
   completed: boolean;
+  type?: string;
+  progress?: number;
+  goal?: number;
 }
 
 interface User {
@@ -34,6 +37,9 @@ export default function Tasks({ user }: { user: User }) {
             description: data.description,
             assignedAt: data.assignedAt,
             completed: data.completed,
+            type: data.type,
+            progress: data.progress,
+            goal: data.goal,
           });
         });
         setTasks(tasksList);
@@ -67,6 +73,24 @@ export default function Tasks({ user }: { user: User }) {
     }
   };
 
+  const incrementProgress = async (taskId: string, currentProgress: number, goal: number) => {
+    if (currentProgress >= goal) return;
+
+    try {
+      const taskRef = doc(db, 'users', user.email, 'tasks', taskId);
+      await updateDoc(taskRef, { progress: currentProgress + 1 });
+
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.id === taskId ? { ...task, progress: currentProgress + 1 } : task
+        )
+      );
+    } catch (err) {
+      console.error('Error updating progress:', err);
+      setError('Failed to update progress.');
+    }
+  };
+
   if (error) {
     return (
       <Layout>
@@ -89,19 +113,25 @@ export default function Tasks({ user }: { user: User }) {
       <div className="tasks-grid">
         {tasks.map((task) => (
           <div key={task.id} className="task-card">
-            <h3>
-              {task.completed ? (
-                task.description
-              ) : (
-                <input
-                  type="text"
-                  defaultValue={task.description}
-                  onBlur={(e) => updateTaskDescription(task.id, e.target.value)}
-                />
-              )}
-            </h3>
+            <h3>{task.description}</h3>
             <p>Assigned At: {new Date(task.assignedAt).toLocaleString()}</p>
-            {!task.completed && (
+            {task.type === 'goal-oriented' && (
+              <div>
+                <div className="progress-bar">
+                  <div
+                    className="progress-bar-fill"
+                    style={{ width: `${(task.progress! / task.goal!) * 100}%` }}
+                  ></div>
+                </div>
+                <p>
+                  {task.progress}/{task.goal}
+                </p>
+                <button onClick={() => incrementProgress(task.id, task.progress!, task.goal!)}>
+                  ➕ Increment Progress
+                </button>
+              </div>
+            )}
+            {!task.completed && task.type !== 'goal-oriented' && (
               <button onClick={() => completeTask(task.id)}>Mark as Completed</button>
             )}
             {task.completed && <span>✅ Completed</span>}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { hasAdminPrivileges } from '../data/users'; // Corrected import statement
+import Layout from './Layout';
 import './Dashboard.css';
 
 interface User {
@@ -22,7 +23,6 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
   const [time, setTime] = useState(new Date());
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
   const [welcomeMessage, setWelcomeMessage] = useState('');
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
 
   const everfallUrl = 'https://www.everfallcommunity.com';
@@ -71,52 +71,7 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
   }, [user]);
 
   return (
-    <div className="dashboard">
-      {/* Sidebar */}
-      <div className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
-        <button className="button-primary" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
-          {isSidebarCollapsed ? '☰' : 'Collapse'}
-        </button>
-        {!isSidebarCollapsed && (
-          <>
-            <button className="button-primary" onClick={() => navigate('/tasks')}>Tasks</button>
-            <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button>
-            {hasAdminPrivileges(user.rank) && (
-              <button className="button-primary" onClick={() => navigate('/admin-menu')}>Admin Menu</button>
-            )}
-            <button className="button-primary" onClick={() => setOverlayUrl(everfallUrl)}>Everfall Home</button>
-            <button className="button-primary" onClick={onLogout}>Logout</button>
-          </>
-        )}
-      </div>
-
-      {/* Floating Trooper Button */}
-      <div className="trooper-top-right">
-        <button
-          className="roster-btn"
-          onClick={() => setOverlayUrl(trooperUrl)}
-        >
-          Trooper Quick-Reference
-        </button>
-      </div>
-
-      {/* Background */}
-      <div className="background" style={{ backgroundImage: `url(${background})` }} />
-
-      {/* Overlay Viewer */}
-      {overlayUrl && (
-        <div className="overlay">
-          <div className="overlay-content">
-            <div className="overlay-controls">
-              <button className="button-primary" onClick={() => setOverlayUrl(null)}>✖ Close</button>
-              <button className="button-primary" onClick={() => window.open(overlayUrl!, '_blank')}>↗ Open in New Tab</button>
-            </div>
-            <iframe src={overlayUrl} title="Overlay Content" />
-          </div>
-        </div>
-      )}
-
-      {/* Content */}
+    <Layout>
       <div className="page-content">
         <div className="header-stack">
           <img
@@ -160,6 +115,6 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
           ))}
         </div>
       </div>
-    </div>
+    </Layout>
   );
 }

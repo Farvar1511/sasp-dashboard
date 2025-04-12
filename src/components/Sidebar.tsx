@@ -1,7 +1,17 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 export default function Sidebar({ navigate }: { navigate: (path: string) => void }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const location = useLocation();
+
+  const buttons = [
+    { label: 'Dashboard', path: '/' },
+    { label: 'Tasks', path: '/tasks' },
+    { label: 'Badge Lookup', path: '/badge-lookup' },
+    { label: 'Everfall Home', path: '/everfall-home' },
+    { label: 'Admin Menu', path: '/admin-menu' },
+  ];
 
   return (
     <div className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
@@ -10,15 +20,23 @@ export default function Sidebar({ navigate }: { navigate: (path: string) => void
       </button>
       {!isSidebarCollapsed && (
         <>
-          <button className="button-primary" onClick={() => navigate('/')}>Dashboard</button>
-          <button className="button-primary" onClick={() => navigate('/tasks')}>Tasks</button>
-          <button className="button-primary" onClick={() => navigate('/badge-lookup')}>Badge Lookup</button>
-          <button className="button-primary" onClick={() => navigate('/everfall-home')}>Everfall Home</button>
-          <button className="button-primary" onClick={() => navigate('/admin')}>Admin Menu</button>
+          {buttons
+            .filter((button) => button.path !== location.pathname) // Hide the button for the current page
+            .map((button) => (
+              <button
+                key={button.path}
+                className="button-primary"
+                onClick={() => navigate(button.path)}
+              >
+                {button.label}
+              </button>
+            ))}
         </>
       )}
       {/* Logout button always visible */}
-      <button className="button-primary logout-button" onClick={() => navigate('/logout')}>Logout</button>
+      <button className="button-primary logout-button" onClick={() => navigate('/logout')}>
+        Logout
+      </button>
     </div>
   );
 }
