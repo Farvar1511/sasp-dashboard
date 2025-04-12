@@ -14,4 +14,5 @@ export interface User {
   rank: string;
   email: string;
   tasks: Task[];
+  isAdmin?: boolean; // Add isAdmin field
 }

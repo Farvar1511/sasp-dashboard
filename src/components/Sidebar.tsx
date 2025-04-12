@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase'; // Import Firebase auth
 
-export default function Sidebar({ navigate, user }: { navigate: (path: string) => void; user?: { rank?: string } }) {
+export default function Sidebar({ navigate, user }: { navigate: (path: string) => void; user?: { rank?: string; isAdmin?: boolean } }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const location = useLocation();
 
@@ -15,8 +15,8 @@ export default function Sidebar({ navigate, user }: { navigate: (path: string) =
       label: 'Everfall Home',
       action: () => window.open('https://everfallcommunity.com', '_blank'), // Open in new tab
     },
-    // Only show Admin Menu if the user has the appropriate rank
-    ...(user?.rank && ['Staff Sergeant', 'SSgt.', 'Commander', 'Commissioner'].includes(user.rank)
+    // Only show Admin Menu if the user has the appropriate rank or isAdmin is true
+    ...(user?.isAdmin || (user?.rank && ['Staff Sergeant', 'SSgt.', 'Commander', 'Commissioner'].includes(user.rank))
       ? [{ label: 'Admin Menu', path: '/admin-menu' }]
       : []),
   ];

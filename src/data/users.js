@@ -1,27 +1,28 @@
-import { getDatabase, ref, onValue, update } from "firebase/database"; // Import Firebase database functions
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase";
+import { getDatabase, ref, update } from "firebase/database"; // Import Firebase database functions
 
-// Function to listen for real-time updates to users from Firebase
+// Function to listen for real-time updates to users from Firestore
 export const listenToUsers = (callback) => {
-  const db = getDatabase();
-  const usersRef = ref(db, "users"); // Assuming "users" is the key in your Firebase database
-  onValue(usersRef, (snapshot) => {
-    if (snapshot.exists()) {
-      callback(snapshot.val()); // Pass the updated users data to the callback
-    } else {
-      console.error("No data available");
-      callback([]);
-    }
+  const usersRef = collection(db, "users");
+  return onSnapshot(usersRef, (snapshot) => {
+    const users = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    callback(users);
   });
 };
 
 /**
  * Utility function to check if a user has admin privileges.
  * @param {string} rank - The rank of the user.
+ * @param {boolean} isAdmin - Whether the user has admin privileges.
  * @returns {boolean} - True if the user has admin privileges, false otherwise.
  */
-export const hasAdminPrivileges = (rank) => {
+export const hasAdminPrivileges = (rank, isAdmin) => {
   const adminRanks = ["Staff Sergeant", "SSgt.", "Commander", "Commissioner"];
-  return adminRanks.includes(rank);
+  return isAdmin || adminRanks.includes(rank);
 };
 
 /**

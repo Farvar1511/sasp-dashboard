@@ -32,6 +32,7 @@ function App() {
               name: userData.name || 'Unknown',
               rank: userData.rank || 'Unknown',
               tasks: userData.tasks || [],
+              isAdmin: userData.isAdmin || false, // Use isAdmin from Firestore
             });
           } else {
             console.error('User data not found in Firestore.');
@@ -81,7 +82,7 @@ function App() {
         />
         {user && <Route path="/tasks" element={<Tasks user={user} />} />}
         <Route path="/badge-lookup" element={<BadgeLookup />} />
-        {user && user.rank && ['Staff Sergeant', 'SSgt.', 'Commander', 'Commissioner'].includes(user.rank) && (
+        {user && (user.isAdmin || ['Staff Sergeant', 'SSgt.', 'Commander', 'Commissioner'].includes(user.rank)) && (
           <Route path="/admin-menu" element={<AdminMenu currentUser={user} />} />
         )}
       </Routes>
