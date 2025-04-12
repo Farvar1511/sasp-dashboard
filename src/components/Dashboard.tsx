@@ -74,15 +74,6 @@ export default function Dashboard({ user }: { user: User }) {
         />
       )}
 
-      {/* SASP Logo */}
-      <div className="flex justify-center pt-4">
-        <img
-          src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
-          alt="SASP Logo"
-          className="h-24" // Approximately 6rem
-        />
-      </div>
-
       {/* Main Content */}
       <div className="relative z-10 flex flex-col items-center px-6 pt-6 max-w-7xl mx-auto">
         {/* Header */}
