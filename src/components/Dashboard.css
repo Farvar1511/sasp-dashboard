@@ -115,6 +115,26 @@ body {
   margin: 1rem 0 0.5rem; /* Reduced bottom margin */
 }
 
+.top-bar-button {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: bold;
+  text-align: center;
+  background-color: #FFD700; /* Gold background */
+  color: #222; /* Dark text */
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 0 0.5rem rgba(255, 215, 0, 0.5);
+}
+
+.top-bar-button:hover {
+  background-color: #FFC107; /* Slightly darker gold on hover */
+  transform: translateY(-2px);
+  box-shadow: 0 0 1rem rgba(255, 215, 0, 0.6);
+}
+
 /* === BACKGROUND === */
 .background {
     position: fixed;
@@ -546,6 +566,7 @@ body {
 }
 
 .trooper-top-right .roster-btn {
+  text-decoration: none; /* Remove underline */
   padding: 0.75rem 1.25rem;
   font-size: 1rem;
   font-weight: bold;
