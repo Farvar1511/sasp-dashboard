@@ -32,7 +32,7 @@ function App() {
               name: userData.name || 'Unknown',
               rank: userData.rank || 'Unknown',
               tasks: userData.tasks || [],
-              isAdmin: userData.isAdmin || false, // Use isAdmin from Firestore
+              isAdmin: userData.isAdmin || false, // Fetch isAdmin from Firestore
             });
           } else {
             console.error('User data not found in Firestore.');
