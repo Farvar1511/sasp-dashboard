@@ -17,6 +17,7 @@ export default function Dashboard({ user }: { user: User }) {
 
   useEffect(() => {
     const randomImage = images[Math.floor(Math.random() * images.length)];
+    console.log("🚀 BACKGROUND IMAGE SELECTED:", randomImage); // Debugging step
     setBackground(randomImage);
 
     // Uncomment this line to test with a specific fallback image
@@ -69,6 +70,7 @@ export default function Dashboard({ user }: { user: User }) {
             backgroundRepeat: "no-repeat",
             backgroundSize: "cover",
             backgroundPosition: "center",
+            border: "2px solid red", // Temporary border for debugging
           }}
         />
       )}
