@@ -5,9 +5,8 @@ import {
   collection,
   doc,
   getDocs,
-  setDoc,
-  getDoc
-} from 'firebase/firestore';
+  setDoc
+} from 'firebase/firestore'; // Removed getDoc
 import { v4 as uuidv4 } from 'uuid';
 import './AdminMenu.css';
 
@@ -29,7 +28,7 @@ interface AdminMenuProps {
   currentUser: User;
 }
 
-const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
+const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser: _ }) => { // ⬅️ underscore silences unused warning
   const navigate = useNavigate();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -37,9 +36,9 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [taskDescription, setTaskDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // 🔄 Load users
+  // 🔄 Load users from Firestore and their tasks
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchUsers = async (): Promise<void> => {
       try {
         const usersSnap = await getDocs(collection(db, 'users'));
         const usersList: User[] = [];
@@ -53,7 +52,6 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
             tasks: [],
           };
 
-          // Fetch tasks from subcollection
           const tasksSnap = await getDocs(collection(db, 'users', docSnap.id, 'tasks'));
           tasksSnap.forEach((taskDoc) => {
             const taskData = taskDoc.data();
@@ -78,8 +76,8 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     fetchUsers();
   }, []);
 
-  // 📝 Assign task
-  const assignTask = async () => {
+  // 📝 Assign a new task to selected user
+  const assignTask = async (): Promise<void> => {
     if (!selectedUserId || !taskDescription) {
       alert('Please select a user and enter a task.');
       return;
@@ -101,7 +99,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
       setTaskDescription('');
       setSelectedUserId('');
 
-      // Update UI
+      // Update UI optimistically
       setUsers((prev) =>
         prev.map((user) =>
           user.email === selectedUserId
