@@ -17,7 +17,7 @@ interface Link {
   Category: string;
 }
 
-export default function Dashboard({ user }: { user: User }) {
+export default function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [links, setLinks] = useState<Link[]>([]);
   const [background, setBackground] = useState('');
   const [time, setTime] = useState(new Date());
@@ -73,6 +73,9 @@ export default function Dashboard({ user }: { user: User }) {
   return (
     <Layout>
       <div className="page-content">
+        <button className="button-primary" onClick={onLogout}>
+          Logout
+        </button>
         <div className="header-stack">
           <img
             src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
