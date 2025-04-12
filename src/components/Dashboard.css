@@ -356,6 +356,9 @@ body {
   transition: all 0.2s ease;
   font-weight: 600;
   font-size: 1rem;
+  text-align: center;
+  width: 100%; /* Ensure all buttons take the full width of their container */
+  box-sizing: border-box; /* Include padding and border in width calculation */
 }
 
 .category-link:hover {
