@@ -29,3 +29,26 @@
   font-size: 0.9rem;
   cursor: pointer;
 }
+
+.sidebar .button-primary {
+  width: 100%;
+  text-align: center;
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  font-weight: bold;
+  background: linear-gradient(145deg, #FFD700, #FFC107); /* Gold gradient */
+  color: #222; /* Dark text */
+  border: none;
+  border-radius: 0.75rem;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.4),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.3); /* Inner and outer shadows */
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sidebar .button-primary:hover {
+  background: linear-gradient(145deg, #FFE57F, #FFD54F); /* Lighter gold on hover */
+  transform: translateY(-2px); /* Slight lift effect */
+  box-shadow: 6px 6px 12px rgba(0, 0, 0, 0.5),
+    inset -3px -3px 6px rgba(255, 255, 255, 0.4); /* Enhanced shadows */
+}
