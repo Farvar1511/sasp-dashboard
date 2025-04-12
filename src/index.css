@@ -8,6 +8,9 @@
 @layer base {
   body {
     @apply font-sans bg-black text-white min-h-screen overflow-x-hidden;
+    background-size: cover; /* Ensure body respects background image */
+    background-repeat: no-repeat;
+    background-position: center;
   }
 }
 
@@ -20,7 +23,16 @@
 
   /* Page Content */
   .page-content {
-    @apply flex-1 p-6 overflow-y-auto bg-black text-yellow-400 ml-16;
+    @apply flex-1 p-6 overflow-y-auto text-yellow-400 ml-16;
+    background-color: transparent; /* Ensure no background color overrides the image */
+  }
+
+  /* Dashboard Background Fix */
+  .dashboard-background {
+    @apply absolute top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
   }
 
   /* Sidebar */
