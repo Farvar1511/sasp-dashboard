@@ -92,7 +92,7 @@ export default function Dashboard({ user }: { user: User }) {
           {topLinks.map((link) => (
             <button
               key={link.Label}
-              onClick={() => setOverlayUrl(link.Url)}
+              onClick={() => openModal(link.Url)}
               className="top-bar-button"
             >
               {link.Label}
@@ -106,21 +106,13 @@ export default function Dashboard({ user }: { user: User }) {
             <div key={category} className="category-box">
               <h3>{category}</h3>
               {items.map((item) => (
-                <a
+                <button
                   key={item.Label}
-                  href={item.Url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  onClick={() => openModal(item.Url)}
                   className="category-link"
-                  onClick={(e) => {
-                    if (item.Label === 'Everfall Community') {
-                      e.preventDefault();
-                      openModal(item.Url);
-                    }
-                  }}
                 >
                   {item.Label}
-                </a>
+                </button>
               ))}
             </div>
           ))}
@@ -156,7 +148,7 @@ export default function Dashboard({ user }: { user: User }) {
             </button>
           </div>
           <div className="overlay-content">
-            <iframe src={overlayUrl} title="Everfall Community" />
+            <iframe src={overlayUrl} title="Modal Content" />
           </div>
         </div>
       )}
