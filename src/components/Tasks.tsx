@@ -93,7 +93,7 @@ export default function Tasks({ user }: { user: User }) {
 
   if (error) {
     return (
-      <Layout>
+      <Layout user={user}>
         <div className="error-message">
           <h2>Error</h2>
           <p>{error}</p>
@@ -103,7 +103,7 @@ export default function Tasks({ user }: { user: User }) {
   }
 
   return (
-    <Layout>
+    <Layout user={user}>
       <div className="header-stack">
         <h1 className="title" style={{ marginTop: '1rem' }}>Tasks</h1>
         <p style={{ fontSize: '1.2rem', marginTop: '0.5rem' }}>

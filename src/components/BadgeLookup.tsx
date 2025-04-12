@@ -98,7 +98,7 @@ export default function BadgeLookup() {
   };
 
   return (
-    <Layout>
+    <Layout user={{ /* Add appropriate user data here */ }}>
       <div className="page-content" style={{ display: 'flex', justifyContent: 'center', paddingTop: '2rem' }}>
         <div style={{ background: '#222', padding: '2rem', borderRadius: '8px', width: '100%', maxWidth: '900px' }}>
           <h2 style={{ textAlign: 'center', color: '#fff' }}>

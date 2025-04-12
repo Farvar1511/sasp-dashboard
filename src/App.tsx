@@ -60,7 +60,6 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Redirect to Login if user is not logged in */}
         <Route
           path="/"
           element={
