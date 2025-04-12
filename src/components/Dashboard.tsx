@@ -76,7 +76,7 @@ export default function Dashboard({ user }: { user: User }) {
           </p>
 
           <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-52 mb-8 shadow">
-            <div className="font-mono text-md space-y-1">
+            <div className="font-orbitron text-md space-y-1">
               <div>{time.toLocaleDateString("en-US", { weekday: "long" })}</div>
               <div>{time.toLocaleDateString("en-US")}</div>
               <div>{time.toLocaleTimeString()}</div>
