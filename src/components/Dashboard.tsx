@@ -20,7 +20,6 @@ interface Link {
 export default function Dashboard({ user }: { user: User }) {
   const [background, setBackground] = useState('');
   const [time, setTime] = useState(new Date());
-  const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const navigate = useNavigate();
 
@@ -55,6 +54,17 @@ export default function Dashboard({ user }: { user: User }) {
     type();
     return () => clearTimeout(timeoutRef.current);
   }, [user]);
+
+  // Filter links into top bar and categorized groups
+  const topBarCategories = ['Fleet Management', 'SASP Roster'];
+  const topLinks = links.filter((link) => topBarCategories.includes(link.Label));
+  const groupedLinks = links
+    .filter((link) => !topBarCategories.includes(link.Label))
+    .reduce((acc, curr) => {
+      if (!acc[curr.Category]) acc[curr.Category] = [];
+      acc[curr.Category].push(curr);
+      return acc;
+    }, {} as Record<string, typeof links>);
 
   return (
     <Layout>
@@ -94,30 +104,36 @@ export default function Dashboard({ user }: { user: User }) {
           </div>
         </div>
 
-        <div className="action-buttons">
-          {links
-            .filter((link) => link.Category === 'Resources')
-            .map((link, i) => (
-              <button key={i} className="roster-btn" onClick={() => setOverlayUrl(link.Url)}>
-                {link.Label}
-              </button>
-            ))}
+        {/* 🔝 TOP BAR BUTTONS */}
+        <div className="top-bar">
+          {topLinks.map((link) => (
+            <a
+              key={link.Label}
+              href={link.Url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="top-bar-button"
+            >
+              {link.Label}
+            </a>
+          ))}
         </div>
 
-        <div className="link-grid">
-          {Object.entries(
-            links.reduce((acc, link) => {
-              acc[link.Category] = acc[link.Category] || [];
-              acc[link.Category].push(link);
-              return acc;
-            }, {} as Record<string, Link[]>)
-          ).map(([category, categoryLinks]) => (
-            <div className="link-card" key={category}>
-              <h2>{category}</h2>
-              {categoryLinks.map((link, i) => (
-                <button key={i} className="button-primary" onClick={() => setOverlayUrl(link.Url)}>
-                  {link.Label}
-                </button>
+        {/* 📚 CATEGORIZED LINK BOXES */}
+        <div className="category-container">
+          {Object.entries(groupedLinks).map(([category, items]) => (
+            <div key={category} className="category-box">
+              <h3>{category}</h3>
+              {items.map((item) => (
+                <a
+                  key={item.Label}
+                  href={item.Url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="category-link"
+                >
+                  {item.Label}
+                </a>
               ))}
             </div>
           ))}

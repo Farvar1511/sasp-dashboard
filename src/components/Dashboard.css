@@ -107,6 +107,32 @@ body {
     gap: 0.5rem;
 }
 
+/* 🔝 TOP BAR BUTTONS */
+.top-bar {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.top-bar-button {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: bold;
+  text-align: center;
+  background-color: #222;
+  color: #FFD700;
+  border: 1px solid #FFD700;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.top-bar-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 1rem rgba(255, 215, 0, 0.6);
+}
+
 /* === BACKGROUND === */
 .background {
     position: fixed;
@@ -286,6 +312,41 @@ body {
 .link-card button:hover {
     transform: scale(1.05);
     box-shadow: 0 0 1rem rgba(255, 215, 0, 0.6);
+}
+
+/* 📚 CATEGORIZED LINK BOXES */
+.category-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.category-box {
+  background: rgba(34, 34, 34, 0.8);
+  border: 1px solid #FFD700;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  box-shadow: 0 0 0.5rem rgba(255, 215, 0, 0.3);
+}
+
+.category-box h3 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #FFD700;
+}
+
+.category-link {
+  display: block;
+  padding: 0.5rem 0;
+  color: #FFD700;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+  transition: color 0.2s ease;
+}
+
+.category-link:hover {
+  color: #FFF;
 }
 
 /* === ADMIN MENU === */
