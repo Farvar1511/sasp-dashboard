@@ -1,11 +1,18 @@
 .admin-menu-container {
-  display: flex;
-  flex-direction: column;
   margin-left: 12rem; /* Leave space for the sidebar */
   padding: 2rem;
   background-color: #222;
   color: #fff;
   min-height: 100vh;
+  width: calc(100% - 12rem); /* Adjust width to span the page while accounting for the sidebar */
+  box-sizing: border-box; /* Include padding and border in width calculation */
+}
+
+@media (max-width: 768px) {
+  .admin-menu-container {
+    margin-left: 0; /* Remove sidebar space for smaller screens */
+    width: 100%; /* Full width for mobile */
+  }
 }
 
 .admin-menu {

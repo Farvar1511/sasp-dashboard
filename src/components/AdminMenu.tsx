@@ -44,6 +44,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [error, setError] = useState<string | null>(null);
   const [bulletinTitle, setBulletinTitle] = useState('');
   const [bulletinBody, setBulletinBody] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // 🔄 Load users and their tasks
@@ -170,6 +171,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
             : user
         )
       );
+      setEditingTaskId(null); // Exit edit mode
     } catch (err) {
       console.error('Error editing task description:', err);
       setError('Failed to edit task description.');
@@ -295,16 +297,17 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
                     user.tasks.map((task) => (
                       <li key={task.id} className={task.completed ? 'completed' : ''}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          {task.completed ? (
-                            <span>{task.description}</span>
-                          ) : (
+                          {editingTaskId === task.id ? (
                             <input
                               type="text"
                               value={task.description}
                               onChange={(e) =>
                                 editTaskDescription(user.email, task.id, e.target.value)
                               }
+                              onBlur={() => setEditingTaskId(null)} // Exit edit mode on blur
                             />
+                          ) : (
+                            <span>{task.description}</span>
                           )}
                           {task.type === 'goal-oriented' && (
                             <span style={{ marginLeft: '8px' }}>
@@ -312,15 +315,26 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
                             </span>
                           )}
                           {task.completed && <span style={{ color: 'limegreen', marginLeft: '8px' }}>✅</span>}
-                          <button
-                            className="delete-icon"
-                            onClick={() => deleteTask(user.email, task.id)}
-                            title="Delete Task"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#fff" width="16" height="16">
-                              <path d="M3 6h18v2H3V6zm2 3h14v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm5 2v8h2v-8H8zm4 0v8h2v-8h-2zM9 4V2h6v2h5v2H4V4h5z" />
-                            </svg>
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {!task.completed && (
+                              <button
+                                className="edit-icon"
+                                onClick={() => setEditingTaskId(task.id)}
+                                title="Edit Task"
+                              >
+                                ✏️
+                              </button>
+                            )}
+                            <button
+                              className="delete-icon"
+                              onClick={() => deleteTask(user.email, task.id)}
+                              title="Delete Task"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#fff" width="16" height="16">
+                                <path d="M3 6h18v2H3V6zm2 3h14v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm5 2v8h2v-8H8zm4 0v8h2-8h-2zM9 4V2h6v2h5v2H4V4h5z" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </li>
                     ))
