@@ -72,59 +72,84 @@ export default function Bulletins({ user }: { user: any }) {
   return (
     <Layout user={user}>
       <div className="page-content">
-        <h1 className="text-2xl font-bold">Bulletins</h1>
-        {error && <p style={{ color: "red" }}>{error}</p>}
-        <ul>
-          {bulletins.map((bulletin) => (
-            <li key={bulletin.id}>
-              {editingBulletin?.id === bulletin.id ? (
-                <div>
-                  <input
-                    type="text"
-                    value={editingBulletin.title}
-                    onChange={(e) =>
-                      setEditingBulletin({
-                        ...editingBulletin,
-                        title: e.target.value,
-                      })
-                    }
-                  />
-                  <textarea
-                    value={editingBulletin.body}
-                    onChange={(e) =>
-                      setEditingBulletin({
-                        ...editingBulletin,
-                        body: e.target.value,
-                      })
-                    }
-                  />
-                  <button onClick={saveBulletin}>Save</button>
-                  <button onClick={() => setEditingBulletin(null)}>
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <h3>{bulletin.title}</h3>
-                  <p>{bulletin.body}</p>
-                  <small>
-                    Created at: {new Date(bulletin.createdAt).toLocaleString()}
-                  </small>
-                  {user.isAdmin && (
-                    <div>
-                      <button onClick={() => setEditingBulletin(bulletin)}>
-                        Edit
+        <h1 className="text-3xl font-bold mb-6 text-[#f3c700]">📢 Bulletins</h1>
+
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+
+        {bulletins.length === 0 ? (
+          <p className="text-yellow-400 italic">No announcements yet.</p>
+        ) : (
+          <div className="bulletins">
+            {bulletins.map((bulletin) => (
+              <div key={bulletin.id} className="bulletin-item relative">
+                {editingBulletin?.id === bulletin.id ? (
+                  <div className="bulletin-edit-form">
+                    <input
+                      type="text"
+                      className="input"
+                      value={editingBulletin.title}
+                      onChange={(e) =>
+                        setEditingBulletin({
+                          ...editingBulletin,
+                          title: e.target.value,
+                        })
+                      }
+                      placeholder="Bulletin Title"
+                    />
+                    <textarea
+                      className="input"
+                      rows={4}
+                      value={editingBulletin.body}
+                      onChange={(e) =>
+                        setEditingBulletin({
+                          ...editingBulletin,
+                          body: e.target.value,
+                        })
+                      }
+                      placeholder="Bulletin Body"
+                    />
+                    <div className="flex gap-2">
+                      <button className="button-primary" onClick={saveBulletin}>
+                        Save
                       </button>
-                      <button onClick={() => deleteBulletin(bulletin.id)}>
-                        Delete
+                      <button
+                        className="button-secondary"
+                        onClick={() => setEditingBulletin(null)}
+                      >
+                        Cancel
                       </button>
                     </div>
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                  </div>
+                ) : (
+                  <>
+                    <h3 className="bulletin-title">{bulletin.title}</h3>
+                    <p className="bulletin-body">{bulletin.body}</p>
+                    <p className="bulletin-meta">
+                      Created: {new Date(bulletin.createdAt).toLocaleString()}
+                    </p>
+
+                    {user?.isAdmin && (
+                      <div className="bulletin-actions absolute top-2 right-2 opacity-0 hover:opacity-100 transition-opacity">
+                        <button
+                          className="button-secondary"
+                          onClick={() => setEditingBulletin(bulletin)}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-400"
+                          onClick={() => deleteBulletin(bulletin.id)}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Layout>
   );

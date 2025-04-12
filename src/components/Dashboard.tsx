@@ -86,8 +86,13 @@ export default function Dashboard({ user }: { user: User }) {
       {/* Main Content */}
       <div className="relative z-10 flex flex-col items-center px-6 pt-6 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col items-center mb-8">
-          <h1 className="text-4xl font-black uppercase text-center mb-2 drop-shadow-md">
+        <div className="flex flex-col items-center mb-8 space-y-2">
+          <img
+            src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
+            alt="SASP Star Badge"
+            className="h-16"
+          />
+          <h1 className="text-4xl font-black uppercase text-center drop-shadow-md">
             San Andreas State Police
           </h1>
           <p className="text-lg font-semibold text-center">{welcomeMessage}</p>
@@ -95,10 +100,16 @@ export default function Dashboard({ user }: { user: User }) {
 
         {/* Clock */}
         <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-60 mb-8 shadow">
-          <div className="font-orbitron text-lg space-y-1">
-            <div>{time.toLocaleDateString("en-US", { weekday: "long" })}</div>
-            <div>{time.toLocaleDateString("en-US")}</div>
-            <div>{time.toLocaleTimeString()}</div>
+          <div className="space-y-1 text-lg">
+            <div className="font-orbitron font-bold">
+              {time.toLocaleDateString("en-US", { weekday: "long" })}
+            </div>
+            <div className="font-orbitron font-bold">
+              {time.toLocaleDateString("en-US")}
+            </div>
+            <div className="font-orbitron font-bold">
+              {time.toLocaleTimeString()}
+            </div>
           </div>
         </div>
 
@@ -116,11 +127,11 @@ export default function Dashboard({ user }: { user: User }) {
         </div>
 
         {/* Grouped Links */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
           {Object.entries(groupedLinks).map(([category, items]) => (
             <div
               key={category}
-              className="bg-gray-800 border border-yellow-400 rounded-lg p-6 shadow-lg"
+              className="bg-black/70 border border-yellow-400 rounded-lg p-8 shadow-lg"
             >
               <h3 className="text-xl font-bold text-yellow-400 mb-4 border-b border-yellow-400 pb-2">
                 {category}
@@ -129,7 +140,7 @@ export default function Dashboard({ user }: { user: User }) {
                 <button
                   key={item.Label}
                   onClick={() => openModal(item.Url)}
-                  className="block w-full px-4 py-2 mb-2 bg-black border border-yellow-400 text-yellow-400 rounded-md font-semibold hover:bg-yellow-300 hover:text-black transition-colors duration-150"
+                  className="block w-full px-4 py-2 mb-2 bg-black/70 border border-yellow-400 text-yellow-400 rounded-md font-semibold hover:bg-yellow-300 hover:text-black transition-colors duration-150"
                 >
                   {item.Label}
                 </button>
@@ -137,21 +148,12 @@ export default function Dashboard({ user }: { user: User }) {
             </div>
           ))}
         </div>
-
-        {/* Star Badge */}
-        <div className="flex justify-center mt-8">
-          <img
-            src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
-            alt="SASP Star Badge"
-            className="h-16"
-          />
-        </div>
       </div>
 
       {/* Modal Overlay */}
       {overlayUrl && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center pt-12 px-4">
-          <div className="w-full max-w-6xl flex justify-end gap-2 mb-2">
+        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center pt-4 px-4">
+          <div className="w-full max-w-7xl flex justify-end gap-2 mb-4">
             <a
               href={overlayUrl}
               target="_blank"
@@ -167,7 +169,7 @@ export default function Dashboard({ user }: { user: User }) {
               ✕
             </button>
           </div>
-          <div className="flex-grow w-full max-w-6xl h-[90vh] bg-black border border-yellow-400 rounded-lg overflow-hidden">
+          <div className="flex-grow w-full max-w-7xl h-full bg-black border border-yellow-400 rounded-lg overflow-hidden">
             <iframe
               src={overlayUrl}
               title="Modal Content"

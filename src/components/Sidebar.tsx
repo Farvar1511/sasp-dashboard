@@ -35,12 +35,12 @@ export default function Sidebar({
 
   return (
     <div
-      className={`sidebar transition-all duration-300 ${
+      className={`sidebar fixed top-0 left-0 h-full bg-black text-yellow-400 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out ${
         isCollapsed ? "w-16" : "w-40"
       }`}
     >
       <button
-        className="button-primary mb-2 hover:bg-yellow-300 transition-colors"
+        className="px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-gray-200 transition-colors"
         onClick={toggleCollapse}
       >
         {isCollapsed ? "☰" : "Collapse"}
@@ -52,7 +52,7 @@ export default function Sidebar({
               button.path !== location.pathname && (
                 <button
                   key={button.path}
-                  className="button-primary hover:bg-yellow-300 transition-colors"
+                  className="px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-gray-200 transition-colors"
                   onClick={() => navigate(button.path)}
                 >
                   {button.label}
@@ -61,7 +61,7 @@ export default function Sidebar({
             ) : (
               <button
                 key={button.label}
-                className="button-primary hover:bg-yellow-300 transition-colors"
+                className="px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-gray-200 transition-colors"
                 onClick={button.action}
               >
                 {button.label}
@@ -69,7 +69,7 @@ export default function Sidebar({
             )
           )}
           <button
-            className="button-primary mt-4 hover:bg-red-500 transition-colors"
+            className="px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-red-500 transition-colors mt-4"
             onClick={async () => {
               try {
                 await signOut(auth);

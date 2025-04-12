@@ -1,5 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Orbitron:wght@400..900&display=swap");
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap");
 @import "tailwindcss";
 
 @tailwind base;
@@ -126,13 +126,22 @@
     @apply flex flex-col gap-4;
   }
   .bulletin-item {
-    @apply bg-gray-800 text-yellow-400 rounded-lg p-4 shadow-lg;
+    @apply bg-gray-800 text-yellow-400 rounded-lg p-4 shadow-lg relative;
   }
   .bulletin-title {
     @apply text-xl font-bold mb-2;
   }
   .bulletin-body {
     @apply text-sm;
+  }
+  .bulletin-meta {
+    @apply text-xs text-yellow-300 italic;
+  }
+  .bulletin-actions {
+    @apply flex gap-2 absolute top-2 right-2 opacity-0 hover:opacity-100 transition-opacity;
+  }
+  .bulletin-edit-form {
+    @apply bg-gray-900 border border-yellow-400 p-4 rounded-md space-y-2;
   }
 
   /* Tasks */
