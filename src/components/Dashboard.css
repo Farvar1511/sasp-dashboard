@@ -112,7 +112,7 @@ body {
   display: flex;
   justify-content: center;
   gap: 1rem;
-  margin: 1rem 0;
+  margin: 1rem 0 0.5rem; /* Reduced bottom margin */
 }
 
 .top-bar-button {
@@ -314,12 +314,34 @@ body {
     box-shadow: 0 0 1rem rgba(255, 215, 0, 0.6);
 }
 
+/* 🔗 CATEGORY LINKS */
+.category-link {
+  display: block;
+  margin: 0.4rem 0;
+  padding: 0.5rem 1rem;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #222;
+  background-color: #FFD700;
+  border: none;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 0 0.3rem rgba(255, 215, 0, 0.5);
+}
+
+.category-link:hover {
+  background-color: #FFC107;
+  transform: translateY(-1px);
+}
+
 /* 📚 CATEGORIZED LINK BOXES */
 .category-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
-  margin-top: 2rem;
+  margin-top: 0.5rem; /* Reduced top margin */
 }
 
 .category-box {
@@ -557,20 +579,23 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.85);
+  background-color: rgba(0, 0, 0, 0.9);
   z-index: 9999;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-start;
   align-items: center;
+  padding-top: 3rem;
+  border: 2px solid var(--accent-color);
 }
 
 .overlay-content {
-  position: relative;
-  width: 90vw;
-  height: 90vh;
+  flex-grow: 1;
+  width: 95%;
+  height: 85vh;
   background-color: #111;
-  border: 1px solid #FFD700;
-  border-radius: 0.5rem;
+  border: 1px solid var(--accent-color);
+  border-radius: 0.75rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -583,35 +608,52 @@ body {
   border: none;
 }
 
-.close-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: #FFD700;
+.overlay-controls {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+
+.open-new-tab-button {
+  background-color: var(--accent-color);
   color: #222;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: bold;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.open-new-tab-button:hover {
+  background-color: #ffc107;
+}
+
+.close-button {
+  background-color: #FF4D4D;
+  color: white;
   border: none;
+  padding: 0.5rem 0.75rem;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
   font-size: 1.2rem;
   font-weight: bold;
   cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 .close-button:hover {
-  background: #FFC107;
+  background-color: #FF1A1A;
 }
 
-.overlay-controls {
-    display: flex;
-    justify-content: flex-end;
-    padding: 1rem;
-    background: #111;
-    border-bottom: 1px solid var(--accent-color);
-    gap: 0.75rem;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .info-box {

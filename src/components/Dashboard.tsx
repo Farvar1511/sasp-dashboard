@@ -60,6 +60,14 @@ export default function Dashboard({ user }: { user: User }) {
       return acc;
     }, {} as Record<string, typeof links>);
 
+  const openModal = (url: string) => {
+    setOverlayUrl(url);
+  };
+
+  const closeModal = () => {
+    setOverlayUrl(null);
+  };
+
   return (
     <Layout>
       <div
@@ -114,13 +122,21 @@ export default function Dashboard({ user }: { user: User }) {
             <div key={category} className="category-box">
               <h3>{category}</h3>
               {items.map((item) => (
-                <button
+                <a
                   key={item.Label}
-                  onClick={() => setOverlayUrl(item.Url)}
+                  href={item.Url}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="category-link"
+                  onClick={(e) => {
+                    if (item.Label === 'Everfall Community') {
+                      e.preventDefault();
+                      openModal(item.Url);
+                    }
+                  }}
                 >
                   {item.Label}
-                </button>
+                </a>
               ))}
             </div>
           ))}
@@ -130,11 +146,21 @@ export default function Dashboard({ user }: { user: User }) {
       {/* Modal Overlay */}
       {overlayUrl && (
         <div className="overlay">
-          <div className="overlay-content">
-            <button className="close-button" onClick={() => setOverlayUrl(null)}>
-              ✖
+          <div className="overlay-controls">
+            <a
+              href={overlayUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="open-new-tab-button"
+            >
+              🔗 Open in New Tab
+            </a>
+            <button className="close-button" onClick={closeModal}>
+              ✕
             </button>
-            <iframe src={overlayUrl} title="Overlay Content" frameBorder="0"></iframe>
+          </div>
+          <div className="overlay-content">
+            <iframe src={overlayUrl} title="Everfall Community" />
           </div>
         </div>
       )}
