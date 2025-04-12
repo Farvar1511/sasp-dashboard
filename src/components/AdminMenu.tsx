@@ -44,7 +44,7 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
   const [error, setError] = useState<string | null>(null);
   const [bulletinTitle, setBulletinTitle] = useState('');
   const [bulletinBody, setBulletinBody] = useState('');
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTask, setEditingTask] = useState<{ taskId: string; description: string; goal?: number } | null>(null);
   const navigate = useNavigate();
 
   // 🔄 Load users and their tasks
@@ -153,11 +153,16 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
     }
   };
 
-  // ✏️ Edit task description
-  const editTaskDescription = async (userEmail: string, taskId: string, newDescription: string) => {
+  // ✏️ Save edited task
+  const saveTaskEdits = async (userEmail: string) => {
+    if (!editingTask) return;
+
     try {
-      const taskRef = doc(db, 'users', userEmail, 'tasks', taskId);
-      await updateDoc(taskRef, { description: newDescription });
+      const taskRef = doc(db, 'users', userEmail, 'tasks', editingTask.taskId);
+      const updates: Partial<Task> = { description: editingTask.description };
+      if (editingTask.goal !== undefined) updates.goal = editingTask.goal;
+
+      await updateDoc(taskRef, updates);
 
       setUsers((prev) =>
         prev.map((user) =>
@@ -165,16 +170,18 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
             ? {
                 ...user,
                 tasks: user.tasks.map((task) =>
-                  task.id === taskId ? { ...task, description: newDescription } : task
+                  task.id === editingTask.taskId
+                    ? { ...task, description: editingTask.description, goal: editingTask.goal }
+                    : task
                 ),
               }
             : user
         )
       );
-      setEditingTaskId(null); // Exit edit mode
+      setEditingTask(null); // Exit edit mode
     } catch (err) {
-      console.error('Error editing task description:', err);
-      setError('Failed to edit task description.');
+      console.error('Error saving task edits:', err);
+      setError('Failed to save task edits.');
     }
   };
 
@@ -296,45 +303,72 @@ const AdminMenu: React.FC<AdminMenuProps> = ({ currentUser }) => {
                   {user.tasks.length > 0 ? (
                     user.tasks.map((task) => (
                       <li key={task.id} className={task.completed ? 'completed' : ''}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          {editingTaskId === task.id ? (
-                            <input
-                              type="text"
-                              value={task.description}
-                              onChange={(e) =>
-                                editTaskDescription(user.email, task.id, e.target.value)
-                              }
-                              onBlur={() => setEditingTaskId(null)} // Exit edit mode on blur
-                            />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {editingTask?.taskId === task.id ? (
+                            <>
+                              <input
+                                type="text"
+                                value={editingTask.description}
+                                onChange={(e) =>
+                                  setEditingTask((prev) =>
+                                    prev ? { ...prev, description: e.target.value } : null
+                                  )
+                                }
+                                placeholder="Edit task description"
+                              />
+                              {task.type === 'goal-oriented' && (
+                                <input
+                                  type="number"
+                                  value={editingTask.goal ?? ''}
+                                  onChange={(e) =>
+                                    setEditingTask((prev) =>
+                                      prev ? { ...prev, goal: Number(e.target.value) } : null
+                                    )
+                                  }
+                                  placeholder="Edit goal"
+                                />
+                              )}
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button onClick={() => saveTaskEdits(user.email)}>Save</button>
+                                <button onClick={() => setEditingTask(null)}>Cancel</button>
+                              </div>
+                            </>
                           ) : (
-                            <span>{task.description}</span>
+                            <>
+                              <span>{task.description}</span>
+                              {task.type === 'goal-oriented' && (
+                                <span>
+                                  Goal: {task.progress}/{task.goal}
+                                </span>
+                              )}
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                {!task.completed && (
+                                  <button
+                                    className="edit-icon"
+                                    onClick={() =>
+                                      setEditingTask({
+                                        taskId: task.id,
+                                        description: task.description,
+                                        goal: task.goal,
+                                      })
+                                    }
+                                    title="Edit Task"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
+                                <button
+                                  className="delete-icon"
+                                  onClick={() => deleteTask(user.email, task.id)}
+                                  title="Delete Task"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#fff" width="16" height="16">
+                                    <path d="M3 6h18v2H3V6zm2 3h14v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm5 2v8h2v-8H8zm4 0v8h2v-8h-2zM9 4V2h6v2h5v2H4V4h5z" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </>
                           )}
-                          {task.type === 'goal-oriented' && (
-                            <span style={{ marginLeft: '8px' }}>
-                              {task.progress}/{task.goal}
-                            </span>
-                          )}
-                          {task.completed && <span style={{ color: 'limegreen', marginLeft: '8px' }}>✅</span>}
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            {!task.completed && (
-                              <button
-                                className="edit-icon"
-                                onClick={() => setEditingTaskId(task.id)}
-                                title="Edit Task"
-                              >
-                                ✏️
-                              </button>
-                            )}
-                            <button
-                              className="delete-icon"
-                              onClick={() => deleteTask(user.email, task.id)}
-                              title="Delete Task"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#fff" width="16" height="16">
-                                <path d="M3 6h18v2H3V6zm2 3h14v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm5 2v8h2v-8H8zm4 0v8h2-8h-2zM9 4V2h6v2h5v2H4V4h5z" />
-                              </svg>
-                            </button>
-                          </div>
                         </div>
                       </li>
                     ))
