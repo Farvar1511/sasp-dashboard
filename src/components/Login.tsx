@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../context/AuthContext";
+import { images } from "../data/images"; // Import the images array
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -11,10 +12,14 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>("");
 
   useEffect(() => {
     if (user) {
       navigate("/");
+    } else {
+      const randomIndex = Math.floor(Math.random() * images.length);
+      setBackgroundImageUrl(images[randomIndex]);
     }
   }, [user, navigate]);
 
@@ -58,17 +63,21 @@ const Login: React.FC = () => {
     return null;
   }
 
+  if (!backgroundImageUrl) {
+    return null;
+  }
+
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-cover bg-center"
-      style={{ backgroundImage: "url('/images/background.png')" }}
+      style={{ backgroundImage: `url('${backgroundImageUrl}')` }}
     >
       <div className="bg-black/75 p-8 rounded-lg shadow-xl w-full max-w-md space-y-6">
         <div className="text-center">
           <img
             src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
             alt="SASP Logo"
-            className="w-20 h-auto mx-auto mb-4"
+            className="w-40 h-auto mx-auto mb-4"
           />
           <h2 className="text-2xl font-bold text-yellow-400">
             SASP Portal Login
