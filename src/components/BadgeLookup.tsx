@@ -206,22 +206,28 @@ const BadgeLookup: React.FC = () => {
       const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data() as Omit<RosterUser, "id">;
 
-      // Normalize cert keys AND values to uppercase
+      // Normalize cert keys AND values to uppercase, handling boolean values
       const normalizedCerts = userData.certifications
         ? Object.entries(userData.certifications).reduce(
             (acc, [key, value]) => {
-              const upperValue = (
-                value as string | null | undefined
-              )?.toUpperCase();
-              if (
-                upperValue === "CERT" ||
-                upperValue === "SUPER" ||
-                upperValue === "LEAD"
-              ) {
-                acc[key.toUpperCase()] = upperValue as CertStatus;
-              } else {
-                acc[key.toUpperCase()] = null;
+              let normalizedValue: CertStatus = null; // Default to null
+
+              if (typeof value === "string") {
+                const upperValue = value.toUpperCase();
+                if (
+                  upperValue === "CERT" ||
+                  upperValue === "SUPER" ||
+                  upperValue === "LEAD"
+                ) {
+                  normalizedValue = upperValue as CertStatus;
+                }
+              } else if (value === true) {
+                // Treat boolean true as 'CERT'
+                normalizedValue = "CERT";
               }
+              // Any other type (false, number, etc.) or invalid string remains null
+
+              acc[key.toUpperCase()] = normalizedValue; // Store with uppercase key
               return acc;
             },
             {} as { [key: string]: CertStatus | null }
