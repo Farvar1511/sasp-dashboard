@@ -59,8 +59,11 @@ const Login: React.FC = () => {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800">
-      <div className="w-full max-w-md p-8 space-y-6 bg-gray-800/80 rounded-lg shadow-xl border border-yellow-400/50">
+    <div
+      className="min-h-screen flex items-center justify-center bg-cover bg-center"
+      style={{ backgroundImage: "url('/images/background.png')" }}
+    >
+      <div className="bg-black/75 p-8 rounded-lg shadow-xl w-full max-w-md space-y-6">
         <div className="text-center">
           <img
             src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
