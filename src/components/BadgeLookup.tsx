@@ -211,6 +211,7 @@ const BadgeLookup: React.FC = () => {
         ? Object.entries(userData.certifications).reduce(
             (acc, [key, value]) => {
               let normalizedValue: CertStatus = null; // Default to null
+              const currentKeyUpper = key.toUpperCase(); // Uppercase key once
 
               if (typeof value === "string") {
                 const upperValue = value.toUpperCase();
@@ -221,13 +222,13 @@ const BadgeLookup: React.FC = () => {
                 ) {
                   normalizedValue = upperValue as CertStatus;
                 }
-              } else if (value === true) {
+              } else if (typeof value === "boolean" && value === true) {
                 // Treat boolean true as 'CERT'
                 normalizedValue = "CERT";
               }
-              // Any other type (false, number, etc.) or invalid string remains null
+              // Any other type (false, number, null, undefined etc.) or invalid string remains null
 
-              acc[key.toUpperCase()] = normalizedValue; // Store with uppercase key
+              acc[currentKeyUpper] = normalizedValue; // Store with uppercase key
               return acc;
             },
             {} as { [key: string]: CertStatus | null }
