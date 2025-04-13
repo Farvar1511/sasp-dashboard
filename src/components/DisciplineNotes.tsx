@@ -80,6 +80,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
   const [newDisciplineNote, setNewDisciplineNote] = useState("");
   const [newGeneralNote, setNewGeneralNote] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Editing state
   const [editingDiscipline, setEditingDiscipline] =
@@ -242,6 +243,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       return;
     }
     setSubmitError(null);
+    setIsSubmitting(true);
     try {
       const disciplineColRef = collection(
         dbFirestore,
@@ -263,6 +265,8 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
     } catch (error) {
       console.error("Error adding discipline entry:", error);
       setSubmitError("Failed to add discipline entry.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -272,6 +276,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       return;
     }
     setSubmitError(null);
+    setIsSubmitting(true);
     try {
       const notesColRef = collection(
         dbFirestore,
@@ -291,6 +296,8 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
     } catch (error) {
       console.error("Error adding general note:", error);
       setSubmitError("Failed to add general note.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -300,6 +307,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       !window.confirm("Are you sure you want to delete this discipline entry?")
     )
       return;
+    setIsSubmitting(true);
     try {
       const entryDocRef = doc(
         dbFirestore,
@@ -314,6 +322,8 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
     } catch (error) {
       console.error("Error deleting discipline entry:", error);
       alert("Failed to delete discipline entry.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -323,6 +333,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       !window.confirm("Are you sure you want to delete this general note?")
     )
       return;
+    setIsSubmitting(true);
     try {
       const noteDocRef = doc(
         dbFirestore,
@@ -337,6 +348,8 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
     } catch (error) {
       console.error("Error deleting general note:", error);
       alert("Failed to delete general note.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -347,6 +360,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       alert("Discipline details cannot be empty.");
       return;
     }
+    setIsSubmitting(true);
     try {
       const entryDocRef = doc(
         dbFirestore,
@@ -362,6 +376,8 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
     } catch (error) {
       console.error("Error updating discipline entry:", error);
       alert("Failed to update discipline entry.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -372,6 +388,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       alert("Note cannot be empty.");
       return;
     }
+    setIsSubmitting(true);
     try {
       const noteDocRef = doc(dbFirestore, "users", selectedUserId, "notes", id);
       await updateDoc(noteDocRef, { note: note.trim() });
@@ -381,6 +398,8 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
     } catch (error) {
       console.error("Error updating general note:", error);
       alert("Failed to update general note.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -547,6 +566,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                   setEditingDiscipline(null);
                   setEditingNote(null);
                 }}
+                disabled={!!editingDiscipline || !!editingNote || isSubmitting}
               >
                 {showAddDiscipline
                   ? "Cancel Add Discipline"
@@ -560,6 +580,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                   setEditingDiscipline(null);
                   setEditingNote(null);
                 }}
+                disabled={!!editingDiscipline || !!editingNote || isSubmitting}
               >
                 {showAddNote ? "Cancel Add Note" : "Add General Note"}
               </button>
@@ -616,8 +637,9 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                 <button
                   className="button-primary text-sm px-4 py-2"
                   onClick={handleAddDisciplineEntry}
+                  disabled={isSubmitting}
                 >
-                  Submit Discipline Entry
+                  {isSubmitting ? "Submitting..." : "Submit Discipline Entry"}
                 </button>
               </div>
             )}
@@ -649,8 +671,9 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                 <button
                   className="button-primary text-sm px-4 py-2"
                   onClick={handleAddGeneralNote}
+                  disabled={isSubmitting}
                 >
-                  Submit General Note
+                  {isSubmitting ? "Submitting..." : "Submit General Note"}
                 </button>
               </div>
             )}
@@ -672,10 +695,17 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                       disciplineEntries.map((entry) => (
                         <div
                           key={entry.id}
-                          className="note-card bg-gray-800/70 p-3 rounded border border-gray-600 relative group text-sm"
+                          className={`note-card p-3 rounded border ${
+                            editingDiscipline?.id === entry.id
+                              ? "border-blue-500 bg-gray-800"
+                              : "border-gray-600 bg-gray-800/70"
+                          } relative group text-sm`}
                         >
                           {editingDiscipline?.id === entry.id ? (
                             <div className="space-y-2">
+                              <label className="block text-xs font-medium text-gray-400">
+                                Type
+                              </label>
                               <select
                                 className="input text-sm w-full"
                                 value={editingDiscipline.type}
@@ -686,6 +716,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                                       .value as DisciplineEntry["type"],
                                   })
                                 }
+                                disabled={isSubmitting}
                               >
                                 <option value="commendation">
                                   Commendation
@@ -695,6 +726,9 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                                 <option value="suspension">Suspension</option>
                                 <option value="termination">Termination</option>
                               </select>
+                              <label className="block text-xs font-medium text-gray-400">
+                                Details
+                              </label>
                               <textarea
                                 className="input text-sm w-full"
                                 value={editingDiscipline.note}
@@ -705,17 +739,20 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                                   })
                                 }
                                 rows={3}
+                                disabled={isSubmitting}
                               />
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 pt-1">
                                 <button
                                   className="button-primary text-xs px-2 py-1"
                                   onClick={handleSaveDisciplineEdit}
+                                  disabled={isSubmitting}
                                 >
-                                  Save
+                                  {isSubmitting ? "Saving..." : "Save"}
                                 </button>
                                 <button
                                   className="button-secondary text-xs px-2 py-1"
                                   onClick={handleCancelEdit}
+                                  disabled={isSubmitting}
                                 >
                                   Cancel
                                 </button>
@@ -740,18 +777,32 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                               <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   title="Edit Entry"
-                                  className="bg-blue-600 hover:bg-blue-500 text-white p-1 rounded text-xs"
+                                  className="bg-blue-600 hover:bg-blue-500 text-white p-1 rounded text-xs disabled:opacity-50"
                                   onClick={() =>
                                     handleStartEditDiscipline(entry)
+                                  }
+                                  disabled={
+                                    !!editingDiscipline ||
+                                    !!editingNote ||
+                                    isSubmitting ||
+                                    showAddDiscipline ||
+                                    showAddNote
                                   }
                                 >
                                   ✏️
                                 </button>
                                 <button
                                   title="Delete Entry"
-                                  className="bg-red-600 hover:bg-red-500 text-white p-1 rounded text-xs"
+                                  className="bg-red-600 hover:bg-red-500 text-white p-1 rounded text-xs disabled:opacity-50"
                                   onClick={() =>
                                     handleDeleteDiscipline(entry.id)
+                                  }
+                                  disabled={
+                                    !!editingDiscipline ||
+                                    !!editingNote ||
+                                    isSubmitting ||
+                                    showAddDiscipline ||
+                                    showAddNote
                                   }
                                 >
                                   🗑️
@@ -786,10 +837,17 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                       generalNotes.map((note) => (
                         <div
                           key={note.id}
-                          className="note-card bg-gray-800/70 p-3 rounded border border-gray-600 relative group text-sm"
+                          className={`note-card p-3 rounded border ${
+                            editingNote?.id === note.id
+                              ? "border-blue-500 bg-gray-800"
+                              : "border-gray-600 bg-gray-800/70"
+                          } relative group text-sm`}
                         >
                           {editingNote?.id === note.id ? (
                             <div className="space-y-2">
+                              <label className="block text-xs font-medium text-gray-400">
+                                Note
+                              </label>
                               <textarea
                                 className="input text-sm w-full"
                                 value={editingNote.note}
@@ -800,17 +858,20 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                                   })
                                 }
                                 rows={3}
+                                disabled={isSubmitting}
                               />
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 pt-1">
                                 <button
                                   className="button-primary text-xs px-2 py-1"
                                   onClick={handleSaveNoteEdit}
+                                  disabled={isSubmitting}
                                 >
-                                  Save
+                                  {isSubmitting ? "Saving..." : "Save"}
                                 </button>
                                 <button
                                   className="button-secondary text-xs px-2 py-1"
                                   onClick={handleCancelEdit}
+                                  disabled={isSubmitting}
                                 >
                                   Cancel
                                 </button>
@@ -828,15 +889,29 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
                               <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   title="Edit Note"
-                                  className="bg-blue-600 hover:bg-blue-500 text-white p-1 rounded text-xs"
+                                  className="bg-blue-600 hover:bg-blue-500 text-white p-1 rounded text-xs disabled:opacity-50"
                                   onClick={() => handleStartEditNote(note)}
+                                  disabled={
+                                    !!editingDiscipline ||
+                                    !!editingNote ||
+                                    isSubmitting ||
+                                    showAddDiscipline ||
+                                    showAddNote
+                                  }
                                 >
                                   ✏️
                                 </button>
                                 <button
                                   title="Delete Note"
-                                  className="bg-red-600 hover:bg-red-500 text-white p-1 rounded text-xs"
+                                  className="bg-red-600 hover:bg-red-500 text-white p-1 rounded text-xs disabled:opacity-50"
                                   onClick={() => handleDeleteNote(note.id)}
+                                  disabled={
+                                    !!editingDiscipline ||
+                                    !!editingNote ||
+                                    isSubmitting ||
+                                    showAddDiscipline ||
+                                    showAddNote
+                                  }
                                 >
                                   🗑️
                                 </button>

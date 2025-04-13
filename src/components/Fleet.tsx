@@ -1,52 +1,28 @@
-import React, { useState, useEffect } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import React, { useState, useEffect, useMemo } from "react";
+import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
 import { User as AuthUser } from "../types/User";
 
-// --- Reused Interface and Processing Logic ---
-interface FleetVehicle {
+interface Vehicle {
   id: string;
-  plate: string;
   vehicle: string;
-  division: string;
-  assignee: string;
-  restrictions: string;
-  inService: boolean;
+  plate?: string;
+  division?: string;
+  restrictions?: string;
+  assignee?: string;
+  inService?: boolean;
+  lastCheckedOutBy?: string;
+  lastCheckedOutAt?: Timestamp;
+  notes?: string;
 }
 
-const processFleetData = (
-  vehiclesData: FleetVehicle[]
-): {
-  sortedFleet: FleetVehicle[];
-  groupedFleet: { [division: string]: FleetVehicle[] };
-} => {
-  const sortedFleet = [...vehiclesData].sort((a, b) => {
-    if (a.division !== b.division) {
-      return a.division.localeCompare(b.division);
-    }
-    return a.plate.localeCompare(b.plate);
-  });
-
-  const grouped: { [division: string]: FleetVehicle[] } = {};
-  sortedFleet.forEach((v) => {
-    const divisionKey = v.division || "Unknown";
-    if (!grouped[divisionKey]) {
-      grouped[divisionKey] = [];
-    }
-    grouped[divisionKey].push(v);
-  });
-
-  return { sortedFleet, groupedFleet: grouped };
-};
-// --- End Reused ---
-
 const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
-  const [groupedFleet, setGroupedFleet] = useState<{
-    [division: string]: FleetVehicle[];
-  }>({});
+  const [fleet, setFleet] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedDivision, setSelectedDivision] = useState<string>("All");
 
   useEffect(() => {
     const fetchFleet = async () => {
@@ -54,22 +30,14 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
       setError(null);
       try {
         const fleetSnapshot = await getDocs(collection(dbFirestore, "fleet"));
-        const vehiclesData = fleetSnapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            plate: data.plate || doc.id,
-            vehicle: data.vehicle || "Unknown Vehicle",
-            division: data.division || "Unknown Division",
-            assignee: data.assignee || "N/A",
-            restrictions: data.restrictions || "",
-            inService: data.inService !== undefined ? data.inService : true,
-          } as FleetVehicle;
-        });
-
-        const { groupedFleet: processedGroupedFleet } =
-          processFleetData(vehiclesData);
-        setGroupedFleet(processedGroupedFleet);
+        const fleetData = fleetSnapshot.docs.map(
+          (doc) =>
+            ({
+              id: doc.id,
+              ...doc.data(),
+            } as Vehicle)
+        );
+        setFleet(fleetData);
       } catch (err) {
         console.error("Error fetching fleet:", err);
         setError("Failed to load fleet data. Please try again later.");
@@ -77,13 +45,68 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
         setLoading(false);
       }
     };
+
     fetchFleet();
   }, []);
+
+  const uniqueDivisions = useMemo(() => {
+    const divisions = new Set<string>(["All"]);
+    fleet.forEach((v) => {
+      if (v.division && v.division.trim()) {
+        divisions.add(v.division.trim());
+      }
+    });
+    return Array.from(divisions).sort();
+  }, [fleet]);
+
+  const filteredFleet = useMemo(() => {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    return fleet.filter((v) => {
+      const matchesSearch =
+        !lowerSearchTerm ||
+        v.vehicle?.toLowerCase().includes(lowerSearchTerm) ||
+        v.plate?.toLowerCase().includes(lowerSearchTerm) ||
+        v.division?.toLowerCase().includes(lowerSearchTerm) ||
+        v.assignee?.toLowerCase().includes(lowerSearchTerm);
+
+      const matchesDivision =
+        selectedDivision === "All" || v.division === selectedDivision;
+
+      return matchesSearch && matchesDivision;
+    });
+  }, [fleet, searchTerm, selectedDivision]);
+
+  const formatTimestamp = (ts: Timestamp | undefined): string => {
+    if (!ts) return "-";
+    const date = ts.toDate();
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+  };
 
   return (
     <Layout user={user}>
       <div className="page-content space-y-6">
-        <h1 className="text-3xl font-bold text-[#f3c700]">Fleet List</h1>
+        <h1 className="text-3xl font-bold text-[#f3c700]">SASP Fleet</h1>
+
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
+          <input
+            type="text"
+            placeholder="Search Fleet..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input flex-grow"
+          />
+          <select
+            value={selectedDivision}
+            onChange={(e) => setSelectedDivision(e.target.value)}
+            className="input md:w-auto"
+          >
+            {uniqueDivisions.map((division) => (
+              <option key={division} value={division}>
+                {division === "All" ? "All Divisions" : division}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {loading && <p className="text-yellow-400 italic">Loading fleet...</p>}
         {error && <p className="text-red-500">{error}</p>}
@@ -93,71 +116,77 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
             <table className="min-w-full bg-gray-900/50 border border-gray-700 text-sm">
               <thead className="bg-gray-800 text-yellow-400">
                 <tr>
-                  <th className="p-2 border-r border-gray-600 w-8"></th>{" "}
-                  {/* Division Column */}
-                  <th className="p-2 border-r border-gray-600">Plate</th>
                   <th className="p-2 border-r border-gray-600">Vehicle</th>
-                  <th className="p-2 border-r border-gray-600">Assignee</th>
+                  <th className="p-2 border-r border-gray-600">Plate</th>
+                  <th className="p-2 border-r border-gray-600">Division</th>
                   <th className="p-2 border-r border-gray-600">Restrictions</th>
+                  <th className="p-2 border-r border-gray-600">Assignee</th>
                   <th className="p-2 border-r border-gray-600">In Service</th>
+                  <th className="p-2 border-r border-gray-600">
+                    Last Checkout
+                  </th>
+                  <th className="p-2">Notes</th>
                 </tr>
               </thead>
-              {Object.entries(groupedFleet).map(
-                ([division, vehiclesInDivision]) =>
-                  vehiclesInDivision.length > 0 ? (
-                    <tbody key={division} className="text-gray-300">
-                      {vehiclesInDivision.map((v, index) => (
-                        <tr
-                          key={v.id}
-                          className={`border-t border-gray-700 hover:bg-gray-800/50 ${
-                            !v.inService ? "opacity-60" : ""
-                          }`} // Apply opacity if not in service
-                        >
-                          {index === 0 && (
-                            <td
-                              rowSpan={vehiclesInDivision.length}
-                              className="p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300 category-vertical"
-                              style={{ writingMode: "vertical-lr" }}
-                            >
-                              {division}
-                            </td>
-                          )}
-                          {/* View Mode Only */}
-                          <td className="p-2 border-r border-gray-600 font-mono">
-                            {v.plate}
-                          </td>
-                          <td className="p-2 border-r border-gray-600">
-                            {v.vehicle}
-                          </td>
-                          <td className="p-2 border-r border-gray-600">
-                            {v.assignee}
-                          </td>
-                          <td className="p-2 border-r border-gray-600">
-                            {v.restrictions || "-"}
-                          </td>
-                          <td
-                            className={`p-0 border-r border-gray-600 text-center align-middle`}
-                          >
-                            <span
-                              className={`block w-full h-full px-2 py-2 font-semibold ${
-                                v.inService
-                                  ? "bg-green-600 text-white"
-                                  : "bg-red-600 text-white"
-                              }`}
-                            >
-                              {v.inService ? "YES" : "NO"}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  ) : null
-              )}
+              <tbody className="text-gray-300">
+                {filteredFleet.map((v) => (
+                  <tr
+                    key={v.id}
+                    className="border-t border-gray-700 hover:bg-gray-800/50"
+                  >
+                    <td className="p-2 border-r border-gray-600">
+                      {v.vehicle}
+                    </td>
+                    <td className="p-2 border-r border-gray-600">
+                      {v.plate || "-"}
+                    </td>
+                    <td className="p-2 border-r border-gray-600">
+                      {v.division || "-"}
+                    </td>
+                    <td className="p-2 border-r border-gray-600">
+                      {v.restrictions || "-"}
+                    </td>
+                    <td className="p-2 border-r border-gray-600">
+                      {v.assignee || "Communal"}
+                    </td>
+                    <td
+                      className={`p-0 border-r border-gray-600 text-center align-middle`}
+                    >
+                      <span
+                        className={`block w-full h-full px-2 py-2 font-semibold ${
+                          v.inService
+                            ? "bg-green-600 text-white"
+                            : "bg-red-600 text-white"
+                        }`}
+                      >
+                        {v.inService ? "YES" : "NO"}
+                      </span>
+                    </td>
+                    <td className="p-2 border-r border-gray-600">
+                      {v.lastCheckedOutBy
+                        ? `${v.lastCheckedOutBy} (${formatTimestamp(
+                            v.lastCheckedOutAt
+                          )})`
+                        : "-"}
+                    </td>
+                    <td className="p-2">{v.notes || "-"}</td>
+                  </tr>
+                ))}
+                {filteredFleet.length === 0 && !loading && (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="text-center p-4 text-gray-400 italic"
+                    >
+                      No vehicles found matching the criteria.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
             </table>
           </div>
         )}
       </div>
-      {/* Style for vertical text */}
       <style>{`
         .category-vertical {
           writing-mode: vertical-lr;

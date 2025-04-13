@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react"; // Import useMemo
 import {
   collection,
   query,
@@ -11,6 +11,8 @@ import {
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
 import { useAuth } from "../context/AuthContext";
+import { images } from "../data/images"; // Import images array
+export const saspStar = "/SASPLOGO2.png"; // Corrected path to logo
 
 // --- Types ---
 type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
@@ -176,6 +178,12 @@ const BadgeLookup: React.FC = () => {
   const [allowedVehicles, setAllowedVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Use useMemo to ensure the background image is only selected once
+  const randomBackgroundImage = useMemo(
+    () => images[Math.floor(Math.random() * images.length)],
+    []
+  );
 
   const handleLookup = async () => {
     if (!badgeInput.trim()) {
@@ -344,131 +352,253 @@ const BadgeLookup: React.FC = () => {
     }
   };
 
-  const renderCertifications = (certs: RosterUser["certifications"]) => {
-    if (!certs) return <span className="text-gray-400">None</span>;
-    const activeCerts = Object.entries(certs)
-      .filter(([, value]) => value !== null)
-      .map(([key, value]) => `${key}: ${value}`);
-    return activeCerts.length > 0 ? (
-      activeCerts.join(", ")
-    ) : (
-      <span className="text-gray-400">None</span>
-    );
-  };
-
   return (
     <Layout user={authUser!}>
-      <div className="page-content space-y-6">
-        <h1 className="text-3xl font-bold text-[#f3c700]">Badge Lookup</h1>
+      <div
+        className="page-content space-y-8 bg-cover bg-center min-h-screen p-4 md:p-6 lg:p-8" // Added padding
+        style={{ backgroundImage: `url(${randomBackgroundImage})` }} // Use memoized background image
+      >
+        {/* Header Section */}
+        <div className="flex flex-col items-center space-y-3 mb-6">
+          <img src={saspStar} alt="SASP Star" className="w-20 h-20" />{" "}
+          {/* Increased size */}
+          <h1 className="text-4xl font-extrabold text-[#f3c700] text-center tracking-tight">
+            {" "}
+            {/* Adjusted size/tracking */}
+            Badge Lookup
+          </h1>
+        </div>
 
-        <div className="flex items-center gap-2">
+        {/* Lookup Input Section */}
+        <div className="max-w-md mx-auto flex items-center gap-3 p-4 bg-black bg-opacity-60 rounded-lg shadow-lg">
+          {" "}
+          {/* Centered and styled container */}
           <input
             type="text"
             value={badgeInput}
             onChange={(e) => setBadgeInput(e.target.value)}
             placeholder="Enter Badge Number"
-            className="input"
+            className="input flex-grow bg-gray-700 text-white border-gray-600 placeholder-gray-400 focus:ring-[#f3c700] focus:border-[#f3c700]" // Improved input styling
             onKeyDown={(e) => e.key === "Enter" && handleLookup()}
           />
           <button
             onClick={handleLookup}
-            className="button-primary"
+            className="button-primary bg-[#f3c700] text-black font-semibold py-2 px-4 rounded-lg hover:bg-[#d4a900] transition duration-150 ease-in-out disabled:opacity-50" // Adjusted padding/styling
             disabled={loading}
           >
-            {loading ? "Looking up..." : "Lookup"}
+            {loading ? "Searching..." : "Lookup"}
           </button>
         </div>
 
-        {error && <p className="text-red-500">{error}</p>}
+        {/* Error Message */}
+        {error && (
+          <p className="text-red-400 text-center font-medium bg-red-900 bg-opacity-50 py-2 px-4 rounded-md max-w-md mx-auto">
+            {error}
+          </p> // Improved error styling
+        )}
 
+        {/* Results Section */}
         {foundUser && (
-          <div className="space-y-6">
-            <div className="admin-section p-4">
-              <h2 className="section-header text-xl mb-3">
+          <div className="space-y-6 max-w-4xl mx-auto">
+            {" "}
+            {/* Centered results container */}
+            {/* Trooper Info Section */}
+            <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
+              {" "}
+              {/* Increased padding/opacity/shadow */}
+              <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
+                {" "}
+                {/* Adjusted size/border */}
                 Trooper Information
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <p>
-                  <strong className="text-yellow-400">Name:</strong>{" "}
-                  {foundUser.name}
-                </p>
-                <p>
-                  <strong className="text-yellow-400">Rank:</strong>{" "}
-                  {foundUser.rank}
-                </p>
-                <p>
-                  <strong className="text-yellow-400">Badge:</strong>{" "}
-                  {foundUser.badge}
-                </p>
-                <p>
-                  <strong className="text-yellow-400">Callsign:</strong>{" "}
-                  {foundUser.callsign || "-"}
-                </p>
-                <p>
-                  <strong className="text-yellow-400">Status:</strong>{" "}
-                  {foundUser.isActive ? (
-                    <span className="text-green-400">Active</span>
-                  ) : (
-                    <span className="text-red-400">Inactive</span>
-                  )}
-                </p>
-                <p>
-                  <strong className="text-yellow-400">Discord ID:</strong>{" "}
-                  {foundUser.discordId || "-"}
-                </p>
-                <p className="md:col-span-2">
-                  <strong className="text-yellow-400">Certifications:</strong>{" "}
-                  {renderCertifications(foundUser.certifications)}
-                </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-base">
+                {" "}
+                {/* Adjusted gap/text size */}
+                {/* Info Item Helper */}
+                {[
+                  { label: "Name", value: foundUser.name },
+                  { label: "Rank", value: foundUser.rank },
+                  { label: "Badge", value: foundUser.badge },
+                  { label: "Callsign", value: foundUser.callsign || "-" },
+                  { label: "Discord ID", value: foundUser.discordId || "-" },
+                  {
+                    label: "Status",
+                    value: foundUser.isActive ? "Active" : "Inactive",
+                    color: foundUser.isActive ? "bg-green-600" : "bg-red-600",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex justify-between items-center py-1"
+                  >
+                    <strong className="text-yellow-500 font-medium">
+                      {item.label}:
+                    </strong>
+                    <span
+                      className={`px-3 py-1 rounded-md text-sm font-medium ${
+                        item.color
+                          ? `${item.color} text-white`
+                          : "bg-gray-700 text-gray-200"
+                      }`}
+                    >
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
-
-            <div className="admin-section p-4">
-              <h2 className="section-header text-xl mb-3">Assigned Vehicle</h2>
-              {assignedVehicle ? (
-                <p className="text-sm">
-                  <strong className="text-yellow-400">Vehicle:</strong>{" "}
-                  {assignedVehicle.vehicle} |{" "}
-                  <strong className="text-yellow-400"> Plate:</strong>{" "}
-                  {assignedVehicle.plate || "N/A"} |{" "}
-                  <strong className="text-yellow-400"> Division:</strong>{" "}
-                  {assignedVehicle.division || "N/A"} |{" "}
-                  <strong className="text-yellow-400"> Restrictions:</strong>{" "}
-                  {assignedVehicle.restrictions || "None"}
-                </p>
-              ) : (
-                <p className="text-gray-400 italic text-sm">
-                  No vehicle assigned.
-                </p>
-              )}
+            {/* Certifications & Divisions Section */}
+            <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
+              <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
+                Certifications & Divisions
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                {" "}
+                {/* Increased gap */}
+                {/* Divisions */}
+                <div>
+                  <h3 className="text-xl font-semibold text-yellow-500 mb-3">
+                    {" "}
+                    {/* Adjusted size/margin */}
+                    Divisions
+                  </h3>
+                  <div className="space-y-2.5">
+                    {" "}
+                    {/* Increased spacing */}
+                    {Object.entries(foundUser.certifications || {})
+                      .filter(([key]) =>
+                        ["K9", "FTO", "SWAT", "CIU"].includes(key)
+                      )
+                      .map(([key, value]) => {
+                        const style =
+                          value === "LEAD"
+                            ? "bg-blue-600"
+                            : value === "SUPER"
+                            ? "bg-orange-600"
+                            : value === "CERT"
+                            ? "bg-green-600"
+                            : "bg-gray-600";
+                        const textColor = value
+                          ? "text-white"
+                          : "text-gray-300";
+                        return (
+                          <div
+                            key={key}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="text-gray-300 font-medium w-16">
+                              {key}:
+                            </span>{" "}
+                            {/* Adjusted width */}
+                            <span
+                              className={`px-2.5 py-1 rounded text-xs font-semibold ${style} ${textColor}`}
+                            >
+                              {" "}
+                              {/* Adjusted padding */}
+                              {value || "None"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+                {/* Certifications */}
+                <div>
+                  <h3 className="text-xl font-semibold text-yellow-500 mb-3">
+                    Certifications
+                  </h3>
+                  <div className="space-y-2.5">
+                    {Object.entries(foundUser.certifications || {})
+                      .filter(([key]) => ["MOTO", "HEAT", "ACU"].includes(key))
+                      .map(([key, value]) => {
+                        const style =
+                          value === "CERT" ? "bg-green-600" : "bg-gray-600";
+                        const textColor = value
+                          ? "text-white"
+                          : "text-gray-300";
+                        return (
+                          <div
+                            key={key}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="text-gray-300 font-medium w-16">
+                              {key}:
+                            </span>
+                            <span
+                              className={`px-2.5 py-1 rounded text-xs font-semibold ${style} ${textColor}`}
+                            >
+                              {value || "None"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
             </div>
-
-            <div className="admin-section p-4">
-              <h2 className="section-header text-xl mb-3">
-                Allowed Vehicles (Based on Rank/Certs)
+            {/* Allowed Vehicles Section */}
+            <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
+              <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
+                Allowed Vehicles
               </h2>
               {allowedVehicles.length > 0 ? (
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  {allowedVehicles.map((vehicle) => (
-                    <li key={vehicle.id}>
-                      {vehicle.vehicle} ({vehicle.plate || "No Plate"})
-                      {vehicle.division && (
-                        <span className="text-xs text-gray-400 ml-2">
-                          [{vehicle.division}]
-                        </span>
-                      )}
-                      {vehicle.restrictions && (
-                        <span className="text-xs text-orange-400 ml-2">
-                          ({vehicle.restrictions})
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <div className="overflow-x-auto custom-scrollbar">
+                  <table className="min-w-full text-sm text-left">
+                    <thead className="text-xs text-yellow-300 uppercase bg-gray-700 bg-opacity-60">
+                      {" "}
+                      {/* Adjusted colors */}
+                      <tr>
+                        <th scope="col" className="px-5 py-3">
+                          {" "}
+                          {/* Increased padding */}
+                          Vehicle
+                        </th>
+                        <th scope="col" className="px-5 py-3">
+                          Plate
+                        </th>
+                        <th scope="col" className="px-5 py-3">
+                          Division
+                        </th>
+                        <th scope="col" className="px-5 py-3">
+                          Assignee
+                        </th>
+                        <th scope="col" className="px-5 py-3">
+                          Restrictions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allowedVehicles.map((vehicle, index) => (
+                        <tr
+                          key={vehicle.id || index}
+                          className="border-b border-gray-700 hover:bg-gray-800/60 transition duration-150 ease-in-out" // Added transition
+                        >
+                          <td className="px-5 py-3 font-medium text-white whitespace-nowrap">
+                            {" "}
+                            {/* Increased padding */}
+                            {vehicle.vehicle}
+                          </td>
+                          <td className="px-5 py-3 text-gray-300">
+                            {vehicle.plate || "-"}
+                          </td>
+                          <td className="px-5 py-3 text-gray-300">
+                            {vehicle.division || "-"}
+                          </td>
+                          <td className="px-5 py-3 text-gray-300">
+                            {vehicle.assignee || "Communal"}
+                          </td>
+                          <td className="px-5 py-3 text-gray-300">
+                            {vehicle.restrictions || "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                <p className="text-gray-400 italic text-sm">
-                  No vehicles found matching user's rank and certifications, or
-                  only standard vehicles allowed.
+                <p className="text-gray-400 italic">
+                  No specific vehicles allowed or assigned based on rank and
+                  certifications. Standard patrol vehicles may be available.
                 </p>
               )}
             </div>

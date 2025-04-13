@@ -647,62 +647,6 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
           </div>
         )}
 
-        {editingUser && (
-          <div className="admin-section p-4 mb-6">
-            <h2 className="section-header text-xl mb-3">
-              Edit User: {editingUser.name || "Loading..."}
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Badge Number"
-                value={editingUser.badge || ""}
-                onChange={(e) => handleEditChange("badge", e.target.value)}
-                className="input text-sm"
-              />
-              <select
-                value={editingUser.rank}
-                onChange={(e) => handleEditChange("rank", e.target.value)}
-                className="input text-sm"
-              >
-                {Object.keys(rankOrder)
-                  .filter((r) => r !== "Unknown")
-                  .sort((a, b) => rankOrder[a] - rankOrder[b])
-                  .map((rank) => (
-                    <option key={rank} value={rank}>
-                      {rank}
-                    </option>
-                  ))}
-              </select>
-              <input
-                type="text"
-                placeholder="Callsign"
-                value={editingUser.callsign || ""}
-                onChange={(e) => handleEditChange("callsign", e.target.value)}
-                className="input text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Discord ID"
-                value={editingUser.discordId || ""}
-                onChange={(e) => handleEditChange("discordId", e.target.value)}
-                className="input text-sm"
-              />
-            </div>
-
-            <button className="button-primary mt-4" onClick={saveUserChanges}>
-              Save Changes
-            </button>
-            <button
-              className="button-secondary mt-4 ml-2"
-              onClick={() => setEditingUser(null)}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
         <div className="mb-4">
           <input
             type="text"
@@ -721,26 +665,62 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
             <table className="min-w-full bg-gray-900/50 border border-gray-700 text-sm">
               <thead className="bg-gray-800 text-yellow-400">
                 <tr>
-                  <th className="p-2 border-r border-gray-600 w-8"></th>
-                  <th className="p-2 border-r border-gray-600">Badge</th>
-                  <th className="p-2 border-r border-gray-600">Rank</th>
-                  <th className="p-2 border-r border-gray-600">Name</th>
-                  <th className="p-2 border-r border-gray-600">Callsign</th>
-                  {certificationKeys.map((cert) => (
-                    <th key={cert} className="p-2 border-r border-gray-600">
-                      {cert}
-                    </th>
-                  ))}
+                  <th
+                    rowSpan={2}
+                    className="p-2 border-r border-gray-600 w-8"
+                  ></th>{" "}
+                  {/* Category */}
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Badge
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Rank
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Name
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Callsign
+                  </th>
+                  <th
+                    colSpan={divisionKeys.length}
+                    className="p-2 border-r border-gray-600 text-center"
+                  >
+                    Divisions
+                  </th>
+                  <th
+                    colSpan={certificationKeys.length}
+                    className="p-2 border-r border-gray-600 text-center"
+                  >
+                    Certifications
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    LOA Start
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    LOA End
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Active
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Discord ID
+                  </th>
+                  <th rowSpan={2} className="p-2">
+                    Actions
+                  </th>
+                </tr>
+                <tr>
                   {divisionKeys.map((div) => (
                     <th key={div} className="p-2 border-r border-gray-600">
                       {div}
                     </th>
                   ))}
-                  <th className="p-2 border-r border-gray-600">LOA Start</th>
-                  <th className="p-2 border-r border-gray-600">LOA End</th>
-                  <th className="p-2 border-r border-gray-600">Active</th>
-                  <th className="p-2 border-r border-gray-600">Discord ID</th>
-                  <th className="p-2">Actions</th>
+                  {certificationKeys.map((cert) => (
+                    <th key={cert} className="p-2 border-r border-gray-600">
+                      {cert}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               {Object.entries(groupedRoster).map(
@@ -818,21 +798,21 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                                     className="input-table"
                                   />
                                 </td>
-                                {certificationKeys.map((certKey) => {
+                                {divisionKeys.map((divKey) => {
                                   const currentStatus =
-                                    editingUser.certifications?.[certKey] ||
+                                    editingUser.certifications?.[divKey] ||
                                     null;
                                   const style = getCertStyle(currentStatus);
                                   return (
                                     <td
-                                      key={certKey}
+                                      key={divKey}
                                       className="p-1 border-r border-gray-600"
                                     >
                                       <select
                                         value={currentStatus || ""}
                                         onChange={(e) =>
                                           handleCertChange(
-                                            certKey,
+                                            divKey,
                                             e.target.value as CertStatus
                                           )
                                         }
@@ -852,21 +832,21 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                                     </td>
                                   );
                                 })}
-                                {divisionKeys.map((divKey) => {
+                                {certificationKeys.map((certKey) => {
                                   const currentStatus =
-                                    editingUser.certifications?.[divKey] ||
+                                    editingUser.certifications?.[certKey] ||
                                     null;
                                   const style = getCertStyle(currentStatus);
                                   return (
                                     <td
-                                      key={divKey}
+                                      key={certKey}
                                       className="p-1 border-r border-gray-600"
                                     >
                                       <select
                                         value={currentStatus || ""}
                                         onChange={(e) =>
                                           handleCertChange(
-                                            divKey,
+                                            certKey,
                                             e.target.value as CertStatus
                                           )
                                         }
@@ -980,13 +960,13 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                                 <td className="p-2 border-r border-gray-600">
                                   {u.callsign}
                                 </td>
-                                {certificationKeys.map((certKey) => {
+                                {divisionKeys.map((divKey) => {
                                   const currentStatus =
-                                    u.certifications?.[certKey] || null;
+                                    u.certifications?.[divKey] || null;
                                   const style = getCertStyle(currentStatus);
                                   return (
                                     <td
-                                      key={certKey}
+                                      key={divKey}
                                       className={`p-0 border-r border-gray-600 text-center align-middle`}
                                     >
                                       <span
@@ -997,13 +977,13 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                                     </td>
                                   );
                                 })}
-                                {divisionKeys.map((divKey) => {
+                                {certificationKeys.map((certKey) => {
                                   const currentStatus =
-                                    u.certifications?.[divKey] || null;
+                                    u.certifications?.[certKey] || null;
                                   const style = getCertStyle(currentStatus);
                                   return (
                                     <td
-                                      key={divKey}
+                                      key={certKey}
                                       className={`p-0 border-r border-gray-600 text-center align-middle`}
                                     >
                                       <span

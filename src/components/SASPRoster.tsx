@@ -284,10 +284,6 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
     fetchAndMergeRoster();
   }, [hideVacant]); // Include hideVacant in dependencies
 
-  const handleEditUser = (user: RosterUser) => {
-    console.log(`Editing user: ${user.name}`); // Simplified edit handling
-  };
-
   return (
     <Layout user={user}>
       <div
@@ -317,27 +313,59 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
             <table className="min-w-full bg-gray-900/50 border border-gray-700 text-sm">
               <thead className="bg-gray-800 text-yellow-400">
                 <tr>
-                  <th className="p-2 border-r border-gray-600 w-8"></th>{" "}
+                  <th
+                    rowSpan={2}
+                    className="p-2 border-r border-gray-600 w-8"
+                  ></th>{" "}
                   {/* Category */}
-                  <th className="p-2 border-r border-gray-600">Badge</th>
-                  <th className="p-2 border-r border-gray-600">Rank</th>
-                  <th className="p-2 border-r border-gray-600">Name</th>
-                  <th className="p-2 border-r border-gray-600">Callsign</th>
-                  {certificationKeys.map((cert) => (
-                    <th key={cert} className="p-2 border-r border-gray-600">
-                      {cert}
-                    </th>
-                  ))}
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Badge
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Rank
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Name
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Callsign
+                  </th>
+                  <th
+                    colSpan={divisionKeys.length}
+                    className="p-2 border-r border-gray-600 text-center"
+                  >
+                    Divisions
+                  </th>
+                  <th
+                    colSpan={certificationKeys.length}
+                    className="p-2 border-r border-gray-600 text-center"
+                  >
+                    Certifications
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    LOA Start
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    LOA End
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Active
+                  </th>
+                  <th rowSpan={2} className="p-2 border-r border-gray-600">
+                    Discord ID
+                  </th>
+                </tr>
+                <tr>
                   {divisionKeys.map((div) => (
                     <th key={div} className="p-2 border-r border-gray-600">
                       {div}
                     </th>
                   ))}
-                  <th className="p-2 border-r border-gray-600">LOA Start</th>
-                  <th className="p-2 border-r border-gray-600">LOA End</th>
-                  <th className="p-2 border-r border-gray-600">Active</th>
-                  <th className="p-2 border-r border-gray-600">Discord ID</th>
-                  <th className="p-2">Actions</th>
+                  {certificationKeys.map((cert) => (
+                    <th key={cert} className="p-2 border-r border-gray-600">
+                      {cert}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               {categoryOrder.map((category) => {
@@ -383,13 +411,13 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                           <td className="p-2 border-r border-gray-600">
                             {u.callsign || "-"}
                           </td>
-                          {certificationKeys.map((certKey) => {
+                          {divisionKeys.map((divKey) => {
                             const currentStatus =
-                              u.certifications?.[certKey] || null;
+                              u.certifications?.[divKey] || null;
                             const style = getCertStyle(currentStatus);
                             return (
                               <td
-                                key={certKey}
+                                key={divKey}
                                 className={`p-0 border-r border-gray-600 text-center align-middle`}
                               >
                                 <span
@@ -400,13 +428,22 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                               </td>
                             );
                           })}
-                          {divisionKeys.map((divKey) => {
+                          {certificationKeys.map((certKey) => {
                             const currentStatus =
-                              u.certifications?.[divKey] || null;
-                            const style = getCertStyle(currentStatus);
+                              u.certifications?.[certKey] || null;
+                            const style =
+                              currentStatus === "CERT"
+                                ? {
+                                    bgColor: "bg-green-600",
+                                    textColor: "text-white",
+                                  }
+                                : {
+                                    bgColor: "bg-gray-700",
+                                    textColor: "text-gray-300",
+                                  };
                             return (
                               <td
-                                key={divKey}
+                                key={certKey}
                                 className={`p-0 border-r border-gray-600 text-center align-middle`}
                               >
                                 <span
@@ -448,17 +485,6 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                           </td>
                           <td className="p-2 border-r border-gray-600">
                             {u.discordId || "-"}
-                          </td>
-                          <td className="p-2">
-                            <button
-                              onClick={() => handleEditUser(u)}
-                              className={`button-secondary text-xs px-1 py-0.5 ${
-                                isVacant ? "opacity-30 cursor-not-allowed" : ""
-                              }`}
-                              disabled={isVacant}
-                            >
-                              Edit
-                            </button>
                           </td>
                         </tr>
                       );
