@@ -18,6 +18,13 @@ export default function Dashboard({ user }: { user: User }) {
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
   const navigate = useNavigate(); // Instantiate useNavigate
 
+  // Debugging log to confirm the runtime value of the user prop
+  console.log("🚨 user prop:", user);
+
+  // Moved sanitize function outside component body if it doesn't depend on component state/props
+  const sanitize = (text: string | undefined | null): string =>
+    typeof text === "string" ? text.replace(/undefined/g, "").trim() : "";
+
   useEffect(() => {
     const randomImage = images[Math.floor(Math.random() * images.length)];
     setBackground(randomImage);
@@ -34,26 +41,61 @@ export default function Dashboard({ user }: { user: User }) {
         : hours < 18
         ? "Good Afternoon"
         : "Good Evening";
-    const lastName = user.name.split(" ").slice(-1)[0];
-    setFullWelcomeMessage(`${greeting}, ${user.rank} ${lastName}`);
-  }, [user]);
+
+    // Sanitize inputs carefully
+    const cleanName = sanitize(user?.name) || "Name Undefined"; // Fallback if sanitize results in empty string
+    const cleanRank = sanitize(user?.rank);
+
+    // Build message parts conditionally
+    const parts = [greeting + ","]; // Start with greeting and comma
+    if (cleanRank) {
+      parts.push(cleanRank); // Add rank if it exists
+    }
+    // Add name if it's valid, OR if rank is also missing (to show "Name Undefined")
+    if (cleanName !== "Name Undefined" || !cleanRank) {
+      parts.push(cleanName);
+    }
+
+    const finalMessage = parts.join(" ").trim(); // Join with spaces and trim
+    console.log("Setting fullWelcomeMessage to:", finalMessage); // Log the message being set
+    setFullWelcomeMessage(finalMessage);
+  }, [user]); // Dependency: user
 
   useEffect(() => {
     setDisplayedWelcomeMessage("");
 
-    if (fullWelcomeMessage) {
-      let index = 0;
-      const typingInterval = setInterval(() => {
-        setDisplayedWelcomeMessage((prev) => prev + fullWelcomeMessage[index]);
-        index++;
-        if (index === fullWelcomeMessage.length) {
-          clearInterval(typingInterval);
-        }
-      }, 100);
+    if (!fullWelcomeMessage) return;
 
-      return () => clearInterval(typingInterval);
-    }
-  }, [fullWelcomeMessage]);
+    // Log the message the typewriter will use
+    console.log("Typewriter using message:", fullWelcomeMessage);
+
+    let index = 0;
+    let timeoutId: NodeJS.Timeout;
+
+    const typeChar = () => {
+      if (index < fullWelcomeMessage.length) {
+        const charToAppend = fullWelcomeMessage[index];
+        setDisplayedWelcomeMessage((prev) => prev + charToAppend);
+        index++;
+        timeoutId = setTimeout(typeChar, 100);
+      } else {
+        console.log("Typing finished."); // Log completion
+      }
+    };
+
+    typeChar(); // Start typing
+
+    return () => {
+      console.log("Clearing typewriter timeout."); // Log cleanup
+      clearTimeout(timeoutId);
+    };
+  }, [fullWelcomeMessage]); // Dependency: fullWelcomeMessage
+
+  // Debugging logs to confirm the issue
+  useEffect(() => {
+    console.log("Full message:", fullWelcomeMessage);
+    console.log("Displayed:", displayedWelcomeMessage);
+  }, [displayedWelcomeMessage, fullWelcomeMessage]);
 
   // Separate top links
   const topLinks = links.filter((link) =>

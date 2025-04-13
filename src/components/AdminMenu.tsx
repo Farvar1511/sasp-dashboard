@@ -66,6 +66,7 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [taskDescription, setTaskDescription] = useState<string>("");
   const [taskGoal, setTaskGoal] = useState<number>(0);
+  const [taskType, setTaskType] = useState<"goal" | "normal">("goal");
   const [editingGoalTask, setEditingGoalTask] = useState<{
     userId: string;
     taskId: string;
@@ -94,8 +95,14 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
   };
 
   const selectAllBelowSupervisor = () => {
+    const ranksToInclude = [
+      "Cadet",
+      "Trooper",
+      "Trooper First Class",
+      "Corporal",
+    ];
     const belowSupervisorIds = allUsersData
-      .filter((user) => user.rank.toLowerCase() !== "supervisor")
+      .filter((user) => ranksToInclude.includes(user.rank))
       .map((user) => user.id);
     setSelectedUsers(belowSupervisorIds);
   };
@@ -246,20 +253,23 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
   const assignTask = async () => {
     if (
       !taskDescription.trim() ||
-      taskGoal <= 0 ||
+      (taskType === "goal" && taskGoal <= 0) ||
       selectedUsers.length === 0
     ) {
-      alert("Please provide a valid task description, goal, and select users.");
+      alert(
+        "Please provide a valid task description, goal (if applicable), and select users."
+      );
       return;
     }
 
     try {
       const taskData = {
         description: taskDescription.trim(),
-        goal: taskGoal,
+        goal: taskType === "goal" ? taskGoal : null,
         progress: 0,
         assignedAt: serverTimestamp(),
         completed: false,
+        type: taskType,
       };
 
       for (const userId of selectedUsers) {
@@ -275,6 +285,7 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
       alert("Task assigned successfully!");
       setTaskDescription("");
       setTaskGoal(0);
+      setTaskType("goal");
       setSelectedUsers([]);
       setShowAssignTask(false);
     } catch (error) {
@@ -372,7 +383,9 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
 
       // Update the fleet document if a vehicle is assigned
       if (assignedVehicle) {
-        const fleetDoc = fleetData.find((vehicle) => vehicle.plate === assignedVehicle);
+        const fleetDoc = fleetData.find(
+          (vehicle) => vehicle.plate === assignedVehicle
+        );
         if (fleetDoc) {
           const fleetRef = doc(dbFirestore, "fleet", fleetDoc.id);
           await updateDoc(fleetRef, { assignee: editedName.trim() });
@@ -408,6 +421,7 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     "Senior Officer",
     "Officer",
     "Cadet",
+    "Corporal",
   ];
 
   const sortedUsersData = [...allUsersData].sort((a, b) => {
@@ -421,10 +435,16 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     return a.callsign.localeCompare(b.callsign);
   });
 
+  const getWelcomeMessage = () => {
+    const rank = user.rank || "Rank Undefined";
+    const name = user.name || "Name Undefined";
+    return `Good Evening, ${rank} ${name}`;
+  };
+
   return (
     <Layout user={user}>
       <div className="page-content space-y-6">
-        <h1 className="text-3xl font-bold text-[#f3c700]">Admin Menu</h1>
+        <h1 className="text-3xl font-bold text-[#f3c700]">{getWelcomeMessage()}</h1>
 
         <div className="flex flex-wrap gap-4 mb-4">
           <button
@@ -475,13 +495,30 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
               value={taskDescription}
               onChange={(e) => setTaskDescription(e.target.value)}
             />
-            <input
-              type="number"
-              className="input mb-2 text-sm"
-              placeholder="Task Goal (e.g., 100)"
-              value={taskGoal}
-              onChange={(e) => setTaskGoal(Number(e.target.value))}
-            />
+            <div className="mb-2">
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Task Type
+              </label>
+              <select
+                className="input text-sm"
+                value={taskType}
+                onChange={(e) =>
+                  setTaskType(e.target.value as "goal" | "normal")
+                }
+              >
+                <option value="goal">Goal-Oriented</option>
+                <option value="normal">Normal</option>
+              </select>
+            </div>
+            {taskType === "goal" && (
+              <input
+                type="number"
+                className="input mb-2 text-sm"
+                placeholder="Task Goal (e.g., 100)"
+                value={taskGoal}
+                onChange={(e) => setTaskGoal(Number(e.target.value))}
+              />
+            )}
             <div className="mb-4">
               <div className="flex gap-2 mb-2">
                 <button
@@ -520,7 +557,7 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
                       htmlFor={`user-${user.id}`}
                       className="text-sm text-gray-300"
                     >
-                      {user.name} ({user.rank})
+                      {user.name || "Unknown"} ({user.rank})
                     </label>
                   </div>
                 ))}
@@ -724,7 +761,7 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
 
         {selectedUser && (
           <div className="fixed inset-0 bg-black/90 z-50 flex justify-center items-center p-4">
-            <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-lg relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-6xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
               <button
                 className="absolute top-2 right-3 text-red-500 hover:text-red-400 text-3xl font-bold leading-none"
                 onClick={() => setSelectedUser(null)}
@@ -734,7 +771,9 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
               <h2 className="section-header text-xl mb-4">
                 Edit Roster Data for {selectedUser.name} ({selectedUser.rank})
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+
+              {/* Personal Information Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">
                     Name
@@ -827,53 +866,127 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
                     Is Active
                   </label>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Assign Vehicle
-                  </label>
-                  <select
-                    className="input text-sm"
-                    value={assignedVehicle || ""}
-                    onChange={(e) => setAssignedVehicle(e.target.value || null)}
-                  >
-                    <option value="">None</option>
-                    {fleetData.map((vehicle) => (
-                      <option key={vehicle.id} value={vehicle.plate}>
-                        {vehicle.plate}
-                      </option>
-                    ))}
-                  </select>
+              </div>
+
+              {/* Certifications Section */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
+                  Certifications
+                </h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  {["ACU", "CIU", "FTO", "HEAT", "K9", "MOTO", "SWAT"].map(
+                    (certKey) => (
+                      <div key={certKey} className="flex items-center gap-2">
+                        <label className="text-sm w-20 flex-shrink-0">
+                          {certKey}:
+                        </label>
+                        <select
+                          className="input text-sm flex-grow"
+                          value={editedCerts[certKey] || ""}
+                          onChange={(e) =>
+                            handleCertChange(
+                              certKey,
+                              e.target.value as CertStatus
+                            )
+                          }
+                        >
+                          <option value="">None</option>
+                          <option value="CERT">CERT</option>
+                          <option value="LEAD">LEAD</option>
+                          <option value="SUPER">SUPER</option>
+                        </select>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
-              <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
-                Certifications
-              </h3>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                {["ACU", "CIU", "FTO", "HEAT", "K9", "MOTO", "SWAT"].map(
-                  (certKey) => (
-                    <div key={certKey} className="flex items-center gap-2">
-                      <label className="text-sm w-20 flex-shrink-0">
-                        {certKey}:
-                      </label>
-                      <select
-                        className="input text-sm flex-grow"
-                        value={editedCerts[certKey] || ""}
-                        onChange={(e) =>
-                          handleCertChange(
-                            certKey,
-                            e.target.value as CertStatus
-                          )
-                        }
+
+              {/* Tasks Section */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
+                  Tasks
+                </h3>
+                <div className="space-y-2">
+                  {selectedUser.tasks.length > 0 ? (
+                    selectedUser.tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className="bg-gray-700 p-3 rounded border border-gray-600"
                       >
-                        <option value="">None</option>
-                        <option value="CERT">CERT</option>
-                        <option value="LEAD">LEAD</option>
-                        <option value="SUPER">SUPER</option>
-                      </select>
-                    </div>
-                  )
-                )}
+                        <p className="text-sm text-gray-300">
+                          {task.description}
+                        </p>
+                        <small className="text-xs text-gray-400">
+                          Goal: {task.goal || "N/A"}, Progress: {task.progress}
+                        </small>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">
+                      No tasks assigned.
+                    </p>
+                  )}
+                </div>
               </div>
+
+              {/* Discipline Section */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
+                  Discipline
+                </h3>
+                <div className="space-y-2">
+                  {/* Placeholder for discipline notes */}
+                  <p className="text-sm text-gray-500 italic">
+                    No discipline records available.
+                  </p>
+                </div>
+              </div>
+
+              {/* Fleet Management Section */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
+                  Fleet Management
+                </h3>
+                <div className="space-y-2">
+                  {assignedVehicle ? (
+                    <div className="bg-gray-700 p-3 rounded border border-gray-600">
+                      <p className="text-sm text-gray-300">
+                        Assigned Vehicle: {assignedVehicle}
+                      </p>
+                      <button
+                        className="button-secondary text-sm px-3 py-1 mt-2"
+                        onClick={() => setAssignedVehicle(null)}
+                      >
+                        Unassign Vehicle
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">
+                      No vehicle assigned.
+                    </p>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">
+                      Assign Vehicle
+                    </label>
+                    <select
+                      className="input text-sm"
+                      value={assignedVehicle || ""}
+                      onChange={(e) =>
+                        setAssignedVehicle(e.target.value || null)
+                      }
+                    >
+                      <option value="">None</option>
+                      {fleetData.map((vehicle) => (
+                        <option key={vehicle.id} value={vehicle.plate}>
+                          {vehicle.plate}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <button
                 className="button-primary text-sm px-4 py-2 mt-6 w-full"
                 onClick={handleUpdateUser}
