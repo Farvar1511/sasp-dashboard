@@ -7,8 +7,7 @@ export const certificationKeys = ["HEAT", "MBU", "ACU"];
 
 // Helper function to format Timestamp or string date to MM/DD/YY
 export const formatDate = (
-  dateValue: string | Timestamp | null | undefined,
-  format: "YYYY-MM-DD" | "M/D/YY" = "M/D/YY" // Default to M/D/YY
+  dateValue: string | Timestamp | null | undefined
 ): string => {
   if (!dateValue) return "-";
   try {
@@ -25,7 +24,7 @@ export const formatDate = (
       return "-";
     }
 
-  return date.toISOString();
+    return date.toISOString();
   } catch (error) {
     console.error("Error formatting date:", error);
     return "-";
