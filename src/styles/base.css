@@ -1,0 +1,45 @@
+@layer base {
+  body {
+    background-color: #111827; /* Equivalent to bg-gray-900 */
+    color: #e5e7eb; /* Equivalent to text-gray-200 */
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+      "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+      "Segoe UI Symbol", "Noto Color Emoji"; /* Equivalent to font-sans with Inter */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+@layer components {
+  .button-primary {
+    @apply bg-yellow-400 text-black font-bold py-2 px-4 rounded hover:bg-yellow-300 transition duration-150;
+  }
+  .button-secondary {
+    @apply bg-gray-600 text-white font-bold py-2 px-4 rounded hover:bg-gray-500 transition duration-150;
+  }
+  .input {
+    @apply block w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-gray-200 focus:outline-none focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400;
+  }
+  .admin-section {
+    @apply bg-black/70 border border-gray-700 rounded-lg shadow-lg;
+  }
+  .section-header {
+    @apply font-bold text-yellow-400 border-b border-gray-700 pb-2;
+  }
+  /* ... other component styles ... */
+}
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-2 h-2; /* Use Tailwind classes if possible */
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-gray-800 rounded-lg;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-yellow-400 rounded-lg border-2 border-solid border-gray-800;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-yellow-500;
+  }
+  /* ... other custom utilities ... */
+}

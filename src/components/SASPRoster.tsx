@@ -195,6 +195,7 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
   }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hideVacant, setHideVacant] = useState(false); // New state for toggle
 
   useEffect(() => {
     const fetchAndMergeRoster = async () => {
@@ -236,8 +237,8 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
           }
         });
 
-        const mergedRoster: RosterUser[] = fullRosterTemplate.map(
-          (templateEntry) => {
+        const mergedRoster: RosterUser[] = fullRosterTemplate
+          .map((templateEntry) => {
             const liveUser = templateEntry.callsign
               ? liveUserMap.get(templateEntry.callsign)
               : undefined;
@@ -265,8 +266,8 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                 isPlaceholder: true,
               } as RosterUser;
             }
-          }
-        );
+          })
+          .filter((u) => !hideVacant || u.name !== "VACANT"); // Filter out vacant rows if toggle is on
 
         const { groupedRoster: processedGroupedRoster } =
           processRosterData(mergedRoster);
@@ -281,12 +282,32 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
     };
 
     fetchAndMergeRoster();
-  }, []);
+  }, [hideVacant]); // Include hideVacant in dependencies
+
+  const handleEditUser = (user: RosterUser) => {
+    console.log(`Editing user: ${user.name}`); // Simplified edit handling
+  };
 
   return (
     <Layout user={user}>
-      <div className="page-content space-y-6">
+      <div
+        className="page-content space-y-6"
+        style={{ fontFamily: "'Inter', sans-serif" }}
+      >
         <h1 className="text-3xl font-bold text-[#f3c700]">SASP Roster</h1>
+
+        <div className="flex items-center gap-4 mb-4">
+          <input
+            type="checkbox"
+            id="hideVacantToggle"
+            checked={hideVacant}
+            onChange={(e) => setHideVacant(e.target.checked)}
+            className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="hideVacantToggle" className="text-sm text-gray-300">
+            Hide Vacant Rows
+          </label>
+        </div>
 
         {loading && <p className="text-yellow-400 italic">Loading roster...</p>}
         {error && <p className="text-red-500">{error}</p>}
@@ -316,6 +337,7 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                   <th className="p-2 border-r border-gray-600">LOA End</th>
                   <th className="p-2 border-r border-gray-600">Active</th>
                   <th className="p-2 border-r border-gray-600">Discord ID</th>
+                  <th className="p-2">Actions</th>
                 </tr>
               </thead>
               {categoryOrder.map((category) => {
@@ -327,7 +349,7 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                       return (
                         <tr
                           key={u.id}
-                          className={`border-t border-gray-700 ${
+                          className={`border-t border-gray-700 hover:bg-gray-800/50 ${
                             isVacant ? "italic opacity-60" : ""
                           } ${!isVacant && !u.isActive ? "opacity-60" : ""}`}
                         >
@@ -340,7 +362,10 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                               {category}
                             </td>
                           )}
-                          <td className="p-2 border-r border-gray-600 font-mono">
+                          <td
+                            className="p-2 border-r border-gray-600"
+                            style={{ fontFamily: "'Inter', sans-serif" }}
+                          >
                             {u.badge || "-"}
                           </td>
                           <td
@@ -424,6 +449,17 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                           <td className="p-2 border-r border-gray-600">
                             {u.discordId || "-"}
                           </td>
+                          <td className="p-2">
+                            <button
+                              onClick={() => handleEditUser(u)}
+                              className={`button-secondary text-xs px-1 py-0.5 ${
+                                isVacant ? "opacity-30 cursor-not-allowed" : ""
+                              }`}
+                              disabled={isVacant}
+                            >
+                              Edit
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -441,6 +477,51 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
             white-space: nowrap;
             transform: rotate(180deg);
             padding: 8px 4px;
+        }
+        table {
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+        tbody tr {
+            background-color: #1f2937;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        tbody tr:hover {
+            background-color: #374151;
+        }
+        tbody td {
+            border-top: 1px solid #4b5563;
+            border-bottom: 1px solid #4b5563;
+            border-radius: 8px;
+        }
+        thead th {
+            border-bottom: 2px solid #4b5563;
+            border-radius: 8px;
+        }
+        .cert-style {
+            display: inline-block;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .cert-LEAD {
+            background-color: #2563eb;
+            color: white;
+        }
+        .cert-SUPER {
+            background-color: #f97316;
+            color: white;
+        }
+        .cert-CERT {
+            background-color: #16a34a;
+            color: white;
+        }
+        .cert-None {
+            background-color: #4b5563;
+            color: #d1d5db;
         }
       `}</style>
     </Layout>

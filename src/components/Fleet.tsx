@@ -159,7 +159,34 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
       </div>
       {/* Style for vertical text */}
       <style>{`
-        .category-vertical { writing-mode: vertical-lr; text-orientation: mixed; white-space: nowrap; transform: rotate(180deg); padding: 8px 4px; }
+        .category-vertical {
+          writing-mode: vertical-lr;
+          text-orientation: mixed;
+          white-space: nowrap;
+          transform: rotate(180deg);
+          padding: 8px 4px;
+        }
+        table {
+          border-collapse: separate;
+          border-spacing: 0 8px;
+        }
+        tbody tr {
+          background-color: #1f2937;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        tbody tr:hover {
+          background-color: #374151;
+        }
+        tbody td {
+          border-top: 1px solid #4b5563;
+          border-bottom: 1px solid #4b5563;
+          border-radius: 8px;
+        }
+        thead th {
+          border-bottom: 2px solid #4b5563;
+          border-radius: 8px;
+        }
       `}</style>
     </Layout>
   );

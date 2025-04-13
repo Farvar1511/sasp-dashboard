@@ -7,9 +7,8 @@
 
 @layer base {
   body {
-    /* Rely on @apply font-sans and Tailwind config */
     @apply font-sans bg-black text-white min-h-screen overflow-x-hidden;
-    background-size: cover; /* Ensure body respects background image */
+    background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
   }
@@ -24,8 +23,8 @@
 
   /* Page Content */
   .page-content {
-    @apply min-h-screen p-6 overflow-y-auto text-yellow-400; /* Use min-h-screen and ensure overflow-y-auto */
-    background-color: transparent; /* Ensure no background color overrides the image */
+    @apply min-h-screen p-6 overflow-y-auto text-yellow-400;
+    background-color: transparent;
   }
 
   /* Dashboard Background Fix */
@@ -193,6 +192,31 @@
   /* Dashboard Container */
   .dashboard-container {
     @apply w-full max-w-[1600px] mx-auto px-10 pt-6;
+  }
+
+  /* Roster Table */
+  .roster-table {
+    @apply min-w-full bg-gray-900/50 border border-gray-700 text-sm;
+  }
+
+  .roster-table-header {
+    @apply bg-gray-800 text-yellow-400;
+  }
+
+  .roster-table-body {
+    @apply text-gray-300;
+  }
+
+  .roster-table-row {
+    @apply border-t border-gray-700 hover:bg-gray-800/50;
+  }
+
+  .roster-table-cell {
+    @apply p-2 border-r border-gray-600;
+  }
+
+  .roster-category-cell {
+    @apply p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300;
   }
 }
 

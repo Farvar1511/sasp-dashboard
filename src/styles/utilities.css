@@ -1,0 +1,19 @@
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 0.5rem; /* w-2 */
+    height: 0.5rem; /* h-2 */
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background-color: #1f2937; /* bg-gray-800 */
+    border-radius: 0.5rem; /* rounded-lg */
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #facc15; /* bg-yellow-400 */
+    border-radius: 0.5rem; /* rounded-lg */
+    border: 2px solid #1f2937; /* border-2 border-solid border-gray-800 */
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: #eab308; /* bg-yellow-500 */
+  }
+  /* ... other custom utilities ... */
+}

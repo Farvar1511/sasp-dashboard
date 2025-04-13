@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   collection,
   getDocs,
   doc,
-  updateDoc,
   addDoc,
   deleteDoc,
+  updateDoc,
   serverTimestamp,
   Timestamp,
+  query,
+  orderBy,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
@@ -28,6 +30,26 @@ interface FirestoreUser {
   tasks: Task[];
   assignedVehicle?: string | null;
 }
+
+interface DisciplineEntry {
+  id: string;
+  type: "commendation" | "verbal" | "written" | "suspension" | "termination";
+  note: string;
+  issuedBy: string;
+  issuedAt: Timestamp;
+}
+
+interface GeneralNoteEntry {
+  id: string;
+  note: string;
+  issuedBy: string;
+  issuedAt: Timestamp;
+}
+
+interface EditingDisciplineStateModal
+  extends Omit<DisciplineEntry, "issuedBy" | "issuedAt"> {}
+interface EditingNoteStateModal
+  extends Omit<GeneralNoteEntry, "issuedBy" | "issuedAt"> {}
 
 type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
 
@@ -78,6 +100,26 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
   const [fleetData, setFleetData] = useState<{ id: string; plate: string }[]>(
     []
   );
+
+  const [modalDisciplineEntries, setModalDisciplineEntries] = useState<
+    DisciplineEntry[]
+  >([]);
+  const [modalGeneralNotes, setModalGeneralNotes] = useState<
+    GeneralNoteEntry[]
+  >([]);
+  const [modalDataLoading, setModalDataLoading] = useState<boolean>(false);
+  const [modalDataError, setModalDataError] = useState<string | null>(null);
+  const [showAddDisciplineModal, setShowAddDisciplineModal] = useState(false);
+  const [showAddNoteModal, setShowAddNoteModal] = useState(false);
+  const [newDisciplineTypeModal, setNewDisciplineTypeModal] =
+    useState<DisciplineEntry["type"]>("verbal");
+  const [newDisciplineNoteModal, setNewDisciplineNoteModal] = useState("");
+  const [newGeneralNoteModal, setNewGeneralNoteModal] = useState("");
+  const [editingDisciplineModal, setEditingDisciplineModal] =
+    useState<EditingDisciplineStateModal | null>(null);
+  const [editingNoteModal, setEditingNoteModal] =
+    useState<EditingNoteStateModal | null>(null);
+  const [modalSubmitError, setModalSubmitError] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
@@ -178,6 +220,68 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
 
     fetchFleetData();
   }, []);
+
+  const fetchModalUserData = useCallback(async () => {
+    if (!selectedUser) {
+      setModalDisciplineEntries([]);
+      setModalGeneralNotes([]);
+      return;
+    }
+
+    setModalDataLoading(true);
+    setModalDataError(null);
+    try {
+      const userId = selectedUser.id;
+      const disciplineColRef = collection(
+        dbFirestore,
+        "users",
+        userId,
+        "discipline"
+      );
+      const disciplineQuery = query(
+        disciplineColRef,
+        orderBy("issuedAt", "desc")
+      );
+      const disciplineSnapshot = await getDocs(disciplineQuery);
+      setModalDisciplineEntries(
+        disciplineSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as DisciplineEntry[]
+      );
+
+      const notesColRef = collection(dbFirestore, "users", userId, "notes");
+      const notesQuery = query(notesColRef, orderBy("issuedAt", "desc"));
+      const notesSnapshot = await getDocs(notesQuery);
+      setModalGeneralNotes(
+        notesSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as GeneralNoteEntry[]
+      );
+    } catch (error) {
+      console.error("Error fetching modal user data:", error);
+      setModalDataError("Failed to load discipline or notes records.");
+    } finally {
+      setModalDataLoading(false);
+    }
+  }, [selectedUser]);
+
+  useEffect(() => {
+    if (selectedUser) {
+      fetchModalUserData();
+      setShowAddDisciplineModal(false);
+      setShowAddNoteModal(false);
+      setEditingDisciplineModal(null);
+      setEditingNoteModal(null);
+      setNewDisciplineNoteModal("");
+      setNewGeneralNoteModal("");
+      setModalSubmitError(null);
+    } else {
+      setModalDisciplineEntries([]);
+      setModalGeneralNotes([]);
+    }
+  }, [selectedUser, fetchModalUserData]);
 
   const addBulletin = async () => {
     if (!bulletinTitle || !bulletinBody) {
@@ -378,10 +482,8 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         assignedVehicle: assignedVehicle || null,
       };
 
-      // Update the user document in Firestore
       await updateDoc(userRef, updateData);
 
-      // Update the fleet document if a vehicle is assigned
       if (assignedVehicle) {
         const fleetDoc = fleetData.find(
           (vehicle) => vehicle.plate === assignedVehicle
@@ -392,7 +494,6 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         }
       }
 
-      // Update the local state
       setAllUsersData((prevUsers) =>
         prevUsers.map((u) =>
           u.id === selectedUser.id ? { ...u, ...updateData } : u
@@ -405,6 +506,203 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
       console.error("Error updating user or fleet data:", error);
       alert("Failed to update roster data. Please try again.");
     }
+  };
+
+  const handleAddDisciplineModal = async () => {
+    if (!selectedUser || !newDisciplineNoteModal.trim()) {
+      setModalSubmitError("Please ensure discipline details are entered.");
+      return;
+    }
+    setModalSubmitError(null);
+    try {
+      const disciplineColRef = collection(
+        dbFirestore,
+        "users",
+        selectedUser.id,
+        "discipline"
+      );
+      await addDoc(disciplineColRef, {
+        type: newDisciplineTypeModal,
+        note: newDisciplineNoteModal.trim(),
+        issuedBy: user.name,
+        issuedAt: serverTimestamp(),
+      });
+      setNewDisciplineNoteModal("");
+      setNewDisciplineTypeModal("verbal");
+      setShowAddDisciplineModal(false);
+      await fetchModalUserData();
+      alert("Discipline entry added!");
+    } catch (error) {
+      console.error("Error adding discipline entry in modal:", error);
+      setModalSubmitError("Failed to add discipline entry.");
+    }
+  };
+
+  const handleAddNoteModal = async () => {
+    if (!selectedUser || !newGeneralNoteModal.trim()) {
+      setModalSubmitError("Please ensure a note is entered.");
+      return;
+    }
+    setModalSubmitError(null);
+    try {
+      const notesColRef = collection(
+        dbFirestore,
+        "users",
+        selectedUser.id,
+        "notes"
+      );
+      await addDoc(notesColRef, {
+        note: newGeneralNoteModal.trim(),
+        issuedBy: user.name,
+        issuedAt: serverTimestamp(),
+      });
+      setNewGeneralNoteModal("");
+      setShowAddNoteModal(false);
+      await fetchModalUserData();
+      alert("General note added!");
+    } catch (error) {
+      console.error("Error adding general note in modal:", error);
+      setModalSubmitError("Failed to add general note.");
+    }
+  };
+
+  const handleDeleteDisciplineModal = async (entryId: string) => {
+    if (!selectedUser || !window.confirm("Delete this discipline entry?"))
+      return;
+    try {
+      const entryDocRef = doc(
+        dbFirestore,
+        "users",
+        selectedUser.id,
+        "discipline",
+        entryId
+      );
+      await deleteDoc(entryDocRef);
+      await fetchModalUserData();
+      alert("Discipline entry deleted.");
+    } catch (error) {
+      console.error("Error deleting discipline entry:", error);
+      alert("Failed to delete discipline entry.");
+    }
+  };
+
+  const handleDeleteNoteModal = async (noteId: string) => {
+    if (!selectedUser || !window.confirm("Delete this general note?")) return;
+    try {
+      const noteDocRef = doc(
+        dbFirestore,
+        "users",
+        selectedUser.id,
+        "notes",
+        noteId
+      );
+      await deleteDoc(noteDocRef);
+      await fetchModalUserData();
+      alert("General note deleted.");
+    } catch (error) {
+      console.error("Error deleting general note:", error);
+      alert("Failed to delete general note.");
+    }
+  };
+
+  const handleStartEditDisciplineModal = (entry: DisciplineEntry) => {
+    setEditingDisciplineModal({
+      id: entry.id,
+      type: entry.type,
+      note: entry.note,
+    });
+    setEditingNoteModal(null);
+  };
+
+  const handleStartEditNoteModal = (entry: GeneralNoteEntry) => {
+    setEditingNoteModal({ id: entry.id, note: entry.note });
+    setEditingDisciplineModal(null);
+  };
+
+  const handleCancelEditModal = () => {
+    setEditingDisciplineModal(null);
+    setEditingNoteModal(null);
+  };
+
+  const handleSaveDisciplineEditModal = async () => {
+    if (!editingDisciplineModal || !selectedUser) return;
+    const { id, note, type } = editingDisciplineModal;
+    if (!note.trim()) {
+      alert("Discipline details cannot be empty.");
+      return;
+    }
+    try {
+      const entryDocRef = doc(
+        dbFirestore,
+        "users",
+        selectedUser.id,
+        "discipline",
+        id
+      );
+      await updateDoc(entryDocRef, { note: note.trim(), type: type });
+      setEditingDisciplineModal(null);
+      await fetchModalUserData();
+      alert("Discipline entry updated.");
+    } catch (error) {
+      console.error("Error updating discipline entry:", error);
+      alert("Failed to update discipline entry.");
+    }
+  };
+
+  const handleSaveNoteEditModal = async () => {
+    if (!editingNoteModal || !selectedUser) return;
+    const { id, note } = editingNoteModal;
+    if (!note.trim()) {
+      alert("Note cannot be empty.");
+      return;
+    }
+    try {
+      const noteDocRef = doc(
+        dbFirestore,
+        "users",
+        selectedUser.id,
+        "notes",
+        id
+      );
+      await updateDoc(noteDocRef, { note: note.trim() });
+      setEditingNoteModal(null);
+      await fetchModalUserData();
+      alert("General note updated.");
+    } catch (error) {
+      console.error("Error updating general note:", error);
+      alert("Failed to update general note.");
+    }
+  };
+
+  const formatTimestamp = (ts: Timestamp | null | undefined): string => {
+    if (!ts) return "N/A";
+    return ts.toDate().toLocaleString("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  };
+
+  const getNoteTypeColor = (type: DisciplineEntry["type"]) => {
+    switch (type) {
+      case "commendation":
+        return "text-green-400";
+      case "verbal":
+        return "text-yellow-400";
+      case "written":
+        return "text-orange-400";
+      case "suspension":
+        return "text-red-500";
+      case "termination":
+        return "text-red-700 font-bold";
+      default:
+        return "text-gray-400";
+    }
+  };
+
+  const getWelcomeMessage = () => {
+    const rank = user.rank || "Rank Undefined";
+    const name = user.name || "Name Undefined";
+    return `Good Evening, ${rank} ${name}`;
   };
 
   const rankOrder = [
@@ -435,16 +733,12 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     return a.callsign.localeCompare(b.callsign);
   });
 
-  const getWelcomeMessage = () => {
-    const rank = user.rank || "Rank Undefined";
-    const name = user.name || "Name Undefined";
-    return `Good Evening, ${rank} ${name}`;
-  };
-
   return (
     <Layout user={user}>
       <div className="page-content space-y-6">
-        <h1 className="text-3xl font-bold text-[#f3c700]">{getWelcomeMessage()}</h1>
+        <h1 className="text-3xl font-bold text-[#f3c700]">
+          {getWelcomeMessage()}
+        </h1>
 
         <div className="flex flex-wrap gap-4 mb-4">
           <button
@@ -772,7 +1066,6 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
                 Edit Roster Data for {selectedUser.name} ({selectedUser.rank})
               </h2>
 
-              {/* Personal Information Section */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">
@@ -868,7 +1161,6 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
                 </div>
               </div>
 
-              {/* Certifications Section */}
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
                   Certifications
@@ -901,48 +1193,328 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
                 </div>
               </div>
 
-              {/* Tasks Section */}
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
-                  Tasks
-                </h3>
-                <div className="space-y-2">
-                  {selectedUser.tasks.length > 0 ? (
-                    selectedUser.tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className="bg-gray-700 p-3 rounded border border-gray-600"
+              <div className="mb-6 border-t border-gray-700 pt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-lg font-semibold text-yellow-400">
+                    Discipline Records
+                  </h3>
+                  <button
+                    className="button-secondary text-sm px-3 py-1"
+                    onClick={() => {
+                      setShowAddDisciplineModal(!showAddDisciplineModal);
+                      setShowAddNoteModal(false);
+                      setEditingDisciplineModal(null);
+                      setEditingNoteModal(null);
+                    }}
+                  >
+                    {showAddDisciplineModal ? "Cancel Add" : "+ Add Discipline"}
+                  </button>
+                </div>
+
+                {showAddDisciplineModal && (
+                  <div className="space-y-2 p-3 bg-gray-700 rounded-md mb-3 border border-yellow-500/50">
+                    <h4 className="text-md font-semibold text-gray-200">
+                      New Discipline Entry
+                    </h4>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-0.5">
+                        Type
+                      </label>
+                      <select
+                        className="input input-sm"
+                        value={newDisciplineTypeModal}
+                        onChange={(e) =>
+                          setNewDisciplineTypeModal(
+                            e.target.value as DisciplineEntry["type"]
+                          )
+                        }
                       >
-                        <p className="text-sm text-gray-300">
-                          {task.description}
-                        </p>
-                        <small className="text-xs text-gray-400">
-                          Goal: {task.goal || "N/A"}, Progress: {task.progress}
-                        </small>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500 italic">
-                      No tasks assigned.
+                        <option value="commendation">Commendation</option>
+                        <option value="verbal">Verbal Warning</option>
+                        <option value="written">Written Warning</option>
+                        <option value="suspension">Suspension</option>
+                        <option value="termination">Termination</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-0.5">
+                        Details
+                      </label>
+                      <textarea
+                        className="input input-sm"
+                        rows={3}
+                        value={newDisciplineNoteModal}
+                        onChange={(e) =>
+                          setNewDisciplineNoteModal(e.target.value)
+                        }
+                        placeholder="Enter details..."
+                      />
+                    </div>
+                    {modalSubmitError && (
+                      <p className="text-red-500 text-xs">{modalSubmitError}</p>
+                    )}
+                    <button
+                      className="button-primary text-sm px-3 py-1"
+                      onClick={handleAddDisciplineModal}
+                    >
+                      Submit Entry
+                    </button>
+                  </div>
+                )}
+
+                <div className="modal-list-container">
+                  {modalDataLoading && (
+                    <p className="text-yellow-400 italic text-sm">
+                      Loading records...
                     </p>
+                  )}
+                  {modalDataError && (
+                    <p className="text-red-500 text-sm">{modalDataError}</p>
+                  )}
+                  {!modalDataLoading && !modalDataError && (
+                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                      {modalDisciplineEntries.length > 0 ? (
+                        modalDisciplineEntries.map((entry) => (
+                          <div
+                            key={entry.id}
+                            className="note-card bg-gray-700/80 p-2 rounded border border-gray-600 relative group text-xs"
+                          >
+                            {editingDisciplineModal?.id === entry.id ? (
+                              <div className="space-y-1">
+                                <select
+                                  className="input input-xs w-full"
+                                  value={editingDisciplineModal.type}
+                                  onChange={(e) =>
+                                    setEditingDisciplineModal({
+                                      ...editingDisciplineModal,
+                                      type: e.target
+                                        .value as DisciplineEntry["type"],
+                                    })
+                                  }
+                                >
+                                  <option value="commendation">
+                                    Commendation
+                                  </option>
+                                  <option value="verbal">Verbal Warning</option>
+                                  <option value="written">
+                                    Written Warning
+                                  </option>
+                                  <option value="suspension">Suspension</option>
+                                  <option value="termination">
+                                    Termination
+                                  </option>
+                                </select>
+                                <textarea
+                                  className="input input-xs w-full"
+                                  value={editingDisciplineModal.note}
+                                  onChange={(e) =>
+                                    setEditingDisciplineModal({
+                                      ...editingDisciplineModal,
+                                      note: e.target.value,
+                                    })
+                                  }
+                                  rows={2}
+                                />
+                                <div className="flex gap-1">
+                                  <button
+                                    className="button-primary text-xs px-1.5 py-0.5"
+                                    onClick={handleSaveDisciplineEditModal}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    className="button-secondary text-xs px-1.5 py-0.5"
+                                    onClick={handleCancelEditModal}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p
+                                  className={`font-semibold ${getNoteTypeColor(
+                                    entry.type
+                                  )} uppercase text-[10px] mb-0.5`}
+                                >
+                                  {entry.type || "N/A"}
+                                </p>
+                                <p className="text-gray-300 whitespace-pre-wrap text-[11px]">
+                                  {entry.note || "No details"}
+                                </p>
+                                <small className="text-gray-500 block mt-1 text-[10px]">
+                                  By: {entry.issuedBy || "Unknown"} on{" "}
+                                  {formatTimestamp(entry.issuedAt)}
+                                </small>
+                                <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    title="Edit"
+                                    className="bg-blue-600 hover:bg-blue-500 text-white p-0.5 rounded text-[9px]"
+                                    onClick={() =>
+                                      handleStartEditDisciplineModal(entry)
+                                    }
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    title="Delete"
+                                    className="bg-red-600 hover:bg-red-500 text-white p-0.5 rounded text-[9px]"
+                                    onClick={() =>
+                                      handleDeleteDisciplineModal(entry.id)
+                                    }
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-500 italic text-sm">
+                          No discipline records found.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Discipline Section */}
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
-                  Discipline
-                </h3>
-                <div className="space-y-2">
-                  {/* Placeholder for discipline notes */}
-                  <p className="text-sm text-gray-500 italic">
-                    No discipline records available.
-                  </p>
+              <div className="mb-6 border-t border-gray-700 pt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-lg font-semibold text-yellow-400">
+                    General Notes
+                  </h3>
+                  <button
+                    className="button-secondary text-sm px-3 py-1"
+                    onClick={() => {
+                      setShowAddNoteModal(!showAddNoteModal);
+                      setShowAddDisciplineModal(false);
+                      setEditingDisciplineModal(null);
+                      setEditingNoteModal(null);
+                    }}
+                  >
+                    {showAddNoteModal ? "Cancel Add" : "+ Add Note"}
+                  </button>
+                </div>
+
+                {showAddNoteModal && (
+                  <div className="space-y-2 p-3 bg-gray-700 rounded-md mb-3 border border-yellow-500/50">
+                    <h4 className="text-md font-semibold text-gray-200">
+                      New General Note
+                    </h4>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-0.5">
+                        Note
+                      </label>
+                      <textarea
+                        className="input input-sm"
+                        rows={3}
+                        value={newGeneralNoteModal}
+                        onChange={(e) => setNewGeneralNoteModal(e.target.value)}
+                        placeholder="Enter note..."
+                      />
+                    </div>
+                    {modalSubmitError && (
+                      <p className="text-red-500 text-xs">{modalSubmitError}</p>
+                    )}
+                    <button
+                      className="button-primary text-sm px-3 py-1"
+                      onClick={handleAddNoteModal}
+                    >
+                      Submit Note
+                    </button>
+                  </div>
+                )}
+
+                <div className="modal-list-container">
+                  {modalDataLoading && (
+                    <p className="text-yellow-400 italic text-sm">
+                      Loading notes...
+                    </p>
+                  )}
+                  {modalDataError && (
+                    <p className="text-red-500 text-sm">{modalDataError}</p>
+                  )}
+                  {!modalDataLoading && !modalDataError && (
+                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                      {modalGeneralNotes.length > 0 ? (
+                        modalGeneralNotes.map((note) => (
+                          <div
+                            key={note.id}
+                            className="note-card bg-gray-700/80 p-2 rounded border border-gray-600 relative group text-xs"
+                          >
+                            {editingNoteModal?.id === note.id ? (
+                              <div className="space-y-1">
+                                <textarea
+                                  className="input input-xs w-full"
+                                  value={editingNoteModal.note}
+                                  onChange={(e) =>
+                                    setEditingNoteModal({
+                                      ...editingNoteModal,
+                                      note: e.target.value,
+                                    })
+                                  }
+                                  rows={2}
+                                />
+                                <div className="flex gap-1">
+                                  <button
+                                    className="button-primary text-xs px-1.5 py-0.5"
+                                    onClick={handleSaveNoteEditModal}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    className="button-secondary text-xs px-1.5 py-0.5"
+                                    onClick={handleCancelEditModal}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-gray-300 whitespace-pre-wrap text-[11px]">
+                                  {note.note || "No details"}
+                                </p>
+                                <small className="text-gray-500 block mt-1 text-[10px]">
+                                  By: {note.issuedBy || "Unknown"} on{" "}
+                                  {formatTimestamp(note.issuedAt)}
+                                </small>
+                                <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    title="Edit"
+                                    className="bg-blue-600 hover:bg-blue-500 text-white p-0.5 rounded text-[9px]"
+                                    onClick={() =>
+                                      handleStartEditNoteModal(note)
+                                    }
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    title="Delete"
+                                    className="bg-red-600 hover:bg-red-500 text-white p-0.5 rounded text-[9px]"
+                                    onClick={() =>
+                                      handleDeleteNoteModal(note.id)
+                                    }
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-500 italic text-sm">
+                          No general notes found.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Fleet Management Section */}
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
                   Fleet Management

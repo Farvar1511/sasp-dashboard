@@ -23,6 +23,10 @@ export interface RosterTemplateEntry {
   name?: string;
   rank?: string;
   role?: string;
+  notes?: string; // Added optional notes field
+  discipline?: string; // Added optional discipline field
+  notesIssuedAt?: string | null; // Added optional timestamp for notes
+  disciplineIssuedAt?: string | null; // Added optional timestamp for discipline
 }
 
 const fullRosterTemplate: RosterTemplateEntry[] = [
@@ -1067,3 +1071,32 @@ export const normalizeTemplateCertKeys = (certs: {
 
 // Define CertStatus type if not already globally available
 type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
+
+// Define RosterUser interface
+export interface RosterUser {
+  id: string;
+  name: string;
+  rank: string;
+  badge?: string;
+  callsign?: string;
+  certifications?: { [key: string]: CertStatus };
+  loaStartDate?: string | Timestamp; // Keep Timestamp for Firestore data
+  loaEndDate?: string | Timestamp; // Keep Timestamp for Firestore data
+  isActive?: boolean;
+  discordId?: string;
+  email?: string;
+  isPlaceholder?: boolean;
+  category?: string | null;
+  notes?: string; // Notes field
+  discipline?: string; // Discipline field
+  notesIssuedAt?: Timestamp; // Added timestamp for notes
+  disciplineIssuedAt?: Timestamp; // Added timestamp for discipline
+}
+
+// Define Timestamp type if not globally available (e.g., if not importing from firebase)
+// This is just a placeholder if 'Timestamp' isn't recognized from imports
+// import { Timestamp } from "firebase/firestore"; // Ensure this import exists where needed
+type Timestamp = {
+  toDate: () => Date;
+  // Add other Timestamp properties/methods if needed
+};

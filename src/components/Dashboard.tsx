@@ -165,8 +165,8 @@ export default function Dashboard({ user }: { user: User }) {
         {/* Clock */}
         <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-60 mb-8 shadow">
           <div
-            className="space-y-1 text-xl font-bold text-yellow-400"
-            style={{ fontFamily: "Orbitron, sans-serif" }}
+            className="space-y-1 text-xl font-bold text-yellow-400 font-display"
+            style={{ fontFamily: "'Orbitron', sans-serif", fontWeight: 500 }}
           >
             <div>{time.toLocaleDateString("en-US", { weekday: "long" })}</div>
             <div>{time.toLocaleDateString("en-US")}</div>
@@ -184,13 +184,13 @@ export default function Dashboard({ user }: { user: User }) {
                   navigate("/sasp-roster");
                 } else if (link.Label === "Fleet Management") {
                   navigate("/fleet"); // Navigate to /fleet for Fleet Management button
-                } else {
+                } else if (link.Url) {
                   openModal(link.Url); // Fallback for any other unexpected top links
                 }
               }}
-              className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-lg shadow hover:scale-105 hover:bg-yellow-300 transition-transform duration-150"
+              className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-lg shadow hover:scale-105 hover:bg-yellow-300 transition-transform duration-150 font-sans"
             >
-              {link.Label}
+              {link.Label || ""}
             </button>
           ))}
         </div>
@@ -203,15 +203,15 @@ export default function Dashboard({ user }: { user: User }) {
               className="w-full bg-black/70 border border-yellow-400 rounded-lg p-8 shadow-lg transition hover:shadow-yellow-400"
             >
               <h3 className="text-xl font-bold text-yellow-400 mb-4 border-b border-yellow-400 pb-2">
-                {category}
+                {category || ""}
               </h3>
               {items.map((item) => (
                 <button
                   key={item.Label}
-                  onClick={() => openModal(item.Url)}
+                  onClick={() => item.Url && openModal(item.Url)}
                   className="block w-full px-4 py-2 mb-2 bg-black/70 border border-yellow-400 text-yellow-400 rounded-md font-semibold hover:bg-yellow-300 hover:text-black transition-colors duration-150"
                 >
-                  {item.Label}
+                  {item.Label || ""}
                 </button>
               ))}
             </div>

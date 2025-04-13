@@ -6,6 +6,7 @@ import {
   updateDoc,
   Timestamp,
   setDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
@@ -127,6 +128,10 @@ interface RosterUser {
   discordId?: string;
   email?: string;
   isPlaceholder?: boolean;
+  notes?: string;
+  discipline?: string;
+  notesIssuedAt?: Timestamp;
+  disciplineIssuedAt?: Timestamp;
 }
 
 const processRosterData = (
@@ -202,6 +207,18 @@ const formatDateForInput = (
   }
 };
 
+const formatTimestamp = (ts: Timestamp | null | undefined): string => {
+  if (!ts) return "N/A";
+  return ts.toDate().toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
 const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
   const [roster, setRoster] = useState<RosterUser[]>([]);
   const [groupedRoster, setGroupedRoster] = useState<{
@@ -211,6 +228,7 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
   const [error, setError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<RosterUser | null>(null);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [hideVacant, setHideVacant] = useState(false);
   const [newUser, setNewUser] = useState<Partial<RosterUser>>({
     name: "",
     rank: "Cadet",
@@ -220,7 +238,6 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
     certifications: {},
   });
   const [addUserError, setAddUserError] = useState<string | null>(null);
-
   const [searchTerm, setSearchTerm] = useState<string>("");
 
   useEffect(() => {
@@ -330,16 +347,18 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
       grouped[cat] = [];
     });
 
-    const sortedFiltered = [...filtered].sort((a, b) => {
-      const rankA = rankOrder[a.rank] ?? rankOrder.Unknown;
-      const rankB = rankOrder[b.rank] ?? rankOrder.Unknown;
-      if (rankA !== rankB) {
-        return rankA - rankB;
-      }
-      const callsignA = a.callsign || "";
-      const callsignB = b.callsign || "";
-      return callsignA.localeCompare(callsignB);
-    });
+    const sortedFiltered = [...filtered]
+      .filter((u) => !hideVacant || u.name !== "VACANT")
+      .sort((a, b) => {
+        const rankA = rankOrder[a.rank] ?? rankOrder.Unknown;
+        const rankB = rankOrder[b.rank] ?? rankOrder.Unknown;
+        if (rankA !== rankB) {
+          return rankA - rankB;
+        }
+        const callsignA = a.callsign || "";
+        const callsignB = b.callsign || "";
+        return callsignA.localeCompare(callsignB);
+      });
 
     sortedFiltered.forEach((u) => {
       let foundCategory = false;
@@ -360,7 +379,7 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
     });
 
     return { filtered: sortedFiltered, grouped: finalGrouped };
-  }, [roster, searchTerm]);
+  }, [roster, searchTerm, hideVacant]);
 
   useEffect(() => {
     setGroupedRoster(processedAndFilteredRoster.grouped);
@@ -537,9 +556,16 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
     );
   };
 
+  const handleEditUser = (user: RosterUser) => {
+    setEditingUser(user);
+  };
+
   return (
     <Layout user={user}>
-      <div className="page-content space-y-6">
+      <div
+        className="page-content space-y-6"
+        style={{ fontFamily: "'Inter', sans-serif" }}
+      >
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-[#f3c700]">
             Roster Management
@@ -550,6 +576,19 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
           >
             {showAddUserForm ? "Cancel Add" : "Add Trooper"}
           </button>
+        </div>
+
+        <div className="flex items-center gap-4 mb-4">
+          <input
+            type="checkbox"
+            id="hideVacantToggle"
+            checked={hideVacant}
+            onChange={(e) => setHideVacant(e.target.checked)}
+            className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="hideVacantToggle" className="text-sm text-gray-300">
+            Hide Vacant Rows
+          </label>
         </div>
 
         {showAddUserForm && (
@@ -604,6 +643,62 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
               onClick={handleAddNewUser}
             >
               Save New Trooper
+            </button>
+          </div>
+        )}
+
+        {editingUser && (
+          <div className="admin-section p-4 mb-6">
+            <h2 className="section-header text-xl mb-3">
+              Edit User: {editingUser.name || "Loading..."}
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="text"
+                placeholder="Badge Number"
+                value={editingUser.badge || ""}
+                onChange={(e) => handleEditChange("badge", e.target.value)}
+                className="input text-sm"
+              />
+              <select
+                value={editingUser.rank}
+                onChange={(e) => handleEditChange("rank", e.target.value)}
+                className="input text-sm"
+              >
+                {Object.keys(rankOrder)
+                  .filter((r) => r !== "Unknown")
+                  .sort((a, b) => rankOrder[a] - rankOrder[b])
+                  .map((rank) => (
+                    <option key={rank} value={rank}>
+                      {rank}
+                    </option>
+                  ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Callsign"
+                value={editingUser.callsign || ""}
+                onChange={(e) => handleEditChange("callsign", e.target.value)}
+                className="input text-sm"
+              />
+              <input
+                type="text"
+                placeholder="Discord ID"
+                value={editingUser.discordId || ""}
+                onChange={(e) => handleEditChange("discordId", e.target.value)}
+                className="input text-sm"
+              />
+            </div>
+
+            <button className="button-primary mt-4" onClick={saveUserChanges}>
+              Save Changes
+            </button>
+            <button
+              className="button-secondary mt-4 ml-2"
+              onClick={() => setEditingUser(null)}
+            >
+              Cancel
             </button>
           </div>
         )}
@@ -864,7 +959,10 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                               </>
                             ) : (
                               <>
-                                <td className="p-2 border-r border-gray-600 font-mono">
+                                <td
+                                  className="p-2 border-r border-gray-600"
+                                  style={{ fontFamily: "'Inter', sans-serif" }}
+                                >
                                   {u.badge}
                                 </td>
                                 <td
@@ -951,7 +1049,7 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                                 <td className="p-2">
                                   <button
                                     onClick={() =>
-                                      u.name !== "VACANT" && setEditingUser(u)
+                                      u.name !== "VACANT" && handleEditUser(u)
                                     }
                                     className={`button-secondary text-xs px-1 py-0.5 ${
                                       u.name === "VACANT"
@@ -1000,28 +1098,6 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                     min-width: 80px;
                     font-size: 0.875rem;
                 }
-                .input-table[type="date"] {
-                    min-width: 120px;
-                    color-scheme: dark;
-                }
-                .input-table select {
-                    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="%23a0aec0"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 111.414 1.414l-4 4a1 1 01-1.414 0l-4-4a 1 1 010-1.414z" clip-rule="evenodd"/></svg>');
-                    background-repeat: no-repeat;
-                    background-position: right 0.5rem center;
-                    background-size: 1.5em 1.5em;
-                    padding-right: 2.5rem;
-                    -webkit-appearance: none;
-                    -moz-appearance: none;
-                    appearance: none;
-                }
-                .input-table option {
-                    background-color: #374151;
-                    color: white;
-                }
-                .input-table option.text-green-400 { color: #34d399; }
-                .input-table option.text-blue-400 { color: #60a5fa; }
-                .input-table option.text-orange-400 { color: #fb923c; }
-                .input-table option.text-gray-500 { color: #6b7280; }
                 .form-checkbox {
                     display: inline-block;
                     vertical-align: middle;
@@ -1032,6 +1108,69 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                     white-space: nowrap;
                     transform: rotate(180deg);
                     padding: 8px 4px;
+                }
+                table {
+                    border-collapse: separate;
+                    border-spacing: 0 8px;
+                }
+                tbody tr {
+                    background-color: #1f2937;
+                    border-radius: 8px;
+                    overflow: hidden;
+                }
+                tbody tr:hover {
+                    background-color: #374151;
+                }
+                tbody td {
+                    border-top: 1px solid #4b5563;
+                    border-bottom: 1px solid #4b5563;
+                    border-radius: 8px;
+                }
+                thead th {
+                    border-bottom: 2px solid #4b5563;
+                    border-radius: 8px;
+                }
+                .badge-lookup {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-top: 16px;
+                }
+                .badge-item {
+                    background-color: #2d3748;
+                    color: #f3c700;
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    font-size: 0.875rem;
+                    font-weight: bold;
+                    display: inline-block;
+                }
+                .badge-item:hover {
+                    background-color: #374151;
+                }
+                .cert-style {
+                    display: inline-block;
+                    padding: 4px 8px;
+                    margin: 2px;
+                    border-radius: 4px;
+                    font-size: 0.75rem;
+                    font-weight: bold;
+                }
+                .cert-LEAD {
+                    background-color: #2563eb;
+                    color: white;
+                }
+                .cert-SUPER {
+                    background-color: #f97316;
+                    color: white;
+                }
+                .cert-CERT {
+                    background-color: #16a34a;
+                    color: white;
+                }
+                .cert-None {
+                    background-color: #4b5563;
+                    color: #d1d5db;
                 }
             `}</style>
     </Layout>

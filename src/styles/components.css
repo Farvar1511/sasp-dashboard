@@ -1,0 +1,77 @@
+@layer components {
+  .button-primary {
+    background-color: #facc15; /* bg-yellow-400 */
+    color: #000000; /* text-black */
+    font-weight: 700; /* font-bold */
+    padding-top: 0.5rem; /* py-2 */
+    padding-bottom: 0.5rem; /* py-2 */
+    padding-left: 1rem; /* px-4 */
+    padding-right: 1rem; /* px-4 */
+    border-radius: 0.25rem; /* rounded */
+    transition-property: background-color, border-color, color, fill, stroke,
+      opacity, box-shadow, transform, filter, backdrop-filter; /* transition */
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); /* transition */
+    transition-duration: 150ms; /* duration-150 */
+  }
+  .button-primary:hover {
+    background-color: #fde047; /* hover:bg-yellow-300 */
+  }
+
+  .button-secondary {
+    background-color: #4b5563; /* bg-gray-600 */
+    color: #ffffff; /* text-white */
+    font-weight: 700; /* font-bold */
+    padding-top: 0.5rem; /* py-2 */
+    padding-bottom: 0.5rem; /* py-2 */
+    padding-left: 1rem; /* px-4 */
+    padding-right: 1rem; /* px-4 */
+    border-radius: 0.25rem; /* rounded */
+    transition-property: background-color, border-color, color, fill, stroke,
+      opacity, box-shadow, transform, filter, backdrop-filter; /* transition */
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); /* transition */
+    transition-duration: 150ms; /* duration-150 */
+  }
+  .button-secondary:hover {
+    background-color: #6b7280; /* hover:bg-gray-500 */
+  }
+
+  .input {
+    display: block;
+    width: 100%;
+    background-color: #374151; /* bg-gray-700 */
+    border: 1px solid #4b5563; /* border border-gray-600 */
+    border-radius: 0.25rem; /* rounded */
+    padding-left: 0.75rem; /* px-3 */
+    padding-right: 0.75rem; /* px-3 */
+    padding-top: 0.375rem; /* py-1.5 */
+    padding-bottom: 0.375rem; /* py-1.5 */
+    color: #e5e7eb; /* text-gray-200 */
+  }
+  .input:focus {
+    outline: 2px solid transparent; /* focus:outline-none */
+    outline-offset: 2px;
+    --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0
+      var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+    --tw-ring-shadow: var(--tw-ring-inset) 0 0 0
+      calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+    box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow),
+      var(--tw-shadow, 0 0 #0000); /* focus:ring-1 */
+    --tw-ring-color: #facc15; /* focus:ring-yellow-400 */
+    border-color: #facc15; /* focus:border-yellow-400 */
+  }
+
+  .admin-section {
+    background-color: rgba(0, 0, 0, 0.7); /* bg-black/70 */
+    border: 1px solid #374151; /* border border-gray-700 */
+    border-radius: 0.5rem; /* rounded-lg */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+  }
+  .section-header {
+    font-weight: 700; /* font-bold */
+    color: #facc15; /* text-yellow-400 */
+    border-bottom: 1px solid #374151; /* border-b border-gray-700 */
+    padding-bottom: 0.5rem; /* pb-2 */
+  }
+  /* ... other component styles ... */
+}

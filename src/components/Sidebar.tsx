@@ -65,6 +65,21 @@ export default function Sidebar({
         )}
         {/* Spacer to push logout to bottom */}
         <div className="flex-grow"></div>
+        {/* Everfall Community Link */}
+        <a
+          href="https://everfallcommunity.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full px-4 py-2 rounded-md bg-yellow-400 text-black font-bold hover:bg-yellow-300 transition text-center flex justify-center items-center"
+          title="Everfall Community" // Add title for accessibility
+        >
+          {/* Replace text with image */}
+          <img
+            src="/everfall.webp" // Path relative to the public folder
+            alt="Everfall Community"
+            className="h-4 w-auto" // Adjusted height from h-5 to h-4
+          />
+        </a>
         {/* Logout Button */}
         <button
           // Added text-center, flex, justify-center, items-center

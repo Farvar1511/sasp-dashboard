@@ -5,6 +5,7 @@ import {
   doc,
   updateDoc,
   setDoc,
+  deleteDoc, // Import deleteDoc
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
@@ -138,6 +139,33 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
     }
   };
 
+  const deleteVehicle = async (vehicleId: string) => {
+    if (!window.confirm("Are you sure you want to delete this vehicle?")) {
+      return;
+    }
+
+    try {
+      const vehicleDocRef = doc(dbFirestore, "fleet", vehicleId);
+      await deleteDoc(vehicleDocRef);
+
+      const updatedFleetList = fleet.filter((v) => v.id !== vehicleId);
+      const { sortedFleet, groupedFleet: updatedGroupedFleet } =
+        processFleetData(updatedFleetList);
+
+      setFleet(sortedFleet);
+      setGroupedFleet(updatedGroupedFleet);
+      setEditingVehicle(null);
+      alert("Vehicle deleted successfully!");
+    } catch (err) {
+      console.error("Error deleting vehicle:", err);
+      alert(
+        `Failed to delete vehicle. Error: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  };
+
   const handleNewVehicleChange = (field: keyof FleetVehicle, value: any) => {
     setNewVehicle((prev) => ({ ...prev, [field]: value }));
   };
@@ -201,7 +229,7 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
 
   return (
     <Layout user={user}>
-      <div className="page-content space-y-6">
+      <div className="page-content font-sans space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-[#f3c700]">
             Fleet Management
@@ -397,6 +425,12 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                                 >
                                   Cancel
                                 </button>
+                                <button
+                                  onClick={() => deleteVehicle(v.id)}
+                                  className="button-danger text-xs px-1 py-0.5"
+                                >
+                                  Delete
+                                </button>
                               </td>
                             </>
                           ) : (
@@ -448,9 +482,48 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
       </div>
       {/* Reusing styles from RosterManagement */}
       <style>{`
-        .input-table { background-color: #374151; color: white; border: 1px solid #4b5563; border-radius: 4px; padding: 2px 4px; width: 100%; min-width: 80px; font-size: 0.875rem; }
-        .form-checkbox { display: inline-block; vertical-align: middle; }
-        .category-vertical { writing-mode: vertical-lr; text-orientation: mixed; white-space: nowrap; transform: rotate(180deg); padding: 8px 4px; }
+        .input-table {
+          background-color: #374151;
+          color: white;
+          border: 1px solid #4b5563;
+          border-radius: 4px;
+          padding: 2px 4px;
+          width: 100%;
+          min-width: 80px;
+          font-size: 0.875rem;
+        }
+        .form-checkbox {
+          display: inline-block;
+          vertical-align: middle;
+        }
+        .category-vertical {
+          writing-mode: vertical-lr;
+          text-orientation: mixed;
+          white-space: nowrap;
+          transform: rotate(180deg);
+          padding: 8px 4px;
+        }
+        table {
+          border-collapse: separate;
+          border-spacing: 0 8px;
+        }
+        tbody tr {
+          background-color: #1f2937;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        tbody tr:hover {
+          background-color: #374151;
+        }
+        tbody td {
+          border-top: 1px solid #4b5563;
+          border-bottom: 1px solid #4b5563;
+          border-radius: 8px;
+        }
+        thead th {
+          border-bottom: 2px solid #4b5563;
+          border-radius: 8px;
+        }
       `}</style>
     </Layout>
   );
