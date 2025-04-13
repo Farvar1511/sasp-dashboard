@@ -191,7 +191,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
     loaEndDate: null,
     loaStartDate: null,
     name: "VACANT",
-    rank: "Liuetenant",
+    rank: "Lieutenant",
     role: "",
   },
   {

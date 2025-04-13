@@ -1,5 +1,4 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Orbitron:wght@400..900&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap");
 @import "tailwindcss";
 
 @tailwind base;
@@ -8,6 +7,7 @@
 
 @layer base {
   body {
+    /* Rely on @apply font-sans and Tailwind config */
     @apply font-sans bg-black text-white min-h-screen overflow-x-hidden;
     background-size: cover; /* Ensure body respects background image */
     background-repeat: no-repeat;
@@ -218,10 +218,12 @@
   /* Glow Animation */
   @keyframes glow {
     from {
-      text-shadow: 0 0 5px #ffd700, 0 0 10px #ffd700;
+      /* Reduced glow effect */
+      text-shadow: 0 0 2px #f3c700, 0 0 4px #f3c700;
     }
     to {
-      text-shadow: 0 0 20px #ffd700, 0 0 30px #ffd700;
+      /* Reduced glow effect */
+      text-shadow: 0 0 5px #f3c700, 0 0 8px #f3c700;
     }
   }
   .glow {

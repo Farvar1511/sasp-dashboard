@@ -13,7 +13,8 @@ interface User {
 export default function Dashboard({ user }: { user: User }) {
   const [background, setBackground] = useState("");
   const [time, setTime] = useState(new Date());
-  const [welcomeMessage, setWelcomeMessage] = useState("");
+  const [fullWelcomeMessage, setFullWelcomeMessage] = useState(""); // Renamed state for the full message
+  const [displayedWelcomeMessage, setDisplayedWelcomeMessage] = useState(""); // State for the typewriter effect
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
   const navigate = useNavigate(); // Instantiate useNavigate
 
@@ -34,8 +35,25 @@ export default function Dashboard({ user }: { user: User }) {
         ? "Good Afternoon"
         : "Good Evening";
     const lastName = user.name.split(" ").slice(-1)[0];
-    setWelcomeMessage(`${greeting}, ${user.rank} ${lastName}`);
+    setFullWelcomeMessage(`${greeting}, ${user.rank} ${lastName}`);
   }, [user]);
+
+  useEffect(() => {
+    setDisplayedWelcomeMessage("");
+
+    if (fullWelcomeMessage) {
+      let index = 0;
+      const typingInterval = setInterval(() => {
+        setDisplayedWelcomeMessage((prev) => prev + fullWelcomeMessage[index]);
+        index++;
+        if (index === fullWelcomeMessage.length) {
+          clearInterval(typingInterval);
+        }
+      }, 100);
+
+      return () => clearInterval(typingInterval);
+    }
+  }, [fullWelcomeMessage]);
 
   // Separate top links
   const topLinks = links.filter((link) =>
@@ -93,12 +111,21 @@ export default function Dashboard({ user }: { user: User }) {
           <h1 className="text-4xl font-black uppercase text-center drop-shadow-md">
             San Andreas State Police
           </h1>
-          <p className="text-lg font-semibold text-center">{welcomeMessage}</p>
+          <p className="text-lg font-semibold text-center min-h-[1.5em]">
+            {" "}
+            {/* Added min-height to prevent layout shift */}
+            {displayedWelcomeMessage}
+            <span className="animate-pulse">|</span>{" "}
+            {/* Optional blinking cursor */}
+          </p>
         </div>
 
         {/* Clock */}
-        <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-60 mb-8 shadow font-orbitron">
-          <div className="space-y-1 text-lg font-bold">
+        <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-60 mb-8 shadow">
+          <div
+            className="space-y-1 text-xl font-bold text-yellow-400"
+            style={{ fontFamily: "Orbitron, sans-serif" }}
+          >
             <div>{time.toLocaleDateString("en-US", { weekday: "long" })}</div>
             <div>{time.toLocaleDateString("en-US")}</div>
             <div>{time.toLocaleTimeString()}</div>
