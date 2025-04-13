@@ -27,6 +27,8 @@ export interface RosterTemplateEntry {
   discipline?: string; // Added optional discipline field
   notesIssuedAt?: string | null; // Added optional timestamp for notes
   disciplineIssuedAt?: string | null; // Added optional timestamp for discipline
+  joinDate?: string | null; // Added optional join date
+  lastPromotionDate?: string | null; // Added optional last promotion date
 }
 
 const fullRosterTemplate: RosterTemplateEntry[] = [

@@ -68,6 +68,7 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
   });
   const [addVehicleError, setAddVehicleError] = useState<string | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<string>("All"); // State for division filter
+  const [searchTerm, setSearchTerm] = useState<string>(""); // State for search term
 
   useEffect(() => {
     const fetchFleet = async () => {
@@ -113,15 +114,20 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
     return Array.from(divisions).sort(); // Sort alphabetically
   }, [fleet]);
 
-  // Filter fleet based on selected division
+  // Filter fleet based on selected division and search term
   const filteredFleet = useMemo(() => {
     return fleet.filter((v) => {
       const matchesDivision =
         selectedDivision === "All" || v.division === selectedDivision;
+      const matchesSearchTerm =
+        v.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        v.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        v.division.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        v.assignee.toLowerCase().includes(searchTerm.toLowerCase());
 
-      return matchesDivision;
+      return matchesDivision && matchesSearchTerm;
     });
-  }, [fleet, selectedDivision]);
+  }, [fleet, selectedDivision, searchTerm]);
 
   const handleEditChange = (field: keyof FleetVehicle, value: any) => {
     if (!editingVehicle) return;
@@ -315,8 +321,15 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
           </div>
         )}
 
-        {/* Division Filter Dropdown */}
+        {/* Search and Filter Section */}
         <div className="flex flex-col md:flex-row gap-4 mb-4">
+          <input
+            type="text"
+            placeholder="Search Fleet (Vehicle, Plate, Division, Assignee)..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input flex-grow"
+          />
           <select
             value={selectedDivision}
             onChange={(e) => setSelectedDivision(e.target.value)}

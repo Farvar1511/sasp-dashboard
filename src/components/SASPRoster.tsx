@@ -1,35 +1,24 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
 import { User as AuthUser } from "../types/User";
-// Import the template and normalization function
 import fullRosterTemplate, {
   normalizeTemplateCertKeys,
-} from "../data/FullRosterData"; // Adjust path if needed
-
-// --- Reused constants and types from RosterManagement ---
-const rankOrder: { [key: string]: number } = {
-  Commissioner: 1,
-  "Assistant Deputy Commissioner": 2, // Added rank
-  "Deputy Commissioner": 3, // Adjusted number
-  "Assistant Commissioner": 4, // Adjusted number
-  Commander: 5, // Adjusted number
-  Captain: 6, // Adjusted number
-  Lieutenant: 7, // Adjusted number
-  "Staff Sergeant": 8, // Adjusted number
-  Sergeant: 9, // Adjusted number
-  Corporal: 10, // Adjusted number
-  "Trooper First Class": 11, // Adjusted number
-  Trooper: 12, // Adjusted number
-  Cadet: 13, // Adjusted number
-  Unknown: 99,
-};
+} from "../data/FullRosterData";
+import {
+  rankOrder,
+  CertStatus,
+  certificationKeys,
+  divisionKeys,
+  getCertStyle,
+  formatDate,
+} from "../data/rosterConfig";
 
 const rankCategories: { [key: string]: string[] } = {
   "High Command": [
     "Commissioner",
-    "Assistant Deputy Commissioner", // Added rank
+    "Assistant Deputy Commissioner",
     "Deputy Commissioner",
     "Assistant Commissioner",
     "Commander",
@@ -40,7 +29,6 @@ const rankCategories: { [key: string]: string[] } = {
   Cadets: ["Cadet"],
 };
 
-// Define the desired order for categories
 const categoryOrder = [
   "High Command",
   "Command",
@@ -49,68 +37,27 @@ const categoryOrder = [
   "Cadets",
 ];
 
-type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
-
-const certOptions: {
-  value: CertStatus;
-  label: string;
-  bgColor: string;
-  textColor: string;
-}[] = [
-  {
-    value: null,
-    label: "None",
-    bgColor: "bg-gray-700",
-    textColor: "text-gray-300",
-  },
-  {
-    value: "CERT",
-    label: "CERT",
-    bgColor: "bg-green-600",
-    textColor: "text-white",
-  },
-  {
-    value: "LEAD",
-    label: "LEAD",
-    bgColor: "bg-blue-600",
-    textColor: "text-white",
-  },
-  {
-    value: "SUPER",
-    label: "SUPER",
-    bgColor: "bg-orange-600",
-    textColor: "text-white",
-  },
-];
-
-// Match keys used in RosterManagement and FullRosterData normalization
-const certificationKeys = ["HEAT", "MOTO", "ACU"];
-const divisionKeys = ["SWAT", "CIU", "K9", "FTO"];
-
 interface RosterUser {
   id: string;
   name: string;
   rank: string;
   badge?: string;
   callsign?: string;
-  certifications?: {
-    [key: string]: CertStatus;
-  };
-  loaStartDate?: string | Timestamp;
-  loaEndDate?: string | Timestamp;
+  certifications?: { [key: string]: CertStatus | null };
+  loaStartDate?: string | Timestamp | null;
+  loaEndDate?: string | Timestamp | null;
   isActive?: boolean;
   discordId?: string;
   email?: string;
-  isPlaceholder?: boolean; // Keep this flag from merge logic
-  category?: string | null; // Added by processRosterData
+  joinDate?: string | Timestamp | null;
+  lastPromotionDate?: string | Timestamp | null;
+  isPlaceholder?: boolean;
+  category?: string | null;
 }
-
-// --- Reused helper functions from RosterManagement ---
 
 const processRosterData = (
   usersData: RosterUser[]
 ): {
-  sortedRoster: RosterUser[];
   groupedRoster: { [category: string]: RosterUser[] };
 } => {
   const categorizedUsers = usersData
@@ -122,26 +69,11 @@ const processRosterData = (
           break;
         }
       }
-      if (
-        !category &&
-        user.rank &&
-        user.rank !== "Unknown" &&
-        user.rank !== ""
-      ) {
-        console.warn(
-          `User ${user.name} (${user.callsign}) has rank "${user.rank}" which doesn't fit into defined categories.`
-        );
-      }
       return { ...user, category };
     })
     .filter((user) => user.category !== null);
 
-  const sortedRoster = categorizedUsers.sort((a, b) => {
-    const categoryIndexA = categoryOrder.indexOf(a.category!);
-    const categoryIndexB = categoryOrder.indexOf(b.category!);
-    if (categoryIndexA !== categoryIndexB) {
-      return categoryIndexA - categoryIndexB;
-    }
+  categorizedUsers.sort((a, b) => {
     const rankA = rankOrder[a.rank] ?? rankOrder.Unknown;
     const rankB = rankOrder[b.rank] ?? rankOrder.Unknown;
     if (rankA !== rankB) {
@@ -156,38 +88,39 @@ const processRosterData = (
   categoryOrder.forEach((cat) => {
     grouped[cat] = [];
   });
-  sortedRoster.forEach((u) => {
+  categorizedUsers.forEach((u) => {
     grouped[u.category!].push(u);
   });
 
-  return { sortedRoster, groupedRoster: grouped };
+  return { groupedRoster: grouped };
 };
 
-const formatDateForInput = (
-  dateValue: string | Timestamp | undefined | null
+// Helper to format dates as M/D/YY
+const formatDateForDisplay = (
+  dateValue: string | Timestamp | null | undefined
 ): string => {
-  if (!dateValue) return "";
+  if (!dateValue) return "-";
   try {
-    const date =
-      dateValue instanceof Timestamp ? dateValue.toDate() : new Date(dateValue);
-    if (isNaN(date.getTime())) return "";
-    return date.toISOString().split("T")[0];
-  } catch {
-    return "";
+    let date: Date;
+    if (dateValue instanceof Timestamp) {
+      date = dateValue.toDate();
+    } else if (typeof dateValue === "string") {
+      date = new Date(
+        dateValue.includes("T") ? dateValue : `${dateValue}T00:00:00`
+      );
+      if (isNaN(date.getTime())) return "-";
+    } else {
+      return "-";
+    }
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const year = date.getFullYear() % 100; // Two-digit year
+    return `${month}/${day}/${year}`;
+  } catch (e) {
+    console.error("Error formatting date for display:", e);
+    return "-";
   }
 };
-
-const getCertStyle = (
-  status: CertStatus
-): { bgColor: string; textColor: string } => {
-  return (
-    certOptions.find((opt) => opt.value === status) || {
-      bgColor: "bg-gray-700",
-      textColor: "text-gray-300",
-    }
-  );
-};
-// --- End Reused ---
 
 const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
   const [groupedRoster, setGroupedRoster] = useState<{
@@ -195,7 +128,9 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
   }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hideVacant, setHideVacant] = useState(false); // New state for toggle
+  const [hideVacant, setHideVacant] = useState(false);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedRank, setSelectedRank] = useState<string>("All");
 
   useEffect(() => {
     const fetchAndMergeRoster = async () => {
@@ -208,10 +143,17 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
           const normalizedCerts = data.certifications
             ? Object.entries(data.certifications).reduce(
                 (acc, [key, value]) => {
-                  acc[key.toUpperCase()] = value as CertStatus;
+                  const upperValue =
+                    typeof value === "string" ? value.toUpperCase() : null;
+                  const validStatus = ["LEAD", "SUPER", "CERT"].includes(
+                    upperValue || ""
+                  )
+                    ? (upperValue as CertStatus)
+                    : null;
+                  acc[key.toUpperCase()] = validStatus;
                   return acc;
                 },
-                {} as { [key: string]: CertStatus }
+                {} as { [key: string]: CertStatus | null }
               )
             : {};
           return {
@@ -221,11 +163,13 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
             badge: data.badge || "N/A",
             callsign: data.callsign || "",
             certifications: normalizedCerts,
-            loaStartDate: data.loaStartDate || undefined,
-            loaEndDate: data.loaEndDate || undefined,
+            loaStartDate: data.loaStartDate || null,
+            loaEndDate: data.loaEndDate || null,
             isActive: data.isActive !== undefined ? data.isActive : true,
-            discordId: data.discordId || "",
+            discordId: data.discordId || "-",
             email: doc.id,
+            joinDate: data.joinDate || null,
+            lastPromotionDate: data.lastPromotionDate || null,
             isPlaceholder: false,
           } as RosterUser;
         });
@@ -243,35 +187,51 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
               ? liveUserMap.get(templateEntry.callsign)
               : undefined;
             if (liveUser) {
+              liveUser.discordId = liveUser.discordId || "-";
               return {
                 ...liveUser,
                 callsign: templateEntry.callsign,
                 isPlaceholder: false,
               };
             } else {
+              const templateCerts = normalizeTemplateCertKeys(
+                templateEntry.certifications
+              );
               return {
                 id: `template-${templateEntry.callsign || Math.random()}`,
                 name: templateEntry.name || "VACANT",
                 rank: templateEntry.rank || "",
                 badge: templateEntry.badge || "N/A",
                 callsign: templateEntry.callsign,
-                certifications: normalizeTemplateCertKeys(
-                  templateEntry.certifications
-                ),
-                loaStartDate: templateEntry.loaStartDate || undefined,
-                loaEndDate: templateEntry.loaEndDate || undefined,
+                certifications: templateCerts,
+                loaStartDate: templateEntry.loaStartDate || null,
+                loaEndDate: templateEntry.loaEndDate || null,
                 isActive: templateEntry.isActive === true ? true : false,
-                discordId: templateEntry.discordId || "",
+                discordId: templateEntry.discordId || "-",
                 email: templateEntry.email || "",
+                joinDate: templateEntry.joinDate || null,
+                lastPromotionDate: templateEntry.lastPromotionDate || null,
                 isPlaceholder: true,
               } as RosterUser;
             }
           })
-          .filter((u) => !hideVacant || u.name !== "VACANT"); // Filter out vacant rows if toggle is on
+          .filter((u) => !hideVacant || u.name !== "VACANT");
+
+        const lowerSearchTerm = searchTerm.toLowerCase();
+        const filteredRoster = mergedRoster.filter((u) => {
+          const matchesSearch =
+            !lowerSearchTerm ||
+            u.name?.toLowerCase().includes(lowerSearchTerm) ||
+            u.badge?.toLowerCase().includes(lowerSearchTerm) ||
+            u.callsign?.toLowerCase().includes(lowerSearchTerm) ||
+            u.rank?.toLowerCase().includes(lowerSearchTerm) ||
+            u.discordId?.toLowerCase().includes(lowerSearchTerm);
+          const matchesRank = selectedRank === "All" || u.rank === selectedRank;
+          return matchesSearch && matchesRank;
+        });
 
         const { groupedRoster: processedGroupedRoster } =
-          processRosterData(mergedRoster);
-
+          processRosterData(filteredRoster);
         setGroupedRoster(processedGroupedRoster);
       } catch (err) {
         console.error("Error fetching or merging roster:", err);
@@ -282,27 +242,65 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
     };
 
     fetchAndMergeRoster();
-  }, [hideVacant]); // Include hideVacant in dependencies
+  }, [hideVacant, searchTerm, selectedRank]);
+
+  const uniqueRanks = useMemo(() => {
+    const ranks = new Set<string>(["All"]);
+    Object.values(groupedRoster)
+      .flat()
+      .forEach((u) => {
+        if (u.rank && u.rank.trim()) {
+          ranks.add(u.rank.trim());
+        }
+      });
+    return Array.from(ranks).sort((a, b) => {
+      if (a === "All") return -1;
+      if (b === "All") return 1;
+      return (rankOrder[a] ?? 99) - (rankOrder[b] ?? 99);
+    });
+  }, [groupedRoster]);
+
+  const totalColSpan = 5 + divisionKeys.length + certificationKeys.length + 4;
 
   return (
     <Layout user={user}>
-      <div
-        className="page-content space-y-6"
-        style={{ fontFamily: "'Inter', sans-serif" }}
-      >
+      <div className="page-content space-y-6">
         <h1 className="text-3xl font-bold text-[#f3c700]">SASP Roster</h1>
 
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
           <input
-            type="checkbox"
-            id="hideVacantToggle"
-            checked={hideVacant}
-            onChange={(e) => setHideVacant(e.target.checked)}
-            className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+            type="text"
+            placeholder="Search Roster (Name, Badge, Callsign, Rank, Discord)..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input flex-grow"
           />
-          <label htmlFor="hideVacantToggle" className="text-sm text-gray-300">
-            Hide Vacant Rows
-          </label>
+          <select
+            value={selectedRank}
+            onChange={(e) => setSelectedRank(e.target.value)}
+            className="input md:w-auto"
+          >
+            {uniqueRanks.map((rank) => (
+              <option key={rank} value={rank}>
+                {rank === "All" ? "All Ranks" : rank}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="hideVacantToggle"
+              checked={hideVacant}
+              onChange={(e) => setHideVacant(e.target.checked)}
+              className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+            />
+            <label
+              htmlFor="hideVacantToggle"
+              className="text-sm text-gray-300 whitespace-nowrap"
+            >
+              Hide Vacant
+            </label>
+          </div>
         </div>
 
         {loading && <p className="text-yellow-400 italic">Loading roster...</p>}
@@ -315,47 +313,39 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                 <tr>
                   <th
                     rowSpan={2}
-                    className="p-2 border-r border-gray-600 w-8"
-                  ></th>{" "}
-                  {/* Category */}
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Badge
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Rank
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Name
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Callsign
+                    className="p-1 border-r border-b border-gray-600 w-8"
+                  ></th>
+                  <th
+                    colSpan={5}
+                    className="p-1 border-r border-b border-gray-600 text-center font-semibold"
+                  >
+                    PERSONNEL INFORMATION
                   </th>
                   <th
                     colSpan={divisionKeys.length}
-                    className="p-2 border-r border-gray-600 text-center"
+                    className="p-1 border-r border-b border-gray-600 text-center font-semibold"
                   >
-                    Divisions
+                    DIVISION INFORMATION
                   </th>
                   <th
                     colSpan={certificationKeys.length}
-                    className="p-2 border-r border-gray-600 text-center"
+                    className="p-1 border-r border-b border-gray-600 text-center font-semibold"
                   >
-                    Certifications
+                    CERTIFICATIONS
                   </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    LOA Start
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    LOA End
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Active
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Discord ID
+                  <th
+                    colSpan={4}
+                    className="p-1 border-b border-gray-600 text-center font-semibold"
+                  >
+                    ADDITIONAL INFORMATION
                   </th>
                 </tr>
                 <tr>
+                  <th className="p-2 border-r border-gray-600">CALLSIGN</th>
+                  <th className="p-2 border-r border-gray-600">BADGE #</th>
+                  <th className="p-2 border-r border-gray-600">RANK</th>
+                  <th className="p-2 border-r border-gray-600">NAME</th>
+                  <th className="p-2 border-r border-gray-600">DISCORD</th>
                   {divisionKeys.map((div) => (
                     <th key={div} className="p-2 border-r border-gray-600">
                       {div}
@@ -363,9 +353,13 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                   ))}
                   {certificationKeys.map((cert) => (
                     <th key={cert} className="p-2 border-r border-gray-600">
-                      {cert}
+                      {cert === "MOTO" ? "MBU" : cert}
                     </th>
                   ))}
+                  <th className="p-2 border-r border-gray-600">JOIN</th>
+                  <th className="p-2 border-r border-gray-600">PROMO</th>
+                  <th className="p-2 border-r border-gray-600">ACTIVE</th>
+                  <th className="p-2">INACTIVE / LOA SINCE</th>
                 </tr>
               </thead>
               {categoryOrder.map((category) => {
@@ -374,12 +368,18 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                   <tbody key={category} className="text-gray-300">
                     {usersInCategory.map((u, index) => {
                       const isVacant = u.name === "VACANT";
+                      const isLastInCategory =
+                        index === usersInCategory.length - 1;
                       return (
                         <tr
                           key={u.id}
-                          className={`border-t border-gray-700 hover:bg-gray-800/50 ${
+                          className={`border-t border-gray-700 hover:bg-white/5 ${
                             isVacant ? "italic opacity-60" : ""
-                          } ${!isVacant && !u.isActive ? "opacity-60" : ""}`}
+                          } ${!isVacant && !u.isActive ? "opacity-60" : ""} ${
+                            isLastInCategory
+                              ? "border-b-4 border-yellow-400"
+                              : ""
+                          }`}
                         >
                           {index === 0 && (
                             <td
@@ -390,10 +390,10 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                               {category}
                             </td>
                           )}
-                          <td
-                            className="p-2 border-r border-gray-600"
-                            style={{ fontFamily: "'Inter', sans-serif" }}
-                          >
+                          <td className="p-2 border-r border-gray-600">
+                            {u.callsign || "-"}
+                          </td>
+                          <td className="p-2 border-r border-gray-600">
                             {u.badge || "-"}
                           </td>
                           <td
@@ -409,11 +409,11 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                             {u.name}
                           </td>
                           <td className="p-2 border-r border-gray-600">
-                            {u.callsign || "-"}
+                            {u.discordId || "-"}
                           </td>
                           {divisionKeys.map((divKey) => {
                             const currentStatus =
-                              u.certifications?.[divKey] || null;
+                              u.certifications?.[divKey.toUpperCase()] ?? null;
                             const style = getCertStyle(currentStatus);
                             return (
                               <td
@@ -421,7 +421,7 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                                 className={`p-0 border-r border-gray-600 text-center align-middle`}
                               >
                                 <span
-                                  className={`block w-full h-full px-2 py-2 font-semibold ${style.bgColor} ${style.textColor}`}
+                                  className={`cert-span rounded-md ${style.bgColor} ${style.textColor}`}
                                 >
                                   {currentStatus || "-"}
                                 </span>
@@ -430,24 +430,15 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                           })}
                           {certificationKeys.map((certKey) => {
                             const currentStatus =
-                              u.certifications?.[certKey] || null;
-                            const style =
-                              currentStatus === "CERT"
-                                ? {
-                                    bgColor: "bg-green-600",
-                                    textColor: "text-white",
-                                  }
-                                : {
-                                    bgColor: "bg-gray-700",
-                                    textColor: "text-gray-300",
-                                  };
+                              u.certifications?.[certKey.toUpperCase()] ?? null;
+                            const style = getCertStyle(currentStatus);
                             return (
                               <td
                                 key={certKey}
                                 className={`p-0 border-r border-gray-600 text-center align-middle`}
                               >
                                 <span
-                                  className={`block w-full h-full px-2 py-2 font-semibold ${style.bgColor} ${style.textColor}`}
+                                  className={`cert-span rounded-md ${style.bgColor} ${style.textColor}`}
                                 >
                                   {currentStatus || "-"}
                                 </span>
@@ -455,25 +446,21 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                             );
                           })}
                           <td className="p-2 border-r border-gray-600">
-                            {u.loaStartDate
-                              ? formatDateForInput(u.loaStartDate)
-                              : "-"}
+                            {formatDateForDisplay(u.joinDate)}
                           </td>
                           <td className="p-2 border-r border-gray-600">
-                            {u.loaEndDate
-                              ? formatDateForInput(u.loaEndDate)
-                              : "-"}
+                            {formatDateForDisplay(u.lastPromotionDate)}
                           </td>
                           <td
                             className={`p-0 border-r border-gray-600 text-center align-middle`}
                           >
                             {isVacant ? (
-                              <span className="block w-full h-full px-2 py-2 text-gray-500">
+                              <span className="cert-span rounded-md text-gray-500">
                                 -
                               </span>
                             ) : (
                               <span
-                                className={`block w-full h-full px-2 py-2 font-semibold ${
+                                className={`cert-span rounded-md ${
                                   u.isActive
                                     ? "bg-green-600 text-white"
                                     : "bg-red-600 text-white"
@@ -483,8 +470,10 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                               </span>
                             )}
                           </td>
-                          <td className="p-2 border-r border-gray-600">
-                            {u.discordId || "-"}
+                          <td className="p-2">
+                            {!isVacant && !u.isActive
+                              ? formatDateForDisplay(u.loaStartDate)
+                              : "-"}
                           </td>
                         </tr>
                       );
@@ -492,6 +481,19 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
                   </tbody>
                 ) : null;
               })}
+              {Object.values(groupedRoster).every((arr) => arr.length === 0) &&
+                !loading && (
+                  <tbody>
+                    <tr>
+                      <td
+                        colSpan={totalColSpan + 1}
+                        className="text-center p-4 text-gray-400 italic"
+                      >
+                        No users found matching the criteria.
+                      </td>
+                    </tr>
+                  </tbody>
+                )}
             </table>
           </div>
         )}
@@ -503,51 +505,53 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
             white-space: nowrap;
             transform: rotate(180deg);
             padding: 8px 4px;
+            background-color: #111827;
+            border-left: 2px solid #4b5563;
+            border-right: 2px solid #4b5563;
         }
         table {
-            border-collapse: separate;
-            border-spacing: 0 8px;
-        }
-        tbody tr {
-            background-color: #1f2937;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        tbody tr:hover {
-            background-color: #374151;
-        }
-        tbody td {
-            border-top: 1px solid #4b5563;
-            border-bottom: 1px solid #4b5563;
-            border-radius: 8px;
+            border-collapse: collapse;
+            width: 100%;
         }
         thead th {
-            border-bottom: 2px solid #4b5563;
-            border-radius: 8px;
+            position: sticky;
+            top: 0;
+            background-color: #1f2937;
+            color: #f3c700;
+            text-align: center;
+            padding: 8px;
+            border: 2px solid #4b5563;
+            z-index: 10;
+            font-family: 'Inter', sans-serif;
         }
-        .cert-style {
+         thead tr:nth-child(2) th {
+             background-color: #374151;
+             top: 36px;
+             z-index: 11;
+             font-family: 'Inter', sans-serif;
+        }
+        tbody td {
+            padding: 8px;
+            border: 2px solid #4b5563;
+            text-align: center;
+            vertical-align: middle;
+            font-family: 'Inter', sans-serif;
+        }
+        tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .cert-span {
             display: inline-block;
+            width: auto;
+            min-width: 40px;
+            height: auto;
             padding: 4px 8px;
-            margin: 2px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: bold;
+            font-weight: 600;
+            border-radius: 0.375rem;
+            line-height: 1.25;
         }
-        .cert-LEAD {
-            background-color: #2563eb;
-            color: white;
-        }
-        .cert-SUPER {
-            background-color: #f97316;
-            color: white;
-        }
-        .cert-CERT {
-            background-color: #16a34a;
-            color: white;
-        }
-        .cert-None {
-            background-color: #4b5563;
-            color: #d1d5db;
+        tbody td.p-0 {
+            padding: 4px;
         }
       `}</style>
     </Layout>

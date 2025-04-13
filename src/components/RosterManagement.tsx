@@ -2,11 +2,10 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   collection,
   getDocs,
+  Timestamp,
   doc,
   updateDoc,
-  Timestamp,
   setDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
@@ -14,22 +13,39 @@ import { User as AuthUser } from "../types/User";
 import fullRosterTemplate, {
   normalizeTemplateCertKeys,
 } from "../data/FullRosterData";
+import {
+  rankOrder,
+  CertStatus,
+  certificationKeys,
+  divisionKeys,
+  getCertStyle,
+} from "../data/rosterConfig";
 
-const rankOrder: { [key: string]: number } = {
-  Commissioner: 1,
-  "Assistant Deputy Commissioner": 2,
-  "Deputy Commissioner": 3,
-  "Assistant Commissioner": 4,
-  Commander: 5,
-  Captain: 6,
-  Lieutenant: 7,
-  "Staff Sergeant": 8,
-  Sergeant: 9,
-  Corporal: 10,
-  "Trooper First Class": 11,
-  Trooper: 12,
-  Cadet: 13,
-  Unknown: 99,
+// Helper to format dates as M/D/YY
+const formatDateForDisplay = (
+  dateValue: string | Timestamp | null | undefined
+): string => {
+  if (!dateValue) return "-";
+  try {
+    let date: Date;
+    if (dateValue instanceof Timestamp) {
+      date = dateValue.toDate();
+    } else if (typeof dateValue === "string") {
+      date = new Date(
+        dateValue.includes("T") ? dateValue : `${dateValue}T00:00:00`
+      );
+      if (isNaN(date.getTime())) return "-";
+    } else {
+      return "-";
+    }
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const year = date.getFullYear() % 100; // Two-digit year
+    return `${month}/${day}/${year}`;
+  } catch (e) {
+    console.error("Error formatting date for display:", e);
+    return "-";
+  }
 };
 
 const rankCategories: { [key: string]: string[] } = {
@@ -54,90 +70,27 @@ const categoryOrder = [
   "Cadets",
 ];
 
-type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
-
-const certOptions: {
-  value: CertStatus;
-  label: string;
-  bgColor: string;
-  textColor: string;
-}[] = [
-  {
-    value: null,
-    label: "None",
-    bgColor: "bg-gray-700",
-    textColor: "text-gray-300",
-  },
-  {
-    value: "CERT",
-    label: "CERT",
-    bgColor: "bg-green-600",
-    textColor: "text-white",
-  },
-  {
-    value: "LEAD",
-    label: "LEAD",
-    bgColor: "bg-blue-600",
-    textColor: "text-white",
-  },
-  {
-    value: "SUPER",
-    label: "SUPER",
-    bgColor: "bg-orange-600",
-    textColor: "text-white",
-  },
-];
-
-const certKeys: string[] = [
-  "ACU",
-  "CIU",
-  "K9",
-  "HEAT",
-  "MOTO",
-  "FTO",
-  "SWAT",
-  "OVERWATCH",
-];
-
-const certificationKeys = ["HEAT", "MOTO", "ACU"];
-const divisionKeys = ["SWAT", "CIU", "K9", "FTO"];
-const additionalInfoKeys = [
-  "loaStartDate",
-  "loaEndDate",
-  "isActive",
-  "discordId",
-];
-const allCertAndDivisionKeys = [
-  ...certificationKeys,
-  ...divisionKeys,
-  "OVERWATCH",
-];
-
 interface RosterUser {
   id: string;
   name: string;
   rank: string;
   badge?: string;
   callsign?: string;
-  certifications?: {
-    [key: string]: CertStatus;
-  };
-  loaStartDate?: string | Timestamp;
-  loaEndDate?: string | Timestamp;
+  certifications?: { [key: string]: CertStatus | null };
+  loaStartDate?: string | Timestamp | null;
+  loaEndDate?: string | Timestamp | null;
   isActive?: boolean;
   discordId?: string;
   email?: string;
+  joinDate?: string | Timestamp | null;
+  lastPromotionDate?: string | Timestamp | null;
   isPlaceholder?: boolean;
-  notes?: string;
-  discipline?: string;
-  notesIssuedAt?: Timestamp;
-  disciplineIssuedAt?: Timestamp;
+  category?: string | null;
 }
 
 const processRosterData = (
   usersData: RosterUser[]
 ): {
-  sortedRoster: RosterUser[];
   groupedRoster: { [category: string]: RosterUser[] };
 } => {
   const categorizedUsers = usersData
@@ -149,33 +102,16 @@ const processRosterData = (
           break;
         }
       }
-      if (
-        !category &&
-        user.rank &&
-        user.rank !== "Unknown" &&
-        user.rank !== ""
-      ) {
-        console.warn(
-          `User ${user.name} (${user.callsign}) has rank "${user.rank}" which doesn't fit into defined categories.`
-        );
-      }
       return { ...user, category };
     })
     .filter((user) => user.category !== null);
 
-  const sortedRoster = categorizedUsers.sort((a, b) => {
-    const categoryIndexA = categoryOrder.indexOf(a.category!);
-    const categoryIndexB = categoryOrder.indexOf(b.category!);
-    if (categoryIndexA !== categoryIndexB) {
-      return categoryIndexA - categoryIndexB;
-    }
-
+  categorizedUsers.sort((a, b) => {
     const rankA = rankOrder[a.rank] ?? rankOrder.Unknown;
     const rankB = rankOrder[b.rank] ?? rankOrder.Unknown;
     if (rankA !== rankB) {
       return rankA - rankB;
     }
-
     const callsignA = a.callsign || "";
     const callsignB = b.callsign || "";
     return callsignA.localeCompare(callsignB);
@@ -185,60 +121,51 @@ const processRosterData = (
   categoryOrder.forEach((cat) => {
     grouped[cat] = [];
   });
-
-  sortedRoster.forEach((u) => {
+  categorizedUsers.forEach((u) => {
     grouped[u.category!].push(u);
   });
 
-  return { sortedRoster, groupedRoster: grouped };
+  return { groupedRoster: grouped };
 };
 
-const formatDateForInput = (
-  dateValue: string | Timestamp | undefined | null
-): string => {
-  if (!dateValue) return "";
-  try {
-    const date =
-      dateValue instanceof Timestamp ? dateValue.toDate() : new Date(dateValue);
-    if (isNaN(date.getTime())) return "";
-    return date.toISOString().split("T")[0];
-  } catch {
-    return "";
-  }
+const initialNewUserData: Omit<
+  RosterUser,
+  "id" | "category" | "isPlaceholder"
+> = {
+  email: "",
+  name: "",
+  rank: "",
+  badge: "",
+  callsign: "",
+  certifications: {},
+  loaStartDate: null,
+  loaEndDate: null,
+  isActive: true,
+  discordId: "",
+  joinDate: null,
+  lastPromotionDate: null,
 };
 
-const formatTimestamp = (ts: Timestamp | null | undefined): string => {
-  if (!ts) return "N/A";
-  return ts.toDate().toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-};
-
-const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
-  const [roster, setRoster] = useState<RosterUser[]>([]);
+const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
   const [groupedRoster, setGroupedRoster] = useState<{
     [category: string]: RosterUser[];
   }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingUser, setEditingUser] = useState<RosterUser | null>(null);
-  const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [hideVacant, setHideVacant] = useState(false);
-  const [newUser, setNewUser] = useState<Partial<RosterUser>>({
-    name: "",
-    rank: "Cadet",
-    badge: "",
-    email: "",
-    isActive: true,
-    certifications: {},
-  });
-  const [addUserError, setAddUserError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedRank, setSelectedRank] = useState<string>("All");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editedUserData, setEditedUserData] = useState<RosterUser | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserData, setNewUserData] =
+    useState<Omit<RosterUser, "id" | "category" | "isPlaceholder">>(
+      initialNewUserData
+    );
+  const [isSavingNewUser, setIsSavingNewUser] = useState(false);
+  const [newUserError, setNewUserError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAndMergeRoster = async () => {
@@ -251,10 +178,17 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
           const normalizedCerts = data.certifications
             ? Object.entries(data.certifications).reduce(
                 (acc, [key, value]) => {
-                  acc[key.toUpperCase()] = value as CertStatus;
+                  const upperValue =
+                    typeof value === "string" ? value.toUpperCase() : null;
+                  const validStatus = ["LEAD", "SUPER", "CERT"].includes(
+                    upperValue || ""
+                  )
+                    ? (upperValue as CertStatus)
+                    : null;
+                  acc[key.toUpperCase()] = validStatus;
                   return acc;
                 },
-                {} as { [key: string]: CertStatus }
+                {} as { [key: string]: CertStatus | null }
               )
             : {};
           return {
@@ -264,11 +198,13 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
             badge: data.badge || "N/A",
             callsign: data.callsign || "",
             certifications: normalizedCerts,
-            loaStartDate: data.loaStartDate || undefined,
-            loaEndDate: data.loaEndDate || undefined,
+            loaStartDate: data.loaStartDate || null,
+            loaEndDate: data.loaEndDate || null,
             isActive: data.isActive !== undefined ? data.isActive : true,
-            discordId: data.discordId || "",
+            discordId: data.discordId || "-",
             email: doc.id,
+            joinDate: data.joinDate || null,
+            lastPromotionDate: data.lastPromotionDate || null,
             isPlaceholder: false,
           } as RosterUser;
         });
@@ -280,42 +216,58 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
           }
         });
 
-        const mergedRoster: RosterUser[] = fullRosterTemplate.map(
-          (templateEntry) => {
+        const mergedRoster: RosterUser[] = fullRosterTemplate
+          .map((templateEntry) => {
             const liveUser = templateEntry.callsign
               ? liveUserMap.get(templateEntry.callsign)
               : undefined;
             if (liveUser) {
+              liveUser.discordId = liveUser.discordId || "-";
               return {
                 ...liveUser,
                 callsign: templateEntry.callsign,
                 isPlaceholder: false,
               };
             } else {
+              const templateCerts = normalizeTemplateCertKeys(
+                templateEntry.certifications
+              );
               return {
                 id: `template-${templateEntry.callsign || Math.random()}`,
-                name: templateEntry.name,
-                rank: templateEntry.rank,
+                name: templateEntry.name || "VACANT",
+                rank: templateEntry.rank || "",
                 badge: templateEntry.badge || "N/A",
                 callsign: templateEntry.callsign,
-                certifications: normalizeTemplateCertKeys(
-                  templateEntry.certifications
-                ),
-                loaStartDate: templateEntry.loaStartDate || undefined,
-                loaEndDate: templateEntry.loaEndDate || undefined,
-                isActive:
-                  typeof templateEntry.isActive === "boolean"
-                    ? templateEntry.isActive
-                    : false,
-                discordId: templateEntry.discordId || "",
+                certifications: templateCerts,
+                loaStartDate: templateEntry.loaStartDate || null,
+                loaEndDate: templateEntry.loaEndDate || null,
+                isActive: templateEntry.isActive === true ? true : false,
+                discordId: templateEntry.discordId || "-",
                 email: templateEntry.email || "",
+                joinDate: templateEntry.joinDate || null,
+                lastPromotionDate: templateEntry.lastPromotionDate || null,
                 isPlaceholder: true,
               } as RosterUser;
             }
-          }
-        );
+          })
+          .filter((u) => !hideVacant || u.name !== "VACANT");
 
-        setRoster(mergedRoster);
+        const lowerSearchTerm = searchTerm.toLowerCase();
+        const filteredRoster = mergedRoster.filter((u) => {
+          const matchesSearch =
+            !lowerSearchTerm ||
+            u.name?.toLowerCase().includes(lowerSearchTerm) ||
+            u.badge?.toLowerCase().includes(lowerSearchTerm) ||
+            u.callsign?.toLowerCase().includes(lowerSearchTerm) ||
+            u.rank?.toLowerCase().includes(lowerSearchTerm) ||
+            u.discordId?.toLowerCase().includes(lowerSearchTerm);
+          const matchesRank = selectedRank === "All" || u.rank === selectedRank;
+          return matchesSearch && matchesRank;
+        });
+
+        const { groupedRoster: processedGroupedRoster } =
+          processRosterData(filteredRoster);
+        setGroupedRoster(processedGroupedRoster);
       } catch (err) {
         console.error("Error fetching or merging roster:", err);
         setError("Failed to load roster. Please try again later.");
@@ -325,339 +277,233 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
     };
 
     fetchAndMergeRoster();
-  }, []);
+  }, [hideVacant, searchTerm, selectedRank, refreshTrigger]);
 
-  const processedAndFilteredRoster = useMemo(() => {
-    if (!roster || roster.length === 0) {
-      return { filtered: [], grouped: {} };
-    }
-
-    const lowerSearchTerm = searchTerm.toLowerCase();
-    const filtered = lowerSearchTerm
-      ? roster.filter(
-          (u) =>
-            u.name?.toLowerCase().includes(lowerSearchTerm) ||
-            u.badge?.toLowerCase().includes(lowerSearchTerm) ||
-            u.callsign?.toLowerCase().includes(lowerSearchTerm)
-        )
-      : roster;
-
-    const grouped: { [category: string]: RosterUser[] } = {};
-    categoryOrder.forEach((cat) => {
-      grouped[cat] = [];
-    });
-
-    const sortedFiltered = [...filtered]
-      .filter((u) => !hideVacant || u.name !== "VACANT")
-      .sort((a, b) => {
-        const rankA = rankOrder[a.rank] ?? rankOrder.Unknown;
-        const rankB = rankOrder[b.rank] ?? rankOrder.Unknown;
-        if (rankA !== rankB) {
-          return rankA - rankB;
+  const uniqueRanks = useMemo(() => {
+    const ranks = new Set<string>(["All"]);
+    Object.values(groupedRoster)
+      .flat()
+      .forEach((u) => {
+        if (u.rank && u.rank.trim()) {
+          ranks.add(u.rank.trim());
         }
-        const callsignA = a.callsign || "";
-        const callsignB = b.callsign || "";
-        return callsignA.localeCompare(callsignB);
       });
-
-    sortedFiltered.forEach((u) => {
-      let foundCategory = false;
-      for (const category of categoryOrder) {
-        if (rankCategories[category]?.includes(u.rank)) {
-          grouped[category].push(u);
-          foundCategory = true;
-          break;
-        }
-      }
+    return Array.from(ranks).sort((a, b) => {
+      if (a === "All") return -1;
+      if (b === "All") return 1;
+      return (rankOrder[a] ?? 99) - (rankOrder[b] ?? 99);
     });
+  }, [groupedRoster]);
 
-    const finalGrouped: { [category: string]: RosterUser[] } = {};
-    categoryOrder.forEach((cat) => {
-      if (grouped[cat] && grouped[cat].length > 0) {
-        finalGrouped[cat] = grouped[cat];
-      }
-    });
-
-    return { filtered: sortedFiltered, grouped: finalGrouped };
-  }, [roster, searchTerm, hideVacant]);
-
-  useEffect(() => {
-    setGroupedRoster(processedAndFilteredRoster.grouped);
-  }, [processedAndFilteredRoster]);
-
-  const handleEditChange = (field: keyof RosterUser, value: any) => {
-    if (!editingUser) return;
-    setEditingUser((prev) => (prev ? { ...prev, [field]: value } : null));
+  const handleEditClick = (userToEdit: RosterUser) => {
+    if (userToEdit.isPlaceholder) return;
+    setEditingUserId(userToEdit.id);
+    setEditedUserData({ ...userToEdit });
   };
 
-  const handleCertChange = (certKey: string, value: CertStatus) => {
-    if (!editingUser) return;
-    setEditingUser((prev) =>
-      prev
-        ? {
-            ...prev,
-            certifications: {
-              ...(prev.certifications || {}),
-              [certKey]: value,
-            },
-          }
-        : null
-    );
+  const handleCancelClick = () => {
+    setEditingUserId(null);
+    setEditedUserData(null);
   };
 
-  const saveUserChanges = async () => {
-    if (!editingUser || editingUser.name === "VACANT") {
-      console.warn("Attempted to save a vacant roster entry.");
-      setEditingUser(null);
-      return;
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    if (!editedUserData) return;
+
+    const { name, value, type } = e.target;
+
+    if (name.startsWith("cert-")) {
+      const certKey = name.split("-")[1].toUpperCase();
+      const certValue = value === "" ? null : (value as CertStatus);
+      setEditedUserData({
+        ...editedUserData,
+        certifications: {
+          ...editedUserData.certifications,
+          [certKey]: certValue,
+        },
+      });
+    } else if (type === "checkbox") {
+      const { checked } = e.target as HTMLInputElement;
+      setEditedUserData({
+        ...editedUserData,
+        [name]: checked,
+        loaStartDate: checked ? null : editedUserData.loaStartDate,
+      });
+    } else {
+      setEditedUserData({
+        ...editedUserData,
+        [name]: value,
+      });
     }
+  };
 
-    const userDocRef = doc(dbFirestore, "users", editingUser.id);
-    const cleanCertifications = certKeys.reduce((acc, key) => {
-      const val = editingUser.certifications?.[key] || null;
-      acc[key] = ["LEAD", "SUPER", "CERT"].includes(val as string)
-        ? (val as CertStatus)
-        : null;
-      return acc;
-    }, {} as { [key: string]: CertStatus });
+  const handleSaveClick = async () => {
+    if (!editedUserData || !editingUserId || editedUserData.isPlaceholder)
+      return;
 
-    const dataToUpdate: { [key: string]: any } = {
-      ...editingUser,
-      certifications: cleanCertifications,
-      loaStartDate: editingUser.loaStartDate
-        ? formatDateForInput(editingUser.loaStartDate)
-        : null,
-      loaEndDate: editingUser.loaEndDate
-        ? formatDateForInput(editingUser.loaEndDate)
-        : null,
-    };
-
-    delete dataToUpdate.id;
-    delete dataToUpdate.email;
-    dataToUpdate.loaStartDate = dataToUpdate.loaStartDate || null;
-    dataToUpdate.loaEndDate = dataToUpdate.loaEndDate || null;
+    setIsSaving(true);
+    setError(null);
 
     try {
-      await updateDoc(userDocRef, dataToUpdate);
+      const userRef = doc(dbFirestore, "users", editingUserId);
 
-      const updatedUserForState: RosterUser = {
-        ...editingUser,
-        certifications: cleanCertifications,
-        loaStartDate: dataToUpdate.loaStartDate || undefined,
-        loaEndDate: dataToUpdate.loaEndDate || undefined,
+      const dataToSave: Partial<RosterUser> = {
+        ...editedUserData,
+        joinDate: editedUserData.joinDate || null,
+        lastPromotionDate: editedUserData.lastPromotionDate || null,
+        loaStartDate: editedUserData.loaStartDate || null,
+        certifications: Object.entries(editedUserData.certifications || {})
+          .filter(([key]) =>
+            [...divisionKeys, ...certificationKeys].includes(key)
+          )
+          .reduce((acc, [key, value]) => {
+            acc[key.toUpperCase()] = value;
+            return acc;
+          }, {} as { [key: string]: CertStatus | null }),
       };
 
-      const updatedRosterList = roster.map((u) =>
-        u.id === editingUser.id
-          ? { ...updatedUserForState, isPlaceholder: false }
-          : u
-      );
+      delete dataToSave.id;
+      delete dataToSave.isPlaceholder;
+      delete dataToSave.category;
+      delete dataToSave.email;
 
-      const { sortedRoster, groupedRoster: updatedGroupedRoster } =
-        processRosterData(updatedRosterList);
+      await updateDoc(userRef, dataToSave);
 
-      setRoster(sortedRoster);
-      setGroupedRoster(updatedGroupedRoster);
-      setEditingUser(null);
+      setEditingUserId(null);
+      setEditedUserData(null);
+      setRefreshTrigger((prev) => prev + 1);
     } catch (err) {
       console.error("Error updating user:", err);
-      alert(
-        `Failed to save changes. Error: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
+      setError(`Failed to save changes for ${editedUserData.name}.`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleNewUserChange = (field: keyof RosterUser, value: any) => {
-    setNewUser((prev) => ({ ...prev, [field]: value }));
+  const handleOpenAddModal = () => {
+    setNewUserData(initialNewUserData);
+    setNewUserError(null);
+    setShowAddUserModal(true);
   };
 
-  const handleAddNewUser = async () => {
-    setAddUserError(null);
+  const handleCloseAddModal = () => {
+    setShowAddUserModal(false);
+    setNewUserError(null);
+  };
 
-    if (!newUser.email || !newUser.name || !newUser.badge || !newUser.rank) {
-      setAddUserError("Email, Name, Badge, and Rank are required.");
+  const handleNewUserInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+
+    setNewUserData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleSaveNewUser = async () => {
+    if (!newUserData.email || !newUserData.name || !newUserData.rank) {
+      setNewUserError("Email, Name, and Rank are required.");
       return;
     }
 
-    if (!/\S+@\S+\.\S+/.test(newUser.email)) {
-      setAddUserError("Please enter a valid email address.");
-      return;
-    }
-
-    const userDocRef = doc(dbFirestore, "users", newUser.email);
-    const userDataToAdd = {
-      name: newUser.name,
-      rank: newUser.rank,
-      badge: newUser.badge,
-      callsign: newUser.callsign || "",
-      certifications: {},
-      loaStartDate: newUser.loaStartDate || null,
-      loaEndDate: newUser.loaEndDate || null,
-      isActive: newUser.isActive !== undefined ? newUser.isActive : true,
-      discordId: newUser.discordId || "",
-    };
+    setIsSavingNewUser(true);
+    setNewUserError(null);
 
     try {
-      await setDoc(userDocRef, userDataToAdd);
+      const userRef = doc(dbFirestore, "users", newUserData.email);
 
-      const addedUser: RosterUser = {
-        id: newUser.email,
-        email: newUser.email,
-        name: userDataToAdd.name,
-        rank: userDataToAdd.rank,
-        badge: userDataToAdd.badge,
-        callsign: userDataToAdd.callsign,
-        certifications: userDataToAdd.certifications,
-        loaStartDate: userDataToAdd.loaStartDate || undefined,
-        loaEndDate: userDataToAdd.loaEndDate || undefined,
-        isActive: userDataToAdd.isActive,
-        discordId: userDataToAdd.discordId,
-        isPlaceholder: false,
+      const dataToSave = {
+        ...newUserData,
+        joinDate: newUserData.joinDate || null,
+        lastPromotionDate: newUserData.lastPromotionDate || null,
+        loaStartDate: newUserData.isActive
+          ? null
+          : newUserData.loaStartDate || null,
+        loaEndDate: null,
+        certifications: {},
       };
 
-      const updatedRosterList = [
-        ...roster.filter((u) => u.callsign !== addedUser.callsign),
-        addedUser,
-      ];
+      delete (dataToSave as any).email;
 
-      const { sortedRoster, groupedRoster: updatedGroupedRoster } =
-        processRosterData(updatedRosterList);
+      await setDoc(userRef, dataToSave);
 
-      setRoster(sortedRoster);
-      setGroupedRoster(updatedGroupedRoster);
-
-      setNewUser({
-        name: "",
-        rank: "Cadet",
-        badge: "",
-        email: "",
-        isActive: true,
-        certifications: {},
-      });
-
-      setShowAddUserForm(false);
-      alert("Trooper added successfully!");
+      handleCloseAddModal();
+      setRefreshTrigger((prev) => prev + 1);
     } catch (err) {
-      console.error("Error adding user:", err);
-      setAddUserError("Failed to add trooper. Please try again.");
+      console.error("Error adding new user:", err);
+      setNewUserError(
+        "Failed to add user. Email might already exist or another error occurred."
+      );
+    } finally {
+      setIsSavingNewUser(false);
     }
   };
 
-  const getCertStyle = (
-    status: CertStatus
-  ): { bgColor: string; textColor: string } => {
-    return (
-      certOptions.find((opt) => opt.value === status) || {
-        bgColor: "bg-gray-700",
-        textColor: "text-gray-300",
-      }
-    );
-  };
-
-  const handleEditUser = (user: RosterUser) => {
-    setEditingUser(user);
-  };
+  const totalColSpan =
+    5 + divisionKeys.length + certificationKeys.length + 4 + 1;
+  const certStatusOptions: (CertStatus | "")[] = [
+    "",
+    "CERT",
+    "SUPER",
+    "LEAD",
+  ].filter((opt) => opt !== null) as (CertStatus | "")[];
+  const rankOptions = ["", ...Object.keys(rankOrder)];
 
   return (
     <Layout user={user}>
-      <div
-        className="page-content space-y-6"
-        style={{ fontFamily: "'Inter', sans-serif" }}
-      >
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-[#f3c700]">
-            Roster Management
-          </h1>
-          <button
-            className="button-primary text-sm px-3 py-1.5"
-            onClick={() => setShowAddUserForm(!showAddUserForm)}
+      <div className="page-content space-y-6">
+        <h1 className="text-3xl font-bold text-[#f3c700]">SASP Roster</h1>
+
+        <div className="flex flex-col md:flex-row gap-4 mb-4 items-center">
+          <input
+            type="text"
+            placeholder="Search Roster (Name, Badge, Callsign, Rank, Discord)..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input flex-grow"
+          />
+          <select
+            value={selectedRank}
+            onChange={(e) => setSelectedRank(e.target.value)}
+            className="input md:w-auto"
           >
-            {showAddUserForm ? "Cancel Add" : "Add Trooper"}
+            {uniqueRanks.map((rank) => (
+              <option key={rank} value={rank}>
+                {rank === "All" ? "All Ranks" : rank}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="hideVacantToggle"
+              checked={hideVacant}
+              onChange={(e) => setHideVacant(e.target.checked)}
+              className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+            />
+            <label
+              htmlFor="hideVacantToggle"
+              className="text-sm text-gray-300 whitespace-nowrap"
+            >
+              Hide Vacant
+            </label>
+          </div>
+          <button
+            onClick={handleOpenAddModal}
+            className="btn bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium whitespace-nowrap"
+          >
+            Add New User
           </button>
         </div>
 
-        <div className="flex items-center gap-4 mb-4">
-          <input
-            type="checkbox"
-            id="hideVacantToggle"
-            checked={hideVacant}
-            onChange={(e) => setHideVacant(e.target.checked)}
-            className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
-          />
-          <label htmlFor="hideVacantToggle" className="text-sm text-gray-300">
-            Hide Vacant Rows
-          </label>
-        </div>
-
-        {showAddUserForm && (
-          <div className="admin-section p-4 mb-6">
-            <h2 className="section-header text-xl mb-3">Add New Trooper</h2>
-            {addUserError && (
-              <p className="text-red-500 mb-3 text-sm">{addUserError}</p>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                type="email"
-                placeholder="Email (used as ID)"
-                value={newUser.email || ""}
-                onChange={(e) => handleNewUserChange("email", e.target.value)}
-                className="input text-sm"
-                required
-              />
-              <input
-                type="text"
-                placeholder="Full Name"
-                value={newUser.name || ""}
-                onChange={(e) => handleNewUserChange("name", e.target.value)}
-                className="input text-sm"
-                required
-              />
-              <input
-                type="text"
-                placeholder="Badge Number"
-                value={newUser.badge || ""}
-                onChange={(e) => handleNewUserChange("badge", e.target.value)}
-                className="input text-sm"
-                required
-              />
-              <select
-                value={newUser.rank || "Cadet"}
-                onChange={(e) => handleNewUserChange("rank", e.target.value)}
-                className="input text-sm"
-                required
-              >
-                {Object.keys(rankOrder)
-                  .filter((r) => r !== "Unknown")
-                  .sort((a, b) => rankOrder[a] - rankOrder[b])
-                  .map((rank) => (
-                    <option key={rank} value={rank}>
-                      {rank}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <button
-              className="button-primary text-sm px-3 py-1.5 mt-4"
-              onClick={handleAddNewUser}
-            >
-              Save New Trooper
-            </button>
-          </div>
+        {isSaving && <p className="text-blue-400 italic">Saving changes...</p>}
+        {loading && !isSaving && (
+          <p className="text-yellow-400 italic">Loading roster...</p>
         )}
-
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Search by Name, Badge, or Callsign..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input w-full md:w-1/2 lg:w-1/3"
-          />
-        </div>
-
-        {loading && <p className="text-yellow-400 italic">Loading roster...</p>}
         {error && <p className="text-red-500">{error}</p>}
 
         {!loading && !error && (
@@ -667,50 +513,45 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                 <tr>
                   <th
                     rowSpan={2}
-                    className="p-2 border-r border-gray-600 w-8"
-                  ></th>{" "}
-                  {/* Category */}
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Badge
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Rank
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Name
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Callsign
+                    className="p-1 border-r border-b border-gray-600 w-8"
+                  ></th>
+                  <th
+                    colSpan={5}
+                    className="p-1 border-r border-b border-gray-600 text-center font-semibold"
+                  >
+                    PERSONNEL INFORMATION
                   </th>
                   <th
                     colSpan={divisionKeys.length}
-                    className="p-2 border-r border-gray-600 text-center"
+                    className="p-1 border-r border-b border-gray-600 text-center font-semibold"
                   >
-                    Divisions
+                    DIVISION INFORMATION
                   </th>
                   <th
                     colSpan={certificationKeys.length}
-                    className="p-2 border-r border-gray-600 text-center"
+                    className="p-1 border-r border-b border-gray-600 text-center font-semibold"
                   >
-                    Certifications
+                    CERTIFICATIONS
                   </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    LOA Start
+                  <th
+                    colSpan={4}
+                    className="p-1 border-b border-gray-600 text-center font-semibold"
+                  >
+                    ADDITIONAL INFORMATION
                   </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    LOA End
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Active
-                  </th>
-                  <th rowSpan={2} className="p-2 border-r border-gray-600">
-                    Discord ID
-                  </th>
-                  <th rowSpan={2} className="p-2">
-                    Actions
+                  <th
+                    rowSpan={2}
+                    className="p-1 border-b border-gray-600 text-center font-semibold"
+                  >
+                    ACTIONS
                   </th>
                 </tr>
                 <tr>
+                  <th className="p-2 border-r border-gray-600">CALLSIGN</th>
+                  <th className="p-2 border-r border-gray-600">BADGE #</th>
+                  <th className="p-2 border-r border-gray-600">RANK</th>
+                  <th className="p-2 border-r border-gray-600">NAME</th>
+                  <th className="p-2 border-r border-gray-600">DISCORD</th>
                   {divisionKeys.map((div) => (
                     <th key={div} className="p-2 border-r border-gray-600">
                       {div}
@@ -718,347 +559,329 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                   ))}
                   {certificationKeys.map((cert) => (
                     <th key={cert} className="p-2 border-r border-gray-600">
-                      {cert}
+                      {cert === "MOTO" ? "MBU" : cert}
                     </th>
                   ))}
+                  <th className="p-2 border-r border-gray-600">JOIN</th>
+                  <th className="p-2 border-r border-gray-600">PROMO</th>
+                  <th className="p-2 border-r border-gray-600">ACTIVE</th>
+                  <th className="p-2">INACTIVE / LOA SINCE</th>
                 </tr>
               </thead>
-              {Object.entries(groupedRoster).map(
-                ([category, usersInCategory]) =>
-                  usersInCategory.length > 0 ? (
-                    <tbody key={category} className="text-gray-300">
-                      {usersInCategory.map((u, index) => {
-                        const isVacant = u.name === "VACANT";
-                        return (
-                          <tr
-                            key={u.id}
-                            className={`border-t border-gray-700 hover:bg-gray-800/50 ${
-                              isVacant ? "italic opacity-60" : ""
-                            } ${!isVacant && !u.isActive ? "opacity-60" : ""}`}
-                          >
-                            {index === 0 && (
-                              <td
-                                rowSpan={usersInCategory.length}
-                                className="p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300 category-vertical"
-                                style={{ writingMode: "vertical-lr" }}
-                              >
-                                {category}
-                              </td>
-                            )}
+              {categoryOrder.map((category) => {
+                const usersInCategory = groupedRoster[category] || [];
+                return usersInCategory.length > 0 ? (
+                  <tbody key={category} className="text-gray-300">
+                    {usersInCategory.map((u, index) => {
+                      const isVacant = u.name === "VACANT" || u.isPlaceholder;
+                      const isLastInCategory =
+                        index === usersInCategory.length - 1;
+                      const isEditing = editingUserId === u.id;
 
-                            {editingUser?.id === u.id && !isVacant ? (
-                              <>
-                                <td className="p-1 border-r border-gray-600">
-                                  <input
-                                    type="text"
-                                    value={editingUser.badge || ""}
-                                    onChange={(e) =>
-                                      handleEditChange("badge", e.target.value)
-                                    }
-                                    className="input-table"
-                                  />
-                                </td>
-                                <td className="p-1 border-r border-gray-600">
-                                  <select
-                                    value={editingUser.rank}
-                                    onChange={(e) =>
-                                      handleEditChange("rank", e.target.value)
-                                    }
-                                    className="input-table bg-[#f3c700] text-black font-semibold"
-                                  >
-                                    {Object.keys(rankOrder)
-                                      .filter((r) => r !== "Unknown")
-                                      .sort(
-                                        (a, b) => rankOrder[a] - rankOrder[b]
-                                      )
-                                      .map((rank) => (
-                                        <option
-                                          key={rank}
-                                          value={rank}
-                                          className="text-white bg-gray-700 font-normal"
-                                        >
-                                          {rank}
-                                        </option>
-                                      ))}
-                                  </select>
-                                </td>
-                                <td className="p-1 border-r border-gray-600">
-                                  {u.name}
-                                </td>
-                                <td className="p-1 border-r border-gray-600">
-                                  <input
-                                    type="text"
-                                    value={editingUser.callsign || ""}
-                                    onChange={(e) =>
-                                      handleEditChange(
-                                        "callsign",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="input-table"
-                                  />
-                                </td>
-                                {divisionKeys.map((divKey) => {
-                                  const currentStatus =
-                                    editingUser.certifications?.[divKey] ||
-                                    null;
-                                  const style = getCertStyle(currentStatus);
-                                  return (
-                                    <td
-                                      key={divKey}
-                                      className="p-1 border-r border-gray-600"
-                                    >
-                                      <select
-                                        value={currentStatus || ""}
-                                        onChange={(e) =>
-                                          handleCertChange(
-                                            divKey,
-                                            e.target.value as CertStatus
-                                          )
-                                        }
-                                        className={`input-table ${style.bgColor} ${style.textColor}`}
-                                        style={{ colorScheme: "dark" }}
-                                      >
-                                        {certOptions.map((opt) => (
-                                          <option
-                                            key={opt.label}
-                                            value={opt.value || ""}
-                                            className={`${opt.bgColor} ${opt.textColor}`}
-                                          >
-                                            {opt.label}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </td>
-                                  );
-                                })}
-                                {certificationKeys.map((certKey) => {
-                                  const currentStatus =
-                                    editingUser.certifications?.[certKey] ||
-                                    null;
-                                  const style = getCertStyle(currentStatus);
-                                  return (
-                                    <td
-                                      key={certKey}
-                                      className="p-1 border-r border-gray-600"
-                                    >
-                                      <select
-                                        value={currentStatus || ""}
-                                        onChange={(e) =>
-                                          handleCertChange(
-                                            certKey,
-                                            e.target.value as CertStatus
-                                          )
-                                        }
-                                        className={`input-table ${style.bgColor} ${style.textColor}`}
-                                        style={{ colorScheme: "dark" }}
-                                      >
-                                        {certOptions.map((opt) => (
-                                          <option
-                                            key={opt.label}
-                                            value={opt.value || ""}
-                                            className={`${opt.bgColor} ${opt.textColor}`}
-                                          >
-                                            {opt.label}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </td>
-                                  );
-                                })}
-                                <td className="p-1 border-r border-gray-600">
-                                  <input
-                                    type="date"
-                                    value={formatDateForInput(
-                                      editingUser.loaStartDate
-                                    )}
-                                    onChange={(e) =>
-                                      handleEditChange(
-                                        "loaStartDate",
-                                        e.target.value || null
-                                      )
-                                    }
-                                    className="input-table"
-                                  />
-                                </td>
-                                <td className="p-1 border-r border-gray-600">
-                                  <input
-                                    type="date"
-                                    value={formatDateForInput(
-                                      editingUser.loaEndDate
-                                    )}
-                                    onChange={(e) =>
-                                      handleEditChange(
-                                        "loaEndDate",
-                                        e.target.value || null
-                                      )
-                                    }
-                                    className="input-table"
-                                  />
-                                </td>
-                                <td className="p-1 border-r border-gray-600 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!editingUser.isActive}
-                                    onChange={(e) =>
-                                      handleEditChange(
-                                        "isActive",
-                                        e.target.checked
-                                      )
-                                    }
-                                    className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
-                                  />
-                                </td>
-                                <td className="p-1 border-r border-gray-600">
-                                  <input
-                                    type="text"
-                                    value={editingUser.discordId || ""}
-                                    onChange={(e) =>
-                                      handleEditChange(
-                                        "discordId",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="input-table"
-                                  />
-                                </td>
-                                <td className="p-1 flex gap-1">
-                                  <button
-                                    onClick={saveUserChanges}
-                                    className="button-primary text-xs px-1 py-0.5"
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingUser(null)}
-                                    className="button-secondary text-xs px-1 py-0.5"
-                                  >
-                                    Cancel
-                                  </button>
-                                </td>
-                              </>
+                      return (
+                        <tr
+                          key={u.id}
+                          className={`border-t border-gray-700 ${
+                            isEditing ? "bg-blue-900/30" : "hover:bg-white/5"
+                          } ${isVacant ? "italic opacity-60" : ""} ${
+                            !isVacant && !u.isActive ? "opacity-60" : ""
+                          } ${
+                            isLastInCategory
+                              ? "border-b-4 border-yellow-400"
+                              : ""
+                          }`}
+                        >
+                          {index === 0 && (
+                            <td
+                              rowSpan={usersInCategory.length}
+                              className="p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300 category-vertical"
+                              style={{ writingMode: "vertical-lr" }}
+                            >
+                              {category}
+                            </td>
+                          )}
+                          <td className="p-1 border-r border-gray-600">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                name="callsign"
+                                value={editedUserData?.callsign || ""}
+                                onChange={handleInputChange}
+                                className="input-edit"
+                              />
                             ) : (
-                              <>
-                                <td
-                                  className="p-2 border-r border-gray-600"
-                                  style={{ fontFamily: "'Inter', sans-serif" }}
-                                >
-                                  {u.badge}
-                                </td>
-                                <td
-                                  className={`p-2 border-r border-gray-600 ${
-                                    u.rank
-                                      ? "bg-[#f3c700] text-black font-semibold"
-                                      : ""
-                                  }`}
-                                >
-                                  {u.rank || "-"}
-                                </td>
-                                <td className="p-2 border-r border-gray-600">
-                                  {u.name}
-                                </td>
-                                <td className="p-2 border-r border-gray-600">
-                                  {u.callsign}
-                                </td>
-                                {divisionKeys.map((divKey) => {
-                                  const currentStatus =
-                                    u.certifications?.[divKey] || null;
-                                  const style = getCertStyle(currentStatus);
-                                  return (
-                                    <td
-                                      key={divKey}
-                                      className={`p-0 border-r border-gray-600 text-center align-middle`}
-                                    >
-                                      <span
-                                        className={`block w-full h-full px-2 py-2 font-semibold ${style.bgColor} ${style.textColor}`}
-                                      >
-                                        {currentStatus || "-"}
-                                      </span>
-                                    </td>
-                                  );
-                                })}
-                                {certificationKeys.map((certKey) => {
-                                  const currentStatus =
-                                    u.certifications?.[certKey] || null;
-                                  const style = getCertStyle(currentStatus);
-                                  return (
-                                    <td
-                                      key={certKey}
-                                      className={`p-0 border-r border-gray-600 text-center align-middle`}
-                                    >
-                                      <span
-                                        className={`block w-full h-full px-2 py-2 font-semibold ${style.bgColor} ${style.textColor}`}
-                                      >
-                                        {currentStatus || "-"}
-                                      </span>
-                                    </td>
-                                  );
-                                })}
-                                <td className="p-2 border-r border-gray-600">
-                                  {u.loaStartDate
-                                    ? formatDateForInput(u.loaStartDate)
-                                    : "-"}
-                                </td>
-                                <td className="p-2 border-r border-gray-600">
-                                  {u.loaEndDate
-                                    ? formatDateForInput(u.loaEndDate)
-                                    : "-"}
-                                </td>
-                                <td
-                                  className={`p-0 border-r border-gray-600 text-center align-middle`}
-                                >
-                                  {u.name === "VACANT" ? (
-                                    <span className="block w-full h-full px-2 py-2 text-gray-500">
-                                      -
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className={`block w-full h-full px-2 py-2 font-semibold ${
-                                        u.isActive
-                                          ? "bg-green-600 text-white"
-                                          : "bg-red-600 text-white"
-                                      }`}
-                                    >
-                                      {u.isActive ? "YES" : "NO"}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-2 border-r border-gray-600">
-                                  {u.discordId || "-"}
-                                </td>
-                                <td className="p-2">
-                                  <button
-                                    onClick={() =>
-                                      u.name !== "VACANT" && handleEditUser(u)
-                                    }
-                                    className={`button-secondary text-xs px-1 py-0.5 ${
-                                      u.name === "VACANT"
-                                        ? "opacity-30 cursor-not-allowed"
-                                        : ""
-                                    }`}
-                                    disabled={u.name === "VACANT"}
-                                  >
-                                    Edit
-                                  </button>
-                                </td>
-                              </>
+                              u.callsign || "-"
                             )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  ) : null
-              )}
-              {Object.keys(groupedRoster).length === 0 &&
-                !loading &&
-                searchTerm && (
+                          </td>
+                          <td className="p-1 border-r border-gray-600">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                name="badge"
+                                value={editedUserData?.badge || ""}
+                                onChange={handleInputChange}
+                                className="input-edit"
+                              />
+                            ) : (
+                              u.badge || "-"
+                            )}
+                          </td>
+                          <td
+                            className={`p-1 border-r border-gray-600 ${
+                              !isEditing && u.rank
+                                ? "bg-[#f3c700] text-black font-semibold"
+                                : ""
+                            }`}
+                          >
+                            {isEditing ? (
+                              <select
+                                name="rank"
+                                value={editedUserData?.rank || ""}
+                                onChange={handleInputChange}
+                                className="input-edit"
+                              >
+                                {rankOptions.map((r) => (
+                                  <option key={r} value={r}>
+                                    {r || "Select Rank"}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              u.rank || "-"
+                            )}
+                          </td>
+                          <td className="p-1 border-r border-gray-600">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                name="name"
+                                value={editedUserData?.name || ""}
+                                onChange={handleInputChange}
+                                className="input-edit"
+                              />
+                            ) : (
+                              u.name
+                            )}
+                          </td>
+                          <td className="p-1 border-r border-gray-600">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                name="discordId"
+                                value={editedUserData?.discordId || ""}
+                                onChange={handleInputChange}
+                                className="input-edit"
+                              />
+                            ) : (
+                              u.discordId || "-"
+                            )}
+                          </td>
+                          {divisionKeys.map((divKey) => {
+                            const upperKey = divKey.toUpperCase();
+                            const currentStatus = isEditing
+                              ? editedUserData?.certifications?.[upperKey] ??
+                                null
+                              : u.certifications?.[upperKey] ?? null;
+                            const style = getCertStyle(currentStatus);
+                            return (
+                              <td
+                                key={divKey}
+                                className={`p-0 border-r border-gray-600 text-center align-middle`}
+                              >
+                                {isEditing ? (
+                                  <select
+                                    name={`cert-${upperKey}`}
+                                    value={currentStatus || ""}
+                                    onChange={handleInputChange}
+                                    className="input-edit-cert"
+                                  >
+                                    {certStatusOptions.map((opt) => (
+                                      <option key={opt} value={opt || ""}>
+                                        {opt || "-"}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span
+                                    className={`cert-span rounded-md ${style.bgColor} ${style.textColor}`}
+                                  >
+                                    {currentStatus || "-"}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          {certificationKeys.map((certKey) => {
+                            const upperKey = certKey.toUpperCase();
+                            const currentStatus = isEditing
+                              ? editedUserData?.certifications?.[upperKey] ??
+                                null
+                              : u.certifications?.[upperKey] ?? null;
+                            const style = getCertStyle(currentStatus);
+                            return (
+                              <td
+                                key={certKey}
+                                className={`p-0 border-r border-gray-600 text-center align-middle`}
+                              >
+                                {isEditing ? (
+                                  <select
+                                    name={`cert-${upperKey}`}
+                                    value={currentStatus || ""}
+                                    onChange={handleInputChange}
+                                    className="input-edit-cert"
+                                  >
+                                    {certStatusOptions.map((opt) => (
+                                      <option key={opt} value={opt || ""}>
+                                        {opt || "-"}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span
+                                    className={`cert-span rounded-md ${style.bgColor} ${style.textColor}`}
+                                  >
+                                    {currentStatus || "-"}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="p-1 border-r border-gray-600">
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                name="joinDate"
+                                value={
+                                  editedUserData?.joinDate instanceof Timestamp
+                                    ? editedUserData.joinDate
+                                        .toDate()
+                                        .toISOString()
+                                        .split("T")[0]
+                                    : editedUserData?.joinDate || ""
+                                }
+                                onChange={handleInputChange}
+                                className="input-edit-date"
+                              />
+                            ) : (
+                              formatDateForDisplay(u.joinDate)
+                            )}
+                          </td>
+                          <td className="p-1 border-r border-gray-600">
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                name="lastPromotionDate"
+                                value={
+                                  editedUserData?.lastPromotionDate instanceof
+                                  Timestamp
+                                    ? editedUserData.lastPromotionDate
+                                        .toDate()
+                                        .toISOString()
+                                        .split("T")[0]
+                                    : editedUserData?.lastPromotionDate || ""
+                                }
+                                onChange={handleInputChange}
+                                className="input-edit-date"
+                              />
+                            ) : (
+                              formatDateForDisplay(u.lastPromotionDate)
+                            )}
+                          </td>
+                          <td
+                            className={`p-0 border-r border-gray-600 text-center align-middle`}
+                          >
+                            {isEditing ? (
+                              <input
+                                type="checkbox"
+                                name="isActive"
+                                checked={editedUserData?.isActive ?? true}
+                                onChange={handleInputChange}
+                                className="form-checkbox h-5 w-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 mx-auto block"
+                              />
+                            ) : isVacant ? (
+                              <span className="cert-span rounded-md text-gray-500">
+                                -
+                              </span>
+                            ) : (
+                              <span
+                                className={`cert-span rounded-md ${
+                                  u.isActive
+                                    ? "bg-green-600 text-white"
+                                    : "bg-red-600 text-white"
+                                }`}
+                              >
+                                {u.isActive ? "YES" : "NO"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-1">
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                name="loaStartDate"
+                                value={
+                                  editedUserData?.loaStartDate instanceof
+                                  Timestamp
+                                    ? editedUserData.loaStartDate
+                                        .toDate()
+                                        .toISOString()
+                                        .split("T")[0]
+                                    : editedUserData?.loaStartDate || ""
+                                }
+                                onChange={handleInputChange}
+                                className="input-edit-date"
+                                disabled={editedUserData?.isActive ?? true}
+                              />
+                            ) : !isVacant && !u.isActive ? (
+                              formatDateForDisplay(u.loaStartDate)
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                          <td className="p-1 border-l border-gray-600">
+                            {isEditing ? (
+                              <div className="flex gap-1 justify-center">
+                                <button
+                                  onClick={handleSaveClick}
+                                  disabled={isSaving}
+                                  className="btn-action bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                                >
+                                  {isSaving ? "..." : "Save"}
+                                </button>
+                                <button
+                                  onClick={handleCancelClick}
+                                  disabled={isSaving}
+                                  className="btn-action bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : !isVacant ? (
+                              <button
+                                onClick={() => handleEditClick(u)}
+                                className="btn-action bg-blue-600 hover:bg-blue-700"
+                              >
+                                Edit
+                              </button>
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                ) : null;
+              })}
+              {Object.values(groupedRoster).every((arr) => arr.length === 0) &&
+                !loading && (
                   <tbody>
                     <tr>
                       <td
-                        colSpan={15}
+                        colSpan={totalColSpan + 1}
                         className="text-center p-4 text-gray-400 italic"
                       >
-                        No troopers found matching "{searchTerm}".
+                        No users found matching the criteria.
                       </td>
                     </tr>
                   </tbody>
@@ -1066,95 +889,321 @@ const RosterManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
             </table>
           </div>
         )}
+
+        {showAddUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-semibold text-yellow-400 mb-4">
+                Add New Roster Member
+              </h2>
+              {newUserError && (
+                <p className="text-red-500 text-sm mb-3">{newUserError}</p>
+              )}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSaveNewUser();
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-medium text-gray-300 mb-1"
+                    >
+                      Email (Required - ID)
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={newUserData.email}
+                      onChange={handleNewUserInputChange}
+                      required
+                      className="input-modal"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="name"
+                      className="block text-sm font-medium text-gray-300 mb-1"
+                    >
+                      Name (Required)
+                    </label>
+                    <input
+                      type="text"
+                      id="name"
+                      name="name"
+                      value={newUserData.name}
+                      onChange={handleNewUserInputChange}
+                      required
+                      className="input-modal"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="rank"
+                      className="block text-sm font-medium text-gray-300 mb-1"
+                    >
+                      Rank (Required)
+                    </label>
+                    <select
+                      id="rank"
+                      name="rank"
+                      value={newUserData.rank}
+                      onChange={handleNewUserInputChange}
+                      required
+                      className="input-modal"
+                    >
+                      {rankOptions.map((r) => (
+                        <option key={r} value={r}>
+                          {r || "Select Rank"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="callsign"
+                      className="block text-sm font-medium text-gray-300 mb-1"
+                    >
+                      Callsign
+                    </label>
+                    <input
+                      type="text"
+                      id="callsign"
+                      name="callsign"
+                      value={newUserData.callsign}
+                      onChange={handleNewUserInputChange}
+                      className="input-modal"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="badge"
+                      className="block text-sm font-medium text-gray-300 mb-1"
+                    >
+                      Badge #
+                    </label>
+                    <input
+                      type="text"
+                      id="badge"
+                      name="badge"
+                      value={newUserData.badge}
+                      onChange={handleNewUserInputChange}
+                      className="input-modal"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="discordId"
+                      className="block text-sm font-medium text-gray-300 mb-1"
+                    >
+                      Discord ID
+                    </label>
+                    <input
+                      type="text"
+                      id="discordId"
+                      name="discordId"
+                      value={newUserData.discordId}
+                      onChange={handleNewUserInputChange}
+                      className="input-modal"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="joinDate"
+                      className="block text-sm font-medium text-gray-300 mb-1"
+                    >
+                      Join Date
+                    </label>
+                    <input
+                      type="date"
+                      id="joinDate"
+                      name="joinDate"
+                      value={
+                        newUserData.joinDate instanceof Timestamp
+                          ? newUserData.joinDate
+                              .toDate()
+                              .toISOString()
+                              .split("T")[0]
+                          : newUserData.joinDate || ""
+                      }
+                      onChange={handleNewUserInputChange}
+                      className="input-modal"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="lastPromotionDate"
+                      className="block text-sm font-medium text-gray-300 mb-1"
+                    >
+                      Last Promotion Date
+                    </label>
+                    <input
+                      type="date"
+                      id="lastPromotionDate"
+                      name="lastPromotionDate"
+                      value={
+                        newUserData.lastPromotionDate instanceof Timestamp
+                          ? newUserData.lastPromotionDate
+                              .toDate()
+                              .toISOString()
+                              .split("T")[0]
+                          : newUserData.lastPromotionDate || ""
+                      }
+                      onChange={handleNewUserInputChange}
+                      className="input-modal"
+                    />
+                  </div>
+                  <div className="flex items-center mt-4">
+                    <input
+                      type="checkbox"
+                      id="isActiveNew"
+                      name="isActive"
+                      checked={newUserData.isActive}
+                      onChange={handleNewUserInputChange}
+                      className="form-checkbox h-5 w-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                    />
+                    <label
+                      htmlFor="isActiveNew"
+                      className="ml-2 text-sm font-medium text-gray-300"
+                    >
+                      Is Active
+                    </label>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={handleCloseAddModal}
+                    disabled={isSavingNewUser}
+                    className="btn bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingNewUser}
+                    className="btn bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
+                  >
+                    {isSavingNewUser ? "Saving..." : "Save User"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
       <style>{`
-                .input-table {
-                    background-color: #374151;
-                    color: white;
-                    border: 1px solid #4b5563;
-                    border-radius: 4px;
-                    padding: 2px 4px;
-                    width: 100%;
-                    min-width: 80px;
-                    font-size: 0.875rem;
-                }
-                .form-checkbox {
-                    display: inline-block;
-                    vertical-align: middle;
-                }
-                .category-vertical {
-                    writing-mode: vertical-lr;
-                    text-orientation: mixed;
-                    white-space: nowrap;
-                    transform: rotate(180deg);
-                    padding: 8px 4px;
-                }
-                table {
-                    border-collapse: separate;
-                    border-spacing: 0 8px;
-                }
-                tbody tr {
-                    background-color: #1f2937;
-                    border-radius: 8px;
-                    overflow: hidden;
-                }
-                tbody tr:hover {
-                    background-color: #374151;
-                }
-                tbody td {
-                    border-top: 1px solid #4b5563;
-                    border-bottom: 1px solid #4b5563;
-                    border-radius: 8px;
-                }
-                thead th {
-                    border-bottom: 2px solid #4b5563;
-                    border-radius: 8px;
-                }
-                .badge-lookup {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 8px;
-                    margin-top: 16px;
-                }
-                .badge-item {
-                    background-color: #2d3748;
-                    color: #f3c700;
-                    padding: 8px 12px;
-                    border-radius: 8px;
-                    font-size: 0.875rem;
-                    font-weight: bold;
-                    display: inline-block;
-                }
-                .badge-item:hover {
-                    background-color: #374151;
-                }
-                .cert-style {
-                    display: inline-block;
-                    padding: 4px 8px;
-                    margin: 2px;
-                    border-radius: 4px;
-                    font-size: 0.75rem;
-                    font-weight: bold;
-                }
-                .cert-LEAD {
-                    background-color: #2563eb;
-                    color: white;
-                }
-                .cert-SUPER {
-                    background-color: #f97316;
-                    color: white;
-                }
-                .cert-CERT {
-                    background-color: #16a34a;
-                    color: white;
-                }
-                .cert-None {
-                    background-color: #4b5563;
-                    color: #d1d5db;
-                }
-            `}</style>
+        .category-vertical {
+            writing-mode: vertical-lr;
+            text-orientation: mixed;
+            white-space: nowrap;
+            transform: rotate(180deg);
+            padding: 8px 4px;
+            background-color: #111827;
+            border-left: 2px solid #4b5563;
+            border-right: 2px solid #4b5563;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        thead th {
+            position: sticky;
+            top: 0;
+            background-color: #1f2937;
+            color: #f3c700;
+            text-align: center;
+            padding: 8px;
+            border: 2px solid #4b5563;
+            z-index: 10;
+            font-family: 'Inter', sans-serif;
+        }
+         thead tr:nth-child(2) th {
+             background-color: #374151;
+             top: 36px;
+             z-index: 11;
+             font-family: 'Inter', sans-serif;
+        }
+        tbody td {
+            padding: 8px;
+            border: 2px solid #4b5563;
+            text-align: center;
+            vertical-align: middle;
+            font-family: 'Inter', sans-serif;
+        }
+        tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .cert-span {
+            display: inline-block;
+            width: auto;
+            min-width: 40px;
+            height: auto;
+            padding: 4px 8px;
+            font-weight: 600;
+            border-radius: 0.375rem;
+            line-height: 1.25;
+        }
+        tbody td.p-0 {
+            padding: 4px;
+        }
+        .input-edit, .input-edit-cert, .input-edit-date, .input-edit select {
+            background-color: #374151;
+            color: #e5e7eb;
+            border: 1px solid #4b5563;
+            border-radius: 0.25rem;
+            padding: 2px 4px;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 0.875rem;
+        }
+        .input-edit-cert {
+            min-width: 60px;
+        }
+        .input-edit-date {
+             min-width: 120px;
+        }
+        .input-edit:focus, .input-edit-cert:focus, .input-edit-date:focus {
+            outline: none;
+            border-color: #f3c700;
+            box-shadow: 0 0 0 1px #f3c700;
+        }
+        .input-edit-date::-webkit-calendar-picker-indicator {
+            filter: invert(0.8);
+        }
+        .btn-action {
+            padding: 2px 6px;
+            border-radius: 0.25rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+        }
+        .input-modal {
+            background-color: #4b5563;
+            color: #e5e7eb;
+            border: 1px solid #6b7280;
+            border-radius: 0.375rem;
+            padding: 8px 12px;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 0.875rem;
+        }
+        .input-modal:focus {
+            outline: none;
+            border-color: #f3c700;
+            box-shadow: 0 0 0 1px #f3c700;
+        }
+        .input-modal[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.8);
+        }
+      `}</style>
     </Layout>
   );
 };
 
-export default RosterManagement;
+export default SASPRoster;
