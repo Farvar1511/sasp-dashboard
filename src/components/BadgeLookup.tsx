@@ -352,6 +352,19 @@ const BadgeLookup: React.FC = () => {
     }
   };
 
+  const getCertStyle = (status: CertStatus | null) => {
+    if (status === "LEAD")
+      return { bgColor: "bg-blue-600", textColor: "text-white" };
+    if (status === "SUPER")
+      return { bgColor: "bg-orange-600", textColor: "text-white" };
+    if (status === "CERT")
+      return { bgColor: "bg-green-600", textColor: "text-white" };
+    return { bgColor: "bg-gray-600", textColor: "text-gray-300" };
+  };
+
+  const certificationKeys = ["HEAT", "ACU", "MBU"]; // Removed "MOTO"
+  const divisionKeys = ["K9", "FTO", "SWAT", "CIU"];
+
   return (
     <Layout user={authUser!}>
       <div
@@ -465,41 +478,32 @@ const BadgeLookup: React.FC = () => {
                   <div className="space-y-2.5">
                     {" "}
                     {/* Increased spacing */}
-                    {Object.entries(foundUser.certifications || {})
-                      .filter(([key]) =>
-                        ["K9", "FTO", "SWAT", "CIU"].includes(key)
-                      )
-                      .map(([key, value]) => {
-                        const style =
-                          value === "LEAD"
-                            ? "bg-blue-600"
-                            : value === "SUPER"
-                            ? "bg-orange-600"
-                            : value === "CERT"
-                            ? "bg-green-600"
-                            : "bg-gray-600";
-                        const textColor = value
-                          ? "text-white"
-                          : "text-gray-300";
-                        return (
-                          <div
-                            key={key}
-                            className="flex items-center justify-between text-sm"
+                    {divisionKeys.map((divKey) => {
+                      const lookupKey = divKey.toUpperCase();
+                      const displayName = divKey;
+                      const status =
+                        foundUser.certifications?.[lookupKey] ?? null;
+                      const style = getCertStyle(status);
+
+                      return (
+                        <div
+                          key={divKey}
+                          className={`flex items-center justify-between text-sm`}
+                        >
+                          <span className="text-gray-300 font-medium w-16">
+                            {displayName}:
+                          </span>{" "}
+                          {/* Adjusted width */}
+                          <span
+                            className={`px-2.5 py-1 rounded text-xs font-semibold ${style.bgColor} ${style.textColor}`}
                           >
-                            <span className="text-gray-300 font-medium w-16">
-                              {key}:
-                            </span>{" "}
-                            {/* Adjusted width */}
-                            <span
-                              className={`px-2.5 py-1 rounded text-xs font-semibold ${style} ${textColor}`}
-                            >
-                              {" "}
-                              {/* Adjusted padding */}
-                              {value || "None"}
-                            </span>
-                          </div>
-                        );
-                      })}
+                            {" "}
+                            {/* Adjusted padding */}
+                            {status || "None"}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 {/* Certifications */}
@@ -508,30 +512,29 @@ const BadgeLookup: React.FC = () => {
                     Certifications
                   </h3>
                   <div className="space-y-2.5">
-                    {Object.entries(foundUser.certifications || {})
-                      .filter(([key]) => ["MOTO", "HEAT", "ACU"].includes(key))
-                      .map(([key, value]) => {
-                        const style =
-                          value === "CERT" ? "bg-green-600" : "bg-gray-600";
-                        const textColor = value
-                          ? "text-white"
-                          : "text-gray-300";
-                        return (
-                          <div
-                            key={key}
-                            className="flex items-center justify-between text-sm"
+                    {certificationKeys.map((certKey) => {
+                      const lookupKey = certKey.toUpperCase();
+                      const displayName = certKey;
+                      const status =
+                        foundUser.certifications?.[lookupKey] ?? null;
+                      const style = getCertStyle(status);
+
+                      return (
+                        <div
+                          key={certKey}
+                          className={`flex items-center justify-between text-sm`}
+                        >
+                          <span className="text-gray-300 font-medium w-16">
+                            {displayName}:
+                          </span>
+                          <span
+                            className={`px-2.5 py-1 rounded text-xs font-semibold ${style.bgColor} ${style.textColor}`}
                           >
-                            <span className="text-gray-300 font-medium w-16">
-                              {key}:
-                            </span>
-                            <span
-                              className={`px-2.5 py-1 rounded text-xs font-semibold ${style} ${textColor}`}
-                            >
-                              {value || "None"}
-                            </span>
-                          </div>
-                        );
-                      })}
+                            {status || "None"}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
