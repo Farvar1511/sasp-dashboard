@@ -69,6 +69,7 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
   const [addVehicleError, setAddVehicleError] = useState<string | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<string>("All"); // State for division filter
   const [searchTerm, setSearchTerm] = useState<string>(""); // State for search term
+  const [hideOutOfService, setHideOutOfService] = useState(true); // Enabled by default
 
   useEffect(() => {
     const fetchFleet = async () => {
@@ -114,20 +115,22 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
     return Array.from(divisions).sort(); // Sort alphabetically
   }, [fleet]);
 
-  // Filter fleet based on selected division and search term
+  // Filter fleet based on selected division, search term, and hideOutOfService toggle
   const filteredFleet = useMemo(() => {
     return fleet.filter((v) => {
       const matchesDivision =
         selectedDivision === "All" || v.division === selectedDivision;
       const matchesSearchTerm =
+        !searchTerm || // Added check for empty search term
         v.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.division.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.assignee.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesServiceStatus = hideOutOfService ? v.inService : true; // This logic is correct
 
-      return matchesDivision && matchesSearchTerm;
+      return matchesDivision && matchesSearchTerm && matchesServiceStatus;
     });
-  }, [fleet, selectedDivision, searchTerm]);
+  }, [fleet, selectedDivision, searchTerm, hideOutOfService]);
 
   const handleEditChange = (field: keyof FleetVehicle, value: any) => {
     if (!editingVehicle) return;
@@ -322,7 +325,7 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
         )}
 
         {/* Search and Filter Section */}
-        <div className="flex flex-col md:flex-row gap-4 mb-4">
+        <div className="flex flex-col md:flex-row gap-4 mb-4 items-center">
           <input
             type="text"
             placeholder="Search Fleet (Vehicle, Plate, Division, Assignee)..."
@@ -341,6 +344,21 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
               </option>
             ))}
           </select>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="hideOutOfServiceToggle"
+              checked={hideOutOfService}
+              onChange={(e) => setHideOutOfService(e.target.checked)}
+              className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+            />
+            <label
+              htmlFor="hideOutOfServiceToggle"
+              className="text-sm text-gray-300 whitespace-nowrap"
+            >
+              Hide Out-of-Service
+            </label>
+          </div>
         </div>
 
         {loading && <p className="text-yellow-400 italic">Loading fleet...</p>}
@@ -361,148 +379,153 @@ const FleetManagement: React.FC<{ user: AuthUser }> = ({ user }) => {
                   <th className="p-2">Actions</th>
                 </tr>
               </thead>
-              {Object.entries(groupedFleet).map(
-                ([division, vehiclesInDivision]) =>
-                  vehiclesInDivision.length > 0 ? (
-                    <tbody key={division} className="text-gray-300">
-                      {vehiclesInDivision
-                        .filter((v) =>
-                          selectedDivision === "All"
-                            ? true
-                            : v.division === selectedDivision
-                        )
-                        .map((v, index) => (
-                          <tr
-                            key={v.id}
-                            className={`border-t border-gray-700 hover:bg-gray-800/50 ${
-                              !v.inService ? "opacity-60" : ""
-                            }`}
+              {Object.entries(groupedFleet)
+                .map(([division, vehiclesInDivision]) => {
+                  const visibleVehiclesInDivision = vehiclesInDivision.filter(
+                    (v) => filteredFleet.some((fv) => fv.id === v.id)
+                  );
+                  return { division, vehicles: visibleVehiclesInDivision };
+                })
+                .filter(({ vehicles }) => vehicles.length > 0)
+                .map(({ division, vehicles }) => (
+                  <tbody key={division} className="text-gray-300">
+                    {vehicles.map((v, index) => (
+                      <tr
+                        key={v.id}
+                        className={`border-t border-gray-700 hover:bg-gray-800/50 ${
+                          !v.inService ? "opacity-60" : ""
+                        }`}
+                      >
+                        {index === 0 && (
+                          <td
+                            rowSpan={vehicles.length}
+                            className="p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300 category-vertical"
+                            style={{ writingMode: "vertical-lr" }}
                           >
-                            {index === 0 && (
-                              <td
-                                rowSpan={vehiclesInDivision.length}
-                                className="p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300 category-vertical"
-                                style={{ writingMode: "vertical-lr" }}
+                            {division}
+                          </td>
+                        )}
+                        {editingVehicle?.id === v.id ? (
+                          <>
+                            {/* Edit Mode */}
+                            <td className="p-1 border-r border-gray-600 font-mono">
+                              {v.plate}
+                            </td>{" "}
+                            {/* Plate not editable */}
+                            <td className="p-1 border-r border-gray-600">
+                              <input
+                                type="text"
+                                value={editingVehicle.vehicle}
+                                onChange={(e) =>
+                                  handleEditChange("vehicle", e.target.value)
+                                }
+                                className="input-table"
+                              />
+                            </td>
+                            <td className="p-1 border-r border-gray-600">
+                              <input
+                                type="text"
+                                value={editingVehicle.assignee}
+                                onChange={(e) =>
+                                  handleEditChange("assignee", e.target.value)
+                                }
+                                className="input-table"
+                              />
+                            </td>
+                            <td className="p-1 border-r border-gray-600">
+                              <input
+                                type="text"
+                                value={editingVehicle.restrictions}
+                                onChange={(e) =>
+                                  handleEditChange(
+                                    "restrictions",
+                                    e.target.value
+                                  )
+                                }
+                                className="input-table"
+                              />
+                            </td>
+                            <td className="p-1 border-r border-gray-600 text-center">
+                              <input
+                                type="checkbox"
+                                checked={!!editingVehicle.inService}
+                                onChange={(e) =>
+                                  handleEditChange(
+                                    "inService",
+                                    e.target.checked
+                                  )
+                                }
+                                className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                              />
+                            </td>
+                            <td className="p-1 flex gap-1">
+                              <button
+                                onClick={saveVehicleChanges}
+                                className="button-primary text-xs px-1 py-0.5"
                               >
-                                {division}
-                              </td>
-                            )}
-                            {editingVehicle?.id === v.id ? (
-                              <>
-                                {/* Edit Mode */}
-                                <td className="p-1 border-r border-gray-600 font-mono">
-                                  {v.plate}
-                                </td>{" "}
-                                {/* Plate not editable */}
-                                <td className="p-1 border-r border-gray-600">
-                                  <input
-                                    type="text"
-                                    value={editingVehicle.vehicle}
-                                    onChange={(e) =>
-                                      handleEditChange(
-                                        "vehicle",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="input-table"
-                                  />
-                                </td>
-                                <td className="p-1 border-r border-gray-600">
-                                  <input
-                                    type="text"
-                                    value={editingVehicle.assignee}
-                                    onChange={(e) =>
-                                      handleEditChange(
-                                        "assignee",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="input-table"
-                                  />
-                                </td>
-                                <td className="p-1 border-r border-gray-600">
-                                  <input
-                                    type="text"
-                                    value={editingVehicle.restrictions}
-                                    onChange={(e) =>
-                                      handleEditChange(
-                                        "restrictions",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="input-table"
-                                  />
-                                </td>
-                                <td className="p-1 border-r border-gray-600 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!editingVehicle.inService}
-                                    onChange={(e) =>
-                                      handleEditChange(
-                                        "inService",
-                                        e.target.checked
-                                      )
-                                    }
-                                    className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
-                                  />
-                                </td>
-                                <td className="p-1 flex gap-1">
-                                  <button
-                                    onClick={saveVehicleChanges}
-                                    className="button-primary text-xs px-1 py-0.5"
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingVehicle(null)}
-                                    className="button-secondary text-xs px-1 py-0.5"
-                                  >
-                                    Cancel
-                                  </button>
-                                </td>
-                              </>
-                            ) : (
-                              <>
-                                {/* View Mode */}
-                                <td className="p-2 border-r border-gray-600 font-mono">
-                                  {v.plate}
-                                </td>
-                                <td className="p-2 border-r border-gray-600">
-                                  {v.vehicle}
-                                </td>
-                                <td className="p-2 border-r border-gray-600">
-                                  {v.assignee}
-                                </td>
-                                <td className="p-2 border-r border-gray-600">
-                                  {v.restrictions || "-"}
-                                </td>
-                                <td
-                                  className={`p-0 border-r border-gray-600 text-center align-middle`}
-                                >
-                                  <span
-                                    className={`block w-full h-full px-2 py-2 font-semibold ${
-                                      v.inService
-                                        ? "bg-green-600 text-white"
-                                        : "bg-red-600 text-white"
-                                    }`}
-                                  >
-                                    {v.inService ? "YES" : "NO"}
-                                  </span>
-                                </td>
-                                <td className="p-2">
-                                  <button
-                                    onClick={() => setEditingVehicle(v)}
-                                    className="button-secondary text-xs px-1 py-0.5"
-                                  >
-                                    Edit
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                          </tr>
-                        ))}
-                    </tbody>
-                  ) : null
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingVehicle(null)}
+                                className="button-secondary text-xs px-1 py-0.5"
+                              >
+                                Cancel
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            {/* View Mode */}
+                            <td className="p-2 border-r border-gray-600 font-mono">
+                              {v.plate}
+                            </td>
+                            <td className="p-2 border-r border-gray-600">
+                              {v.vehicle}
+                            </td>
+                            <td className="p-2 border-r border-gray-600">
+                              {v.assignee}
+                            </td>
+                            <td className="p-2 border-r border-gray-600">
+                              {v.restrictions || "-"}
+                            </td>
+                            <td
+                              className={`p-0 border-r border-gray-600 text-center align-middle`}
+                            >
+                              <span
+                                className={`block w-full h-full px-2 py-2 font-semibold ${
+                                  v.inService
+                                    ? "bg-green-600 text-white"
+                                    : "bg-red-600 text-white"
+                                }`}
+                              >
+                                {v.inService ? "YES" : "NO"}
+                              </span>
+                            </td>
+                            <td className="p-2">
+                              <button
+                                onClick={() => setEditingVehicle(v)}
+                                className="button-secondary text-xs px-1 py-0.5"
+                              >
+                                Edit
+                              </button>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                ))}
+              {filteredFleet.length === 0 && !loading && (
+                <tbody>
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="text-center p-4 text-gray-400 italic"
+                    >
+                      No vehicles found matching the criteria.
+                    </td>
+                  </tr>
+                </tbody>
               )}
             </table>
           </div>

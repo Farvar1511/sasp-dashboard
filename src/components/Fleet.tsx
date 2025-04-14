@@ -23,6 +23,7 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedDivision, setSelectedDivision] = useState<string>("All");
+  const [hideOutOfService, setHideOutOfService] = useState(true);
 
   useEffect(() => {
     const fetchFleet = async () => {
@@ -72,7 +73,9 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
       const matchesDivision =
         selectedDivision === "All" || v.division === selectedDivision;
 
-      return matchesSearch && matchesDivision;
+      const matchesServiceStatus = hideOutOfService ? v.inService : true;
+
+      return matchesSearch && matchesDivision && matchesServiceStatus;
     });
 
     const groupedFleet = filteredFleet.reduce((acc, v) => {
@@ -88,14 +91,14 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
       division,
       vehicles,
     }));
-  }, [fleet, searchTerm, selectedDivision]);
+  }, [fleet, searchTerm, selectedDivision, hideOutOfService]);
 
   return (
     <Layout user={user}>
       <div className="page-content space-y-6">
         <h1 className="text-3xl font-bold text-[#f3c700]">SASP Fleet</h1>
 
-        <div className="flex flex-col md:flex-row gap-4 mb-4">
+        <div className="flex flex-col md:flex-row gap-4 mb-4 items-center">
           <input
             type="text"
             placeholder="Search Fleet..."
@@ -114,6 +117,21 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
               </option>
             ))}
           </select>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="hideOutOfServiceToggleFleet"
+              checked={hideOutOfService}
+              onChange={(e) => setHideOutOfService(e.target.checked)}
+              className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+            />
+            <label
+              htmlFor="hideOutOfServiceToggleFleet"
+              className="text-sm text-gray-300 whitespace-nowrap"
+            >
+              Hide Out-of-Service
+            </label>
+          </div>
         </div>
 
         {loading && <p className="text-yellow-400 italic">Loading fleet...</p>}
@@ -139,7 +157,9 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
                     {vehicles.map((v, index) => (
                       <tr
                         key={v.id}
-                        className="border-t border-gray-700 hover:bg-gray-800/50"
+                        className={`border-t border-gray-700 hover:bg-gray-800/50 ${
+                          !v.inService ? "opacity-60" : ""
+                        }`}
                       >
                         {index === 0 && (
                           <td
