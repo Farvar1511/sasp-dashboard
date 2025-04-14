@@ -1,8 +1,48 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { collection, getDocs, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  Timestamp,
+} from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
 import { User as AuthUser } from "../types/User";
+
+type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
+
+const rankOrder: { [key: string]: number } = {
+  Commissioner: 1,
+  "Assistant Deputy Commissioner": 2,
+  "Deputy Commissioner": 3,
+  "Assistant Commissioner": 4,
+  Commander: 5,
+  Captain: 6,
+  Lieutenant: 7,
+  "Staff Sergeant": 8,
+  Sergeant: 9,
+  Corporal: 10,
+  "Trooper First Class": 11,
+  Trooper: 12,
+  Cadet: 13,
+  Unknown: 99,
+};
+
+interface RosterUser {
+  id: string;
+  name: string;
+  rank: string;
+  badge?: string;
+  callsign?: string;
+  certifications?: { [key: string]: CertStatus | undefined };
+  loaStartDate?: string | Timestamp;
+  loaEndDate?: string | Timestamp;
+  isActive?: boolean;
+  discordId?: string;
+  assignedVehicleId?: string;
+  email?: string;
+}
 
 interface Vehicle {
   id: string;
@@ -17,6 +57,70 @@ interface Vehicle {
   notes?: string;
 }
 
+const determineAllowedVehicles = (
+  user: RosterUser | null,
+  allVehicles: Vehicle[]
+): Vehicle[] => {
+  if (!user || !user.rank || !user.certifications) return [];
+
+  const userRankOrder = rankOrder[user.rank] ?? rankOrder.Unknown;
+  const userCerts = user.certifications || {};
+
+  const hasCertAccess = (certKey: string | null): boolean => {
+    if (!certKey) return true;
+    const lookupKey = (certKey === "MOTO" ? "MBU" : certKey).toUpperCase();
+    const status = userCerts[lookupKey];
+    return ["CERT", "SUPER", "LEAD"].includes((status || "").toUpperCase());
+  };
+
+  return allVehicles.filter((vehicle) => {
+    const division = (vehicle.division || "").trim().toUpperCase();
+    const restriction = (vehicle.restrictions || "").trim().toLowerCase();
+    const assignee = (vehicle.assignee || "").trim().toUpperCase();
+
+    const isCommunal = !assignee || assignee === "COMMUNAL";
+    if (!isCommunal) return false;
+
+    let meetsRankRequirement = true;
+    let requiredRankLevel = Infinity;
+    if (restriction.includes("high command"))
+      requiredRankLevel = rankOrder.Commander;
+    else if (restriction.includes("command"))
+      requiredRankLevel = rankOrder.Lieutenant;
+    else if (restriction.includes("supervisor"))
+      requiredRankLevel = rankOrder.Sergeant;
+    else if (restriction.includes("trooper first class"))
+      requiredRankLevel = rankOrder["Trooper First Class"];
+
+    if (userRankOrder > requiredRankLevel) {
+      meetsRankRequirement = false;
+    }
+    if (!meetsRankRequirement) return false;
+
+    let requiredCertKey: string | null = null;
+    if (division.includes("HEAT")) requiredCertKey = "HEAT";
+    else if (division.includes("MOTO")) requiredCertKey = "MOTO";
+    else if (division.includes("ACU")) requiredCertKey = "ACU";
+    else if (division.includes("SWAT")) requiredCertKey = "SWAT";
+    else if (division.includes("K9")) requiredCertKey = "K9";
+    else if (division.includes("CIU")) requiredCertKey = "CIU";
+
+    if (!requiredCertKey) {
+      if (restriction.includes("heat")) requiredCertKey = "HEAT";
+      else if (restriction.includes("moto")) requiredCertKey = "MOTO";
+      else if (restriction.includes("acu")) requiredCertKey = "ACU";
+      else if (restriction.includes("swat")) requiredCertKey = "SWAT";
+      else if (restriction.includes("k9")) requiredCertKey = "K9";
+      else if (restriction.includes("ciu")) requiredCertKey = "CIU";
+    }
+
+    const certOK = hasCertAccess(requiredCertKey);
+    if (!certOK) return false;
+
+    return true;
+  });
+};
+
 const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
   const [fleet, setFleet] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +128,9 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedDivision, setSelectedDivision] = useState<string>("All");
   const [hideOutOfService, setHideOutOfService] = useState(true);
+  const [filterMode, setFilterMode] = useState<"all" | "myAllowed">("all");
+  const [currentUserProfile, setCurrentUserProfile] =
+    useState<RosterUser | null>(null);
 
   useEffect(() => {
     const fetchFleet = async () => {
@@ -39,6 +146,38 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
             } as Vehicle)
         );
         setFleet(fleetData);
+
+        if (user?.email) {
+          const userDocRef = doc(dbFirestore, "users", user.email);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            const normalizedCerts = userData.certifications
+              ? Object.entries(userData.certifications).reduce(
+                  (acc, [key, value]) => {
+                    let normalizedValue: CertStatus = null;
+                    const currentKeyUpper = key.toUpperCase();
+                    if (typeof value === "string") {
+                      const upperValue = value.toUpperCase();
+                      if (["CERT", "SUPER", "LEAD"].includes(upperValue)) {
+                        normalizedValue = upperValue as CertStatus;
+                      }
+                    } else if (typeof value === "boolean" && value === true) {
+                      normalizedValue = "CERT";
+                    }
+                    acc[currentKeyUpper] = normalizedValue;
+                    return acc;
+                  },
+                  {} as { [key: string]: CertStatus | null }
+                )
+              : {};
+            setCurrentUserProfile({
+              id: userDocSnap.id,
+              ...userData,
+              certifications: normalizedCerts,
+            } as RosterUser);
+          }
+        }
       } catch (err) {
         console.error("Error fetching fleet:", err);
         setError("Failed to load fleet data. Please try again later.");
@@ -48,7 +187,7 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
     };
 
     fetchFleet();
-  }, []);
+  }, [user]);
 
   const uniqueDivisions = useMemo(() => {
     const divisions = new Set<string>(["All"]);
@@ -62,7 +201,12 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
 
   const groupedAndFilteredFleet = useMemo(() => {
     const lowerSearchTerm = searchTerm.toLowerCase();
-    const filteredFleet = fleet.filter((v) => {
+    let baseVehicleList = fleet;
+    if (filterMode === "myAllowed" && currentUserProfile) {
+      baseVehicleList = determineAllowedVehicles(currentUserProfile, fleet);
+    }
+
+    const filteredFleet = baseVehicleList.filter((v) => {
       const matchesSearch =
         !lowerSearchTerm ||
         v.vehicle?.toLowerCase().includes(lowerSearchTerm) ||
@@ -91,7 +235,14 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
       division,
       vehicles,
     }));
-  }, [fleet, searchTerm, selectedDivision, hideOutOfService]);
+  }, [
+    fleet,
+    searchTerm,
+    selectedDivision,
+    hideOutOfService,
+    filterMode,
+    currentUserProfile,
+  ]);
 
   return (
     <Layout user={user}>
@@ -116,6 +267,17 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
                 {division === "All" ? "All Divisions" : division}
               </option>
             ))}
+          </select>
+          <select
+            value={filterMode}
+            onChange={(e) =>
+              setFilterMode(e.target.value as "all" | "myAllowed")
+            }
+            className="input md:w-auto"
+            disabled={!currentUserProfile}
+          >
+            <option value="all">All Vehicles</option>
+            <option value="myAllowed">My Allowed Vehicles</option>
           </select>
           <div className="flex items-center gap-2">
             <input

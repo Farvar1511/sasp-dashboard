@@ -135,28 +135,32 @@ const determineAllowedVehicles = (
     }
 
     // Cert check
-    let requiredCert: string | null = null;
+    let requiredCertKey: string | null = null; // The key needed for the vehicle (e.g., MOTO, HEAT)
     // Prioritize division for determining required cert
-    if (division.includes("HEAT")) requiredCert = "HEAT";
-    // Use includes for flexibility e.g., "Patrol [HEAT]"
-    else if (division.includes("MOTO")) requiredCert = "MOTO";
-    else if (division.includes("ACU")) requiredCert = "ACU";
-    else if (division.includes("SWAT")) requiredCert = "SWAT";
-    else if (division.includes("K9")) requiredCert = "K9";
-    else if (division.includes("CIU")) requiredCert = "CIU";
+    if (division.includes("HEAT")) requiredCertKey = "HEAT";
+    else if (division.includes("MOTO")) requiredCertKey = "MOTO"; // Vehicle requires MOTO
+    else if (division.includes("ACU")) requiredCertKey = "ACU";
+    else if (division.includes("SWAT")) requiredCertKey = "SWAT";
+    else if (division.includes("K9")) requiredCertKey = "K9";
+    else if (division.includes("CIU")) requiredCertKey = "CIU";
 
     // If division didn't set it, check restrictions (lowercase already)
-    if (!requiredCert) {
-      if (restriction.includes("heat")) requiredCert = "HEAT";
-      else if (restriction.includes("moto")) requiredCert = "MOTO";
-      else if (restriction.includes("acu")) requiredCert = "ACU";
-      else if (restriction.includes("swat")) requiredCert = "SWAT";
-      else if (restriction.includes("k9")) requiredCert = "K9";
-      else if (restriction.includes("ciu")) requiredCert = "CIU";
+    if (!requiredCertKey) {
+      if (restriction.includes("heat")) requiredCertKey = "HEAT";
+      else if (restriction.includes("moto")) requiredCertKey = "MOTO"; // Vehicle requires MOTO
+      else if (restriction.includes("acu")) requiredCertKey = "ACU";
+      else if (restriction.includes("swat")) requiredCertKey = "SWAT";
+      else if (restriction.includes("k9")) requiredCertKey = "K9";
+      else if (restriction.includes("ciu")) requiredCertKey = "CIU";
     }
 
-    const certOK = hasCertAccess(requiredCert);
-    console.log(` - Cert Required: ${requiredCert || "None"}`);
+    // Determine the key to check in the user's certifications
+    // If the vehicle requires "MOTO", check if the user has "MBU"
+    const userCertLookupKey = requiredCertKey === "MOTO" ? "MBU" : requiredCertKey;
+
+    const certOK = hasCertAccess(userCertLookupKey); // Check using the potentially mapped key
+    console.log(` - Cert Required by Vehicle: ${requiredCertKey || "None"}`);
+    console.log(` - Checking User Cert Key: ${userCertLookupKey || "None"}`);
     console.log(` - Has Cert Access? ${certOK}`);
 
     if (!certOK) {
@@ -362,7 +366,7 @@ const BadgeLookup: React.FC = () => {
     return { bgColor: "bg-gray-600", textColor: "text-gray-300" };
   };
 
-  const certificationKeys = ["HEAT", "ACU", "MBU"]; // Removed "MOTO"
+const certificationKeys = ["HEAT", "ACU", "MBU"]; // Removed "MOTO"
   const divisionKeys = ["K9", "FTO", "SWAT", "CIU"];
 
   return (
@@ -538,6 +542,49 @@ const BadgeLookup: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
+            {/* Assigned Vehicle Section */}
+            <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
+              <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
+                Assigned Vehicle
+              </h2>
+              {assignedVehicle ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-base">
+                  {[
+                    { label: "Vehicle", value: assignedVehicle.vehicle },
+                    { label: "Plate", value: assignedVehicle.plate || "-" },
+                    { label: "Division", value: assignedVehicle.division || "-" },
+                    { label: "Restrictions", value: assignedVehicle.restrictions || "-" },
+                    {
+                      label: "In Service",
+                      value: assignedVehicle.inService ? "Yes" : "No",
+                      color: assignedVehicle.inService ? "bg-green-600" : "bg-red-600",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="flex justify-between items-center py-1"
+                    >
+                      <strong className="text-yellow-500 font-medium">
+                        {item.label}:
+                      </strong>
+                      <span
+                        className={`px-3 py-1 rounded-md text-sm font-medium ${
+                          item.color
+                            ? `${item.color} text-white`
+                            : "bg-gray-700 text-gray-200"
+                        }`}
+                      >
+                        {item.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-400 italic">
+                  No specific vehicle assigned to this trooper.
+                </p>
+              )}
             </div>
             {/* Allowed Vehicles Section */}
             <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
