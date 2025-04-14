@@ -15,8 +15,8 @@ import {
 } from "react-icons/fa";
 
 export const saspStar = "/SASPLOGO2.png";
-export const saspFavicon = "/public/SASPfavicon.png"; // Define the favicon path
-export const everfallLogo = "/public/everfall.webp";
+export const saspFavicon = "/SASPfavicon.png"; // Define the favicon path
+export const everfallLogo = "/everfall.webp"; // Remove "/public" from the path
 
 interface SidebarProps {
   isCollapsed: boolean;
