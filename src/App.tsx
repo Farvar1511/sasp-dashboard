@@ -33,7 +33,7 @@ function AppContent() {
       {/* Protected Routes */}
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Dashboard />} /> {/* Home */}
-        <Route path="/bulletins" element={<Bulletins user={user} />} />
+        <Route path="/bulletins" element={<Bulletins />} />
         <Route path="/badge-lookup" element={<BadgeLookup />} />
         {user && <Route path="/sasp-roster" element={<SASPRoster />} />}
         {user && <Route path="/fleet" element={<Fleet user={user} />} />}

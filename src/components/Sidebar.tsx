@@ -39,12 +39,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
     <div
       className={`${
         isCollapsed ? "w-16" : "w-64"
-      } h-screen bg-gray-900 text-gray-200 flex flex-col fixed shadow-lg z-50 transition-all duration-300 ease-in-out`} // Use transition-all
+      } h-screen bg-gray-900 text-gray-200 flex flex-col fixed shadow-lg z-50 transition-all duration-300 ease-in-out`}
     >
       {/* Logo and Title */}
       <div className="flex items-center justify-between p-4 border-b border-gray-700 h-16">
-        {" "}
-        {/* Fixed height */}
         <div className="flex items-center overflow-hidden">
           <img
             src={isCollapsed ? saspFavicon : saspStar}
@@ -59,7 +57,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
             </span>
           )}
         </div>
-        {/* Collapse/Expand Button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="text-gray-300 hover:text-white focus:outline-none flex-shrink-0"

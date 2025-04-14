@@ -1,3 +1,5 @@
+import { Timestamp } from "firebase/firestore";
+
 /**
  * Formats a Date object into MM/DD/YY format.
  * @param date - The Date object to format.
@@ -27,3 +29,25 @@ export const formatAssignedAt = (date: Date): string => {
   };
   return date.toLocaleString("en-US", options);
 };
+
+/**
+ * Formats a Firestore Timestamp for display.
+ * @param timestamp - The Timestamp or Date object to format.
+ * @returns A formatted string in the desired display format or "N/A" if the input is null or undefined.
+ */
+export function formatTimestampForDisplay(
+  timestamp: Timestamp | Date | null | undefined
+): string {
+  if (!timestamp) {
+    return "N/A";
+  }
+  const date =
+    timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
