@@ -9,7 +9,7 @@ import {
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
-import { User as AuthUser } from "../types/User";
+import { useAuth } from "../context/AuthContext"; // Import useAuth
 import fullRosterTemplate, {
   normalizeTemplateCertKeys,
 } from "../data/FullRosterData";
@@ -146,7 +146,8 @@ const initialNewUserData: Omit<
   lastPromotionDate: null,
 };
 
-const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
+const RosterManagement: React.FC = () => {
+  const { user } = useAuth(); // Get user from context (useful for future permission checks)
   const [groupedRoster, setGroupedRoster] = useState<{
     [category: string]: RosterUser[];
   }>({});
@@ -427,7 +428,7 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
         certifications: {},
       };
 
-      delete (dataToSave as any).email;
+      delete (dataToSave as any).email; // Ensure email is not saved as a field
 
       await setDoc(userRef, dataToSave);
 
@@ -454,10 +455,11 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
   const rankOptions = ["", ...Object.keys(rankOrder)];
 
   return (
-    <Layout user={user}>
+    <Layout>
       <div className="page-content space-y-6">
-        <h1 className="text-3xl font-bold text-[#f3c700]">SASP Roster</h1>
-
+        <h1 className="text-3xl font-bold text-[#f3c700]">
+          SASP Roster Management
+        </h1>
         <div className="flex flex-col md:flex-row gap-4 mb-4 items-center">
           <input
             type="text"
@@ -508,7 +510,10 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
 
         {!loading && !error && (
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="min-w-full bg-gray-900/50 border border-gray-700 text-sm">
+            <table
+              className="min-w-full border border-gray-700 text-sm"
+              style={{ backgroundColor: "rgba(17, 24, 39, 0.90)" }}
+            >
               <thead className="bg-gray-800 text-yellow-400">
                 <tr>
                   <th
@@ -1206,4 +1211,4 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
   );
 };
 
-export default SASPRoster;
+export default RosterManagement;

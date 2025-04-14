@@ -160,7 +160,7 @@ const Tasks: React.FC<TasksProps> = ({ user }) => {
   };
 
   return (
-    <Layout user={user}>
+    <Layout>
       <div
         className="fixed inset-0 bg-cover bg-center opacity-40 -z-10 backdrop-blur-md"
         style={{ backgroundImage: `url(${background})` }}

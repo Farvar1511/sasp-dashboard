@@ -1,21 +1,23 @@
+import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Login from "./components/Login";
-import Dashboard from "./components/Dashboard";
-import Tasks from "./components/Tasks";
+import LoginPage from "./components/Login";
+import Dashboard from "./components/HomePage";
 import Bulletins from "./components/Bulletins";
+import AdminBulletins from "./components/AdminBulletins";
 import BadgeLookup from "./components/BadgeLookup";
 import AdminMenu from "./components/AdminMenu";
 import DisciplineNotes from "./components/DisciplineNotes";
 import RosterManagement from "./components/RosterManagement";
 import SASPRoster from "./components/SASPRoster";
-import FleetManagement from "./components/FleetManagement"; // Import Admin Fleet
-import Fleet from "./components/Fleet"; // Import User Fleet View
+import FleetManagement from "./components/FleetManagement";
+import Fleet from "./components/Fleet";
+import MyDashboard from "./pages/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading } = useAuth(); // Get user and loading state from useAuth
 
   if (loading) {
     return (
@@ -27,37 +29,32 @@ function AppContent() {
 
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-
+      <Route path="/login" element={<LoginPage />} />
       {/* Protected Routes */}
-      <Route element={<ProtectedRoute user={user} />}>
-        <Route path="/" element={<Dashboard user={user!} />} />
-        <Route path="/tasks" element={<Tasks user={user!} />} />
-        <Route path="/bulletins" element={<Bulletins user={user!} />} />
+      <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<Dashboard />} /> {/* Home */}
+        <Route path="/bulletins" element={<Bulletins user={user} />} />
         <Route path="/badge-lookup" element={<BadgeLookup />} />
-        <Route path="/sasp-roster" element={<SASPRoster user={user!} />} />
-        <Route path="/fleet" element={<Fleet user={user!} />} />{" "}
-        {/* Add route for Fleet view */}
-        {/* Admin Routes */}
-        <Route element={<AdminRoute user={user} />}>
-          <Route path="/admin" element={<AdminMenu user={user!} />} />
-          <Route
-            path="/admin/discipline"
-            element={<DisciplineNotes user={user!} />}
-          />
-          <Route
-            path="/admin/roster"
-            element={<RosterManagement user={user!} />}
-          />
-          <Route
-            path="/admin/fleet"
-            element={<FleetManagement user={user!} />} // Add route for Fleet Management
-          />
+        {user && <Route path="/sasp-roster" element={<SASPRoster />} />}
+        {user && <Route path="/fleet" element={<Fleet user={user} />} />}
+        <Route path="/my-dashboard" element={<MyDashboard />} />
+        {/* Admin Routes (Nested under ProtectedRoute) */}
+        <Route element={<AdminRoute />}>
+          {user && <Route path="/admin" element={<AdminMenu user={user} />} />}
+          {user && (
+            <Route
+              path="/admin/discipline"
+              element={<DisciplineNotes user={user} />}
+            />
+          )}
+          <Route path="/admin/roster" element={<RosterManagement />} />
+          <Route path="/admin/fleet" element={<FleetManagement />} />
+          <Route path="/admin/bulletins" element={<AdminBulletins />} />{" "}
+          {/* Add this route */}
         </Route>
       </Route>
-
-      {/* Fallback Route (Optional) */}
-      <Route path="*" element={<Login />} />
+      {/* Fallback Route */}
+      <Route path="*" element={<LoginPage />} /> {/* Or a NotFound component */}
     </Routes>
   );
 }

@@ -122,7 +122,7 @@ const formatDateForDisplay = (
   }
 };
 
-const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
+const SASPRoster: React.FC = () => {
   const [groupedRoster, setGroupedRoster] = useState<{
     [category: string]: RosterUser[];
   }>({});
@@ -263,7 +263,7 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
   const totalColSpan = 5 + divisionKeys.length + certificationKeys.length + 4;
 
   return (
-    <Layout user={user}>
+    <Layout>
       <div className="page-content space-y-6">
         <h1 className="text-3xl font-bold text-[#f3c700]">SASP Roster</h1>
 
@@ -308,7 +308,10 @@ const SASPRoster: React.FC<{ user: AuthUser }> = ({ user }) => {
 
         {!loading && !error && (
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="min-w-full bg-gray-900/50 border border-gray-700 text-sm">
+            <table
+              className="min-w-full border border-gray-700 text-sm"
+              style={{ backgroundColor: "rgba(17, 24, 39, 0.90)" }} 
+            >
               <thead className="bg-gray-800 text-yellow-400">
                 <tr>
                   <th

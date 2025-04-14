@@ -15,6 +15,7 @@ import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
 import { User as AuthUser, Task } from "../types/User";
 import { useNavigate } from "react-router-dom";
+import { formatDateToShort, formatAssignedAt } from "../utils/timeHelpers"; // Import the helper functions
 
 interface FirestoreUser {
   id: string;
@@ -72,54 +73,41 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
   );
   const [assignedVehicle, setAssignedVehicle] = useState<string | null>(null);
 
-  const [editingTask, setEditingTask] = useState<{
-    userId: string;
-    taskId: string;
-    description: string;
-  } | null>(null);
-
-  const [showAddBulletin, setShowAddBulletin] = useState(false);
-  const [showAssignTask, setShowAssignTask] = useState(false);
-
-  const [bulletinTitle, setBulletinTitle] = useState("");
-  const [bulletinBody, setBulletinBody] = useState("");
-  const [bulletinError, setBulletinError] = useState<string | null>(null);
-
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [taskDescription, setTaskDescription] = useState<string>("");
-  const [taskGoal, setTaskGoal] = useState<number>(0);
-  const [taskType, setTaskType] = useState<"goal" | "normal">("goal");
-  const [editingGoalTask, setEditingGoalTask] = useState<{
-    userId: string;
-    taskId: string;
-    description: string;
-    goal: number;
-    progress: number;
-  } | null>(null);
-
-  const [fleetData, setFleetData] = useState<{ id: string; plate: string }[]>(
-    []
-  );
-
   const [modalDisciplineEntries, setModalDisciplineEntries] = useState<
     DisciplineEntry[]
   >([]);
-  const [modalGeneralNotes, setModalGeneralNotes] = useState<
+  const [modalNotesEntries, setModalNotesEntries] = useState<
     GeneralNoteEntry[]
   >([]);
+  const [modalTasks, setModalTasks] = useState<Task[]>([]);
   const [modalDataLoading, setModalDataLoading] = useState<boolean>(false);
   const [modalDataError, setModalDataError] = useState<string | null>(null);
-  const [showAddDisciplineModal, setShowAddDisciplineModal] = useState(false);
-  const [showAddNoteModal, setShowAddNoteModal] = useState(false);
-  const [newDisciplineTypeModal, setNewDisciplineTypeModal] =
+  const [showAddDisciplineForm, setShowAddDisciplineForm] = useState(false);
+  const [showAddNoteForm, setShowAddNoteForm] = useState(false);
+  const [showAddTaskForm, setShowAddTaskForm] = useState(false);
+  const [newDisciplineType, setNewDisciplineType] =
     useState<DisciplineEntry["type"]>("verbal");
-  const [newDisciplineNoteModal, setNewDisciplineNoteModal] = useState("");
-  const [newGeneralNoteModal, setNewGeneralNoteModal] = useState("");
-  const [editingDisciplineModal, setEditingDisciplineModal] =
+  const [newDisciplineNote, setNewDisciplineNote] = useState("");
+  const [newGeneralNote, setNewGeneralNote] = useState("");
+  const [newTaskDescription, setNewTaskDescription] = useState("");
+  const [newTaskType, setNewTaskType] = useState<"goal" | "normal">("goal");
+  const [newTaskGoal, setNewTaskGoal] = useState<number>(0);
+  const [editingDiscipline, setEditingDiscipline] =
     useState<EditingDisciplineStateModal | null>(null);
-  const [editingNoteModal, setEditingNoteModal] =
-    useState<EditingNoteStateModal | null>(null);
+  const [editingNote, setEditingNote] = useState<EditingNoteStateModal | null>(
+    null
+  );
   const [modalSubmitError, setModalSubmitError] = useState<string | null>(null);
+
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [fleetData, setFleetData] = useState<
+    {
+      id: string;
+      plate: string;
+      vehicle?: string;
+      inService?: boolean;
+    }[]
+  >([]); // Define fleetData state
 
   const navigate = useNavigate();
 
@@ -134,19 +122,6 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
   const selectAllUsers = () => {
     const allUserIds = allUsersData.map((user) => user.id);
     setSelectedUsers(allUserIds);
-  };
-
-  const selectAllBelowSupervisor = () => {
-    const ranksToInclude = [
-      "Cadet",
-      "Trooper",
-      "Trooper First Class",
-      "Corporal",
-    ];
-    const belowSupervisorIds = allUsersData
-      .filter((user) => ranksToInclude.includes(user.rank))
-      .map((user) => user.id);
-    setSelectedUsers(belowSupervisorIds);
   };
 
   const clearAllSelections = () => {
@@ -211,8 +186,10 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         const fleet = fleetSnapshot.docs.map((doc) => ({
           id: doc.id,
           plate: doc.data().plate || "Unknown",
+          vehicle: doc.data().vehicle || "Unknown",
+          inService: doc.data().inService ?? true, // Default to true if not specified
         }));
-        setFleetData(fleet);
+        setFleetData(fleet); // Populate fleetData state
       } catch (error) {
         console.error("Error fetching fleet data:", error);
       }
@@ -221,10 +198,11 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     fetchFleetData();
   }, []);
 
-  const fetchModalUserData = useCallback(async () => {
+  const fetchSelectedUserData = useCallback(async () => {
     if (!selectedUser) {
       setModalDisciplineEntries([]);
-      setModalGeneralNotes([]);
+      setModalNotesEntries([]);
+      setModalTasks([]);
       return;
     }
 
@@ -232,6 +210,7 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     setModalDataError(null);
     try {
       const userId = selectedUser.id;
+
       const disciplineColRef = collection(
         dbFirestore,
         "users",
@@ -253,15 +232,25 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
       const notesColRef = collection(dbFirestore, "users", userId, "notes");
       const notesQuery = query(notesColRef, orderBy("issuedAt", "desc"));
       const notesSnapshot = await getDocs(notesQuery);
-      setModalGeneralNotes(
+      setModalNotesEntries(
         notesSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         })) as GeneralNoteEntry[]
       );
+
+      const tasksColRef = collection(dbFirestore, "users", userId, "tasks");
+      const tasksQuery = query(tasksColRef, orderBy("assignedAt", "desc"));
+      const tasksSnapshot = await getDocs(tasksQuery);
+      setModalTasks(
+        tasksSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Task[]
+      );
     } catch (error) {
-      console.error("Error fetching modal user data:", error);
-      setModalDataError("Failed to load discipline or notes records.");
+      console.error("Error fetching selected user data:", error);
+      setModalDataError("Failed to load records for this user.");
     } finally {
       setModalDataLoading(false);
     }
@@ -269,164 +258,63 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
 
   useEffect(() => {
     if (selectedUser) {
-      fetchModalUserData();
-      setShowAddDisciplineModal(false);
-      setShowAddNoteModal(false);
-      setEditingDisciplineModal(null);
-      setEditingNoteModal(null);
-      setNewDisciplineNoteModal("");
-      setNewGeneralNoteModal("");
+      fetchSelectedUserData();
+      setShowAddDisciplineForm(false);
+      setShowAddNoteForm(false);
+      setShowAddTaskForm(false);
+      setEditingDiscipline(null);
+      setEditingNote(null);
+      setNewDisciplineNote("");
+      setNewGeneralNote("");
+      setNewTaskDescription("");
       setModalSubmitError(null);
     } else {
       setModalDisciplineEntries([]);
-      setModalGeneralNotes([]);
+      setModalNotesEntries([]);
+      setModalTasks([]);
     }
-  }, [selectedUser, fetchModalUserData]);
+  }, [selectedUser, fetchSelectedUserData]);
 
-  const addBulletin = async () => {
-    if (!bulletinTitle || !bulletinBody) {
-      setBulletinError("Bulletin title and body are required.");
-      return;
-    }
-    setBulletinError(null);
-    try {
-      await addDoc(collection(dbFirestore, "bulletins"), {
-        title: bulletinTitle,
-        body: bulletinBody,
-        createdAt: serverTimestamp(),
-      });
-      setBulletinTitle("");
-      setBulletinBody("");
-      setShowAddBulletin(false);
-      alert("Bulletin added successfully!");
-    } catch (err) {
-      console.error("Error adding bulletin:", err);
-      setBulletinError("Failed to add bulletin.");
-    }
-  };
-
-  const startEditingTask = (
-    userId: string,
-    taskId: string,
-    currentDescription: string
-  ) => {
-    setEditingTask({ userId, taskId, description: currentDescription });
-  };
-
-  const saveTaskEdit = async () => {
-    if (!editingGoalTask) return;
-    const { userId, taskId, description, goal, progress } = editingGoalTask;
-
-    if (!description.trim() || goal <= 0 || progress < 0) {
-      alert("Please provide valid task details.");
-      return;
-    }
-
-    const taskDocRef = doc(dbFirestore, "users", userId, "tasks", taskId);
-    try {
-      await updateDoc(taskDocRef, {
-        description: description.trim(),
-        goal,
-        progress,
-      });
-
-      setAllUsersData((prevUsers) =>
-        prevUsers.map((u) => {
-          if (u.id === userId) {
-            return {
-              ...u,
-              tasks: u.tasks.map((t) =>
-                t.id === taskId
-                  ? { ...t, description: description.trim(), goal, progress }
-                  : t
-              ),
-            };
-          }
-          return u;
-        })
-      );
-
-      setEditingGoalTask(null);
-      alert("Task updated successfully!");
-    } catch (error) {
-      console.error("Error updating task:", error);
-      alert("Failed to update task. Please try again.");
-    }
-  };
-
-  const assignTask = async () => {
+  const assignTaskToSelectedUser = async () => {
     if (
-      !taskDescription.trim() ||
-      (taskType === "goal" && taskGoal <= 0) ||
-      selectedUsers.length === 0
+      !selectedUser ||
+      !newTaskDescription.trim() ||
+      (newTaskType === "goal" && newTaskGoal <= 0)
     ) {
-      alert(
-        "Please provide a valid task description, goal (if applicable), and select users."
+      setModalSubmitError(
+        "Please provide a valid task description and goal (if applicable)."
       );
       return;
     }
+    setModalSubmitError(null);
 
     try {
       const taskData = {
-        description: taskDescription.trim(),
-        goal: taskType === "goal" ? taskGoal : null,
+        description: newTaskDescription.trim(),
+        goal: newTaskType === "goal" ? newTaskGoal : null,
         progress: 0,
         assignedAt: serverTimestamp(),
         completed: false,
-        type: taskType,
+        type: newTaskType,
       };
 
-      for (const userId of selectedUsers) {
-        const tasksCollectionRef = collection(
-          dbFirestore,
-          "users",
-          userId,
-          "tasks"
-        );
-        await addDoc(tasksCollectionRef, taskData);
-      }
+      const tasksCollectionRef = collection(
+        dbFirestore,
+        "users",
+        selectedUser.id,
+        "tasks"
+      );
+      await addDoc(tasksCollectionRef, taskData);
 
       alert("Task assigned successfully!");
-      setTaskDescription("");
-      setTaskGoal(0);
-      setTaskType("goal");
-      setSelectedUsers([]);
-      setShowAssignTask(false);
+      setNewTaskDescription("");
+      setNewTaskGoal(0);
+      setNewTaskType("goal");
+      setShowAddTaskForm(false);
+      await fetchSelectedUserData();
     } catch (error) {
       console.error("Error assigning task:", error);
-      alert("Failed to assign task. Please try again.");
-    }
-  };
-
-  const startEditingGoalTask = (
-    userId: string,
-    taskId: string,
-    description: string,
-    goal: number,
-    progress: number
-  ) => {
-    setEditingGoalTask({ userId, taskId, description, goal, progress });
-  };
-
-  const deleteTask = async (userId: string, taskId: string) => {
-    const taskDocRef = doc(dbFirestore, "users", userId, "tasks", taskId);
-    try {
-      await deleteDoc(taskDocRef);
-      setAllUsersData((prevUsers) =>
-        prevUsers.map((u) => {
-          if (u.id === userId) {
-            return {
-              ...u,
-              tasks: u.tasks.filter((t) => t.id !== taskId),
-            };
-          }
-          return u;
-        })
-      );
-      alert("Task deleted successfully!");
-    } catch (error) {
-      console.error("Error deleting task:", error);
-      alert("Failed to delete task. Please try again.");
+      setModalSubmitError("Failed to assign task.");
     }
   };
 
@@ -438,11 +326,15 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     setEditedCallsign(user.callsign);
     setEditedDiscordId(user.discordId);
     setEditedIsActive(user.isActive);
-    setEditedLoaStart(user.loaStartDate);
-    setEditedLoaEnd(user.loaEndDate);
+    setEditedLoaStart(
+      user.loaStartDate ? formatDateToShort(new Date(user.loaStartDate)) : null
+    );
+    setEditedLoaEnd(
+      user.loaEndDate ? formatDateToShort(new Date(user.loaEndDate)) : null
+    );
     setEditedCerts(
       Object.fromEntries(
-        Object.entries(user.certifications).map(([key, value]) => [
+        Object.entries(user.certifications || {}).map(([key, value]) => [
           key,
           value === "LEAD" || value === "SUPER" || value === "CERT"
             ? value
@@ -451,6 +343,20 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
       )
     );
     setAssignedVehicle(user.assignedVehicle || null);
+  };
+
+  const handleCancelEditUser = () => {
+    setSelectedUser(null);
+    setEditedName("");
+    setEditedRank("");
+    setEditedBadge("");
+    setEditedCallsign("");
+    setEditedDiscordId("");
+    setEditedIsActive(true);
+    setEditedLoaStart(null);
+    setEditedLoaEnd(null);
+    setEditedCerts({});
+    setAssignedVehicle(null);
   };
 
   const handleCertChange = (certKey: string, value: CertStatus) => {
@@ -476,8 +382,10 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         callsign: editedCallsign.trim(),
         discordId: editedDiscordId.trim(),
         isActive: editedIsActive,
-        loaStartDate: editedLoaStart || null,
-        loaEndDate: editedLoaEnd || null,
+        loaStartDate: editedLoaStart
+          ? new Date(editedLoaStart).toISOString()
+          : null,
+        loaEndDate: editedLoaEnd ? new Date(editedLoaEnd).toISOString() : null,
         certifications: editedCerts,
         assignedVehicle: assignedVehicle || null,
       };
@@ -508,8 +416,8 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     }
   };
 
-  const handleAddDisciplineModal = async () => {
-    if (!selectedUser || !newDisciplineNoteModal.trim()) {
+  const handleAddDiscipline = async () => {
+    if (!selectedUser || !newDisciplineNote.trim()) {
       setModalSubmitError("Please ensure discipline details are entered.");
       return;
     }
@@ -522,24 +430,24 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         "discipline"
       );
       await addDoc(disciplineColRef, {
-        type: newDisciplineTypeModal,
-        note: newDisciplineNoteModal.trim(),
+        type: newDisciplineType,
+        note: newDisciplineNote.trim(),
         issuedBy: user.name,
         issuedAt: serverTimestamp(),
       });
-      setNewDisciplineNoteModal("");
-      setNewDisciplineTypeModal("verbal");
-      setShowAddDisciplineModal(false);
-      await fetchModalUserData();
+      setNewDisciplineNote("");
+      setNewDisciplineType("verbal");
+      setShowAddDisciplineForm(false);
+      await fetchSelectedUserData();
       alert("Discipline entry added!");
     } catch (error) {
-      console.error("Error adding discipline entry in modal:", error);
+      console.error("Error adding discipline entry:", error);
       setModalSubmitError("Failed to add discipline entry.");
     }
   };
 
-  const handleAddNoteModal = async () => {
-    if (!selectedUser || !newGeneralNoteModal.trim()) {
+  const handleAddNote = async () => {
+    if (!selectedUser || !newGeneralNote.trim()) {
       setModalSubmitError("Please ensure a note is entered.");
       return;
     }
@@ -552,21 +460,21 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         "notes"
       );
       await addDoc(notesColRef, {
-        note: newGeneralNoteModal.trim(),
+        note: newGeneralNote.trim(),
         issuedBy: user.name,
         issuedAt: serverTimestamp(),
       });
-      setNewGeneralNoteModal("");
-      setShowAddNoteModal(false);
-      await fetchModalUserData();
+      setNewGeneralNote("");
+      setShowAddNoteForm(false);
+      await fetchSelectedUserData();
       alert("General note added!");
     } catch (error) {
-      console.error("Error adding general note in modal:", error);
+      console.error("Error adding general note:", error);
       setModalSubmitError("Failed to add general note.");
     }
   };
 
-  const handleDeleteDisciplineModal = async (entryId: string) => {
+  const handleDeleteDiscipline = async (entryId: string) => {
     if (!selectedUser || !window.confirm("Delete this discipline entry?"))
       return;
     try {
@@ -578,7 +486,7 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         entryId
       );
       await deleteDoc(entryDocRef);
-      await fetchModalUserData();
+      await fetchSelectedUserData();
       alert("Discipline entry deleted.");
     } catch (error) {
       console.error("Error deleting discipline entry:", error);
@@ -586,7 +494,7 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     }
   };
 
-  const handleDeleteNoteModal = async (noteId: string) => {
+  const handleDeleteNote = async (noteId: string) => {
     if (!selectedUser || !window.confirm("Delete this general note?")) return;
     try {
       const noteDocRef = doc(
@@ -597,7 +505,7 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         noteId
       );
       await deleteDoc(noteDocRef);
-      await fetchModalUserData();
+      await fetchSelectedUserData();
       alert("General note deleted.");
     } catch (error) {
       console.error("Error deleting general note:", error);
@@ -605,28 +513,32 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     }
   };
 
-  const handleStartEditDisciplineModal = (entry: DisciplineEntry) => {
-    setEditingDisciplineModal({
+  const handleStartEditDiscipline = (entry: DisciplineEntry) => {
+    setEditingDiscipline({
       id: entry.id,
       type: entry.type,
       note: entry.note,
     });
-    setEditingNoteModal(null);
+    setEditingNote(null);
+    setShowAddDisciplineForm(false);
+    setShowAddNoteForm(false);
   };
 
-  const handleStartEditNoteModal = (entry: GeneralNoteEntry) => {
-    setEditingNoteModal({ id: entry.id, note: entry.note });
-    setEditingDisciplineModal(null);
+  const handleStartEditNote = (entry: GeneralNoteEntry) => {
+    setEditingNote({ id: entry.id, note: entry.note });
+    setEditingDiscipline(null);
+    setShowAddDisciplineForm(false);
+    setShowAddNoteForm(false);
   };
 
-  const handleCancelEditModal = () => {
-    setEditingDisciplineModal(null);
-    setEditingNoteModal(null);
+  const handleCancelEdit = () => {
+    setEditingDiscipline(null);
+    setEditingNote(null);
   };
 
-  const handleSaveDisciplineEditModal = async () => {
-    if (!editingDisciplineModal || !selectedUser) return;
-    const { id, note, type } = editingDisciplineModal;
+  const handleSaveDisciplineEdit = async () => {
+    if (!editingDiscipline || !selectedUser) return;
+    const { id, note, type } = editingDiscipline;
     if (!note.trim()) {
       alert("Discipline details cannot be empty.");
       return;
@@ -640,8 +552,8 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         id
       );
       await updateDoc(entryDocRef, { note: note.trim(), type: type });
-      setEditingDisciplineModal(null);
-      await fetchModalUserData();
+      setEditingDiscipline(null);
+      await fetchSelectedUserData();
       alert("Discipline entry updated.");
     } catch (error) {
       console.error("Error updating discipline entry:", error);
@@ -649,9 +561,9 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     }
   };
 
-  const handleSaveNoteEditModal = async () => {
-    if (!editingNoteModal || !selectedUser) return;
-    const { id, note } = editingNoteModal;
+  const handleSaveNoteEdit = async () => {
+    if (!editingNote || !selectedUser) return;
+    const { id, note } = editingNote;
     if (!note.trim()) {
       alert("Note cannot be empty.");
       return;
@@ -665,44 +577,13 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         id
       );
       await updateDoc(noteDocRef, { note: note.trim() });
-      setEditingNoteModal(null);
-      await fetchModalUserData();
+      setEditingNote(null);
+      await fetchSelectedUserData();
       alert("General note updated.");
     } catch (error) {
       console.error("Error updating general note:", error);
       alert("Failed to update general note.");
     }
-  };
-
-  const formatTimestamp = (ts: Timestamp | null | undefined): string => {
-    if (!ts) return "N/A";
-    return ts.toDate().toLocaleString("en-US", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  };
-
-  const getNoteTypeColor = (type: DisciplineEntry["type"]) => {
-    switch (type) {
-      case "commendation":
-        return "text-green-400";
-      case "verbal":
-        return "text-yellow-400";
-      case "written":
-        return "text-orange-400";
-      case "suspension":
-        return "text-red-500";
-      case "termination":
-        return "text-red-700 font-bold";
-      default:
-        return "text-gray-400";
-    }
-  };
-
-  const getWelcomeMessage = () => {
-    const rank = user.rank || "Rank Undefined";
-    const name = user.name || "Name Undefined";
-    return `Good Evening, ${rank} ${name}`;
   };
 
   const rankOrder = [
@@ -733,34 +614,54 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
     return a.callsign.localeCompare(b.callsign);
   });
 
-  return (
-    <Layout user={user}>
-      <div className="page-content space-y-6">
-        <h1 className="text-3xl font-bold text-[#f3c700]">
-          {getWelcomeMessage()}
-        </h1>
+  async function deleteTask(userId: string, taskId: string): Promise<void> {
+    if (!window.confirm("Are you sure you want to delete this task?")) return;
 
+    try {
+      const taskDocRef = doc(dbFirestore, "users", userId, "tasks", taskId);
+      await deleteDoc(taskDocRef);
+      alert("Task deleted successfully.");
+      await fetchSelectedUserData();
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      alert("Failed to delete task. Please try again.");
+    }
+  }
+
+  function getDisciplineColor(type: string) {
+    switch (type) {
+      case "commendation":
+        return "text-green-400";
+      case "verbal":
+        return "text-yellow-400";
+      case "written":
+        return "text-orange-400";
+      case "suspension":
+        return "text-red-500";
+      case "termination":
+        return "text-red-700";
+      default:
+        return "text-gray-400";
+    }
+  }
+
+  function formatTimestamp(issuedAt: Timestamp): React.ReactNode {
+    const date = issuedAt.toDate();
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  return (
+    <Layout>
+      <div className="page-content space-y-6">
         <div className="flex flex-wrap gap-4 mb-4">
           <button
             className="button-primary px-3 py-1.5 text-sm"
-            onClick={() => {
-              setShowAddBulletin(false);
-              setShowAssignTask(!showAssignTask);
-            }}
-          >
-            {showAssignTask ? "Hide" : "Show"} Assign Task
-          </button>
-          <button
-            className="button-primary px-3 py-1.5 text-sm"
-            onClick={() => {
-              setShowAssignTask(false);
-              setShowAddBulletin(!showAddBulletin);
-            }}
-          >
-            {showAddBulletin ? "Hide" : "Show"} Add Bulletin
-          </button>
-          <button
-            className="button-secondary px-3 py-1.5 text-sm"
             onClick={() => navigate("/admin/discipline")}
           >
             Discipline & Notes
@@ -777,123 +678,13 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
           >
             Fleet Management
           </button>
+          <button
+            className="button-secondary px-3 py-1.5 text-sm"
+            onClick={() => navigate("/admin/bulletins")}
+          >
+            Admin Bulletins
+          </button>
         </div>
-
-        {showAssignTask && (
-          <div className="admin-section p-4 mb-6">
-            <h2 className="section-header text-xl mb-3">Assign Task</h2>
-            <textarea
-              className="input mb-2 text-sm"
-              placeholder="Task Description"
-              rows={2}
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
-            />
-            <div className="mb-2">
-              <label className="block text-sm font-medium text-gray-400 mb-1">
-                Task Type
-              </label>
-              <select
-                className="input text-sm"
-                value={taskType}
-                onChange={(e) =>
-                  setTaskType(e.target.value as "goal" | "normal")
-                }
-              >
-                <option value="goal">Goal-Oriented</option>
-                <option value="normal">Normal</option>
-              </select>
-            </div>
-            {taskType === "goal" && (
-              <input
-                type="number"
-                className="input mb-2 text-sm"
-                placeholder="Task Goal (e.g., 100)"
-                value={taskGoal}
-                onChange={(e) => setTaskGoal(Number(e.target.value))}
-              />
-            )}
-            <div className="mb-4">
-              <div className="flex gap-2 mb-2">
-                <button
-                  className="button-primary text-sm px-3 py-1.5"
-                  onClick={selectAllUsers}
-                >
-                  Select All
-                </button>
-                <button
-                  className="button-primary text-sm px-3 py-1.5"
-                  onClick={selectAllBelowSupervisor}
-                >
-                  Select All Below Supervisor
-                </button>
-                <button
-                  className="button-secondary text-sm px-3 py-1.5"
-                  onClick={clearAllSelections}
-                >
-                  Clear All
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {allUsersData.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center gap-2 bg-gray-800 p-2 rounded"
-                  >
-                    <input
-                      type="checkbox"
-                      id={`user-${user.id}`}
-                      className="h-4 w-4 text-yellow-500 focus:ring-yellow-500"
-                      checked={selectedUsers.includes(user.id)}
-                      onChange={() => toggleUserSelection(user.id)}
-                    />
-                    <label
-                      htmlFor={`user-${user.id}`}
-                      className="text-sm text-gray-300"
-                    >
-                      {user.name || "Unknown"} ({user.rank})
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <button
-              className="button-primary text-sm px-3 py-1.5"
-              onClick={assignTask}
-            >
-              Assign Task
-            </button>
-          </div>
-        )}
-
-        {showAddBulletin && (
-          <div className="admin-section p-4 mb-6">
-            <h2 className="section-header text-xl mb-3">Add Bulletin</h2>
-            {bulletinError && (
-              <p className="text-red-500 mb-3 text-sm">{bulletinError}</p>
-            )}
-            <input
-              type="text"
-              className="input mb-2 text-sm"
-              placeholder="Bulletin Title"
-              value={bulletinTitle}
-              onChange={(e) => setBulletinTitle(e.target.value)}
-            />
-            <textarea
-              className="input mb-3 text-sm"
-              placeholder="Bulletin Body"
-              rows={3}
-              value={bulletinBody}
-              onChange={(e) => setBulletinBody(e.target.value)}
-            />
-            <button
-              className="button-primary text-sm px-3 py-1.5"
-              onClick={addBulletin}
-            >
-              Add Bulletin
-            </button>
-          </div>
-        )}
 
         <div className="admin-section p-4">
           <h2 className="section-header text-xl mb-3">Users</h2>
@@ -908,144 +699,69 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
               {sortedUsersData.map((userData) => (
                 <div
                   key={userData.id}
-                  className="user-card p-3 border border-gray-700 rounded-lg bg-gray-900/50"
+                  className="user-card p-3 border border-gray-700 rounded-lg bg-gray-900/50 flex flex-col"
                 >
-                  <h3 className="text-lg font-semibold text-yellow-400 truncate">
-                    {userData.name}{" "}
-                    <span className="text-xs text-gray-400">
-                      ({userData.rank})
-                    </span>
-                  </h3>
-                  <p className="text-xs text-gray-500 truncate mb-2">
-                    Badge: {userData.badge}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate mb-2">
-                    Callsign: {userData.callsign}
-                  </p>
-                  <div className="mt-1 space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-                    {userData.tasks && userData.tasks.length > 0 ? (
-                      userData.tasks.map((task) => (
+                  <div className="flex-grow">
+                    <h3 className="text-lg font-semibold text-yellow-400 truncate">
+                      {userData.name}{" "}
+                      <span className="text-xs text-gray-400">
+                        ({userData.rank})
+                      </span>
+                    </h3>
+                    <p className="text-xs text-gray-500 truncate mb-1">
+                      Badge: {userData.badge}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate mb-2">
+                      Callsign: {userData.callsign}
+                    </p>
+                    <p className="text-xs text-gray-500 italic mb-2">
+                      {userData.tasks?.length || 0} task(s) assigned.
+                    </p>
+                    <div className="space-y-2">
+                      {userData.tasks.map((task) => (
                         <div
                           key={task.id}
-                          className="task-card bg-gray-800/70 p-2 rounded border border-gray-600 relative group text-xs"
+                          className="p-2 rounded border border-gray-600 bg-gray-700/50"
                         >
-                          {editingGoalTask?.taskId === task.id ? (
-                            <div className="flex flex-col gap-1">
-                              <textarea
-                                className="input text-xs p-1"
-                                value={editingGoalTask.description}
-                                onChange={(e) =>
-                                  setEditingGoalTask({
-                                    ...editingGoalTask,
-                                    description: e.target.value,
-                                  })
-                                }
-                                rows={2}
-                              />
-                              <input
-                                type="number"
-                                className="input text-xs p-1"
-                                placeholder="Goal"
-                                value={editingGoalTask.goal}
-                                onChange={(e) =>
-                                  setEditingGoalTask({
-                                    ...editingGoalTask,
-                                    goal: Number(e.target.value),
-                                  })
-                                }
-                              />
-                              <input
-                                type="number"
-                                className="input text-xs p-1"
-                                placeholder="Progress"
-                                value={editingGoalTask.progress}
-                                onChange={(e) =>
-                                  setEditingGoalTask({
-                                    ...editingGoalTask,
-                                    progress: Number(e.target.value),
-                                  })
-                                }
-                              />
-                              <div className="flex gap-1">
-                                <button
-                                  className="button-primary text-xs px-1.5 py-0.5"
-                                  onClick={saveTaskEdit}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  className="button-secondary text-xs px-1.5 py-0.5"
-                                  onClick={() => setEditingGoalTask(null)}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <p
-                                className={`inline ${
-                                  task.completed
-                                    ? "line-through text-gray-500"
-                                    : ""
-                                }`}
-                              >
-                                {task.description}
-                              </p>
-                              <small className="text-[10px] text-gray-400 block">
-                                Goal: {task.goal}, Progress: {task.progress},{" "}
-                                Status:{" "}
-                                {task.completed ? (
-                                  <span className="text-green-500">
-                                    Completed
-                                  </span>
-                                ) : (
-                                  <span className="text-yellow-500">
-                                    In Progress
-                                  </span>
-                                )}
-                              </small>
-                              <div className="absolute top-0.5 right-0.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  title="Edit Task"
-                                  className="bg-blue-600 hover:bg-blue-500 text-white p-0.5 rounded text-[10px]"
-                                  onClick={() =>
-                                    setEditingGoalTask({
-                                      userId: userData.id,
-                                      taskId: task.id,
-                                      description: task.description,
-                                      goal: task.goal ?? 0,
-                                      progress: task.progress ?? 0,
-                                    })
-                                  }
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  title="Delete Task"
-                                  className="bg-red-600 hover:bg-red-500 text-white p-0.5 rounded text-[10px]"
-                                  onClick={() =>
-                                    deleteTask(userData.id, task.id)
-                                  }
-                                >
-                                  🗑️
-                                </button>
-                              </div>
-                            </>
-                          )}
+                          <p
+                            className={`inline ${
+                              task.completed ? "line-through text-gray-500" : ""
+                            }`}
+                          >
+                            {task.description}
+                          </p>
+                          <small className="text-gray-400 block mt-1 text-xs">
+                            Type: {task.type}
+                            {task.type === "goal-oriented" &&
+                              ` | Goal: ${task.goal ?? "N/A"}, Progress: ${
+                                task.progress ?? 0
+                              }`}
+                            | Status:{" "}
+                            {task.completed ? (
+                              <span className="text-green-400">Completed</span>
+                            ) : (
+                              <span className="text-yellow-400">
+                                In Progress
+                              </span>
+                            )}
+                            | Assigned:{" "}
+                            {task.assignedAt
+                              ? formatAssignedAt(
+                                  task.assignedAt instanceof Timestamp
+                                    ? task.assignedAt.toDate()
+                                    : new Date(task.assignedAt)
+                                )
+                              : "N/A"}
+                          </small>
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-gray-500 italic">
-                        No tasks assigned.
-                      </p>
-                    )}
+                      ))}
+                    </div>
                   </div>
                   <button
-                    className="button-primary text-xs px-2 py-1 mt-2"
+                    className="button-primary text-xs px-2 py-1 mt-auto"
                     onClick={() => handleSelectUser(userData)}
                   >
-                    Edit Roster Data
+                    View / Edit Details
                   </button>
                 </div>
               ))}
@@ -1054,492 +770,72 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
         </div>
 
         {selectedUser && (
-          <div className="fixed inset-0 bg-black/90 z-50 flex justify-center items-center p-4">
-            <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-6xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+          <div className="fixed inset-0 bg-black/80 z-50">
+            <div className="absolute top-0 left-0 w-full h-full bg-gray-900 p-8 overflow-hidden">
               <button
-                className="absolute top-2 right-3 text-red-500 hover:text-red-400 text-3xl font-bold leading-none"
-                onClick={() => setSelectedUser(null)}
+                onClick={handleCancelEditUser}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white text-3xl font-bold z-10"
+                title="Close"
               >
                 &times;
               </button>
-              <h2 className="section-header text-xl mb-4">
-                Edit Roster Data for {selectedUser.name} ({selectedUser.rank})
+
+              <h2 className="text-3xl font-bold mb-8 text-yellow-400">
+                Manage User: {selectedUser.name} ({selectedUser.badge})
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    className="input text-sm"
-                    value={editedName}
-                    onChange={(e) => setEditedName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Rank
-                  </label>
-                  <input
-                    type="text"
-                    className="input text-sm"
-                    value={editedRank}
-                    onChange={(e) => setEditedRank(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Badge
-                  </label>
-                  <input
-                    type="text"
-                    className="input text-sm"
-                    value={editedBadge}
-                    onChange={(e) => setEditedBadge(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Callsign
-                  </label>
-                  <input
-                    type="text"
-                    className="input text-sm"
-                    value={editedCallsign}
-                    onChange={(e) => setEditedCallsign(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Discord ID
-                  </label>
-                  <input
-                    type="text"
-                    className="input text-sm"
-                    value={editedDiscordId}
-                    onChange={(e) => setEditedDiscordId(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    LOA Start Date
-                  </label>
-                  <input
-                    type="date"
-                    className="input text-sm"
-                    value={editedLoaStart || ""}
-                    onChange={(e) => setEditedLoaStart(e.target.value || null)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    LOA End Date
-                  </label>
-                  <input
-                    type="date"
-                    className="input text-sm"
-                    value={editedLoaEnd || ""}
-                    onChange={(e) => setEditedLoaEnd(e.target.value || null)}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="isActiveCheckbox"
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-yellow-500 focus:ring-yellow-500"
-                    checked={editedIsActive}
-                    onChange={(e) => setEditedIsActive(e.target.checked)}
-                  />
-                  <label
-                    htmlFor="isActiveCheckbox"
-                    className="text-sm font-medium text-gray-300"
-                  >
-                    Is Active
-                  </label>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
-                  Certifications
-                </h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                  {["ACU", "CIU", "FTO", "HEAT", "K9", "MOTO", "SWAT"].map(
-                    (certKey) => (
-                      <div key={certKey} className="flex items-center gap-2">
-                        <label className="text-sm w-20 flex-shrink-0">
-                          {certKey}:
-                        </label>
-                        <select
-                          className="input text-sm flex-grow"
-                          value={editedCerts[certKey] || ""}
-                          onChange={(e) =>
-                            handleCertChange(
-                              certKey,
-                              e.target.value as CertStatus
-                            )
-                          }
-                        >
-                          <option value="">None</option>
-                          <option value="CERT">CERT</option>
-                          <option value="LEAD">LEAD</option>
-                          <option value="SUPER">SUPER</option>
-                        </select>
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-
-              <div className="mb-6 border-t border-gray-700 pt-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-lg font-semibold text-yellow-400">
-                    Discipline Records
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
+                <div className="lg:col-span-1 space-y-6">
+                  <h3 className="text-2xl font-semibold text-yellow-300 border-b border-gray-700 pb-4 mb-6">
+                    Roster Info
                   </h3>
-                  <button
-                    className="button-secondary text-sm px-3 py-1"
-                    onClick={() => {
-                      setShowAddDisciplineModal(!showAddDisciplineModal);
-                      setShowAddNoteModal(false);
-                      setEditingDisciplineModal(null);
-                      setEditingNoteModal(null);
-                    }}
-                  >
-                    {showAddDisciplineModal ? "Cancel Add" : "+ Add Discipline"}
-                  </button>
-                </div>
-
-                {showAddDisciplineModal && (
-                  <div className="space-y-2 p-3 bg-gray-700 rounded-md mb-3 border border-yellow-500/50">
-                    <h4 className="text-md font-semibold text-gray-200">
-                      New Discipline Entry
-                    </h4>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                        Type
-                      </label>
-                      <select
-                        className="input input-sm"
-                        value={newDisciplineTypeModal}
-                        onChange={(e) =>
-                          setNewDisciplineTypeModal(
-                            e.target.value as DisciplineEntry["type"]
-                          )
-                        }
-                      >
-                        <option value="commendation">Commendation</option>
-                        <option value="verbal">Verbal Warning</option>
-                        <option value="written">Written Warning</option>
-                        <option value="suspension">Suspension</option>
-                        <option value="termination">Termination</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                        Details
-                      </label>
-                      <textarea
-                        className="input input-sm"
-                        rows={3}
-                        value={newDisciplineNoteModal}
-                        onChange={(e) =>
-                          setNewDisciplineNoteModal(e.target.value)
-                        }
-                        placeholder="Enter details..."
-                      />
-                    </div>
-                    {modalSubmitError && (
-                      <p className="text-red-500 text-xs">{modalSubmitError}</p>
-                    )}
-                    <button
-                      className="button-primary text-sm px-3 py-1"
-                      onClick={handleAddDisciplineModal}
-                    >
-                      Submit Entry
-                    </button>
-                  </div>
-                )}
-
-                <div className="modal-list-container">
-                  {modalDataLoading && (
-                    <p className="text-yellow-400 italic text-sm">
-                      Loading records...
-                    </p>
-                  )}
-                  {modalDataError && (
-                    <p className="text-red-500 text-sm">{modalDataError}</p>
-                  )}
-                  {!modalDataLoading && !modalDataError && (
-                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                      {modalDisciplineEntries.length > 0 ? (
-                        modalDisciplineEntries.map((entry) => (
-                          <div
-                            key={entry.id}
-                            className="note-card bg-gray-700/80 p-2 rounded border border-gray-600 relative group text-xs"
-                          >
-                            {editingDisciplineModal?.id === entry.id ? (
-                              <div className="space-y-1">
-                                <select
-                                  className="input input-xs w-full"
-                                  value={editingDisciplineModal.type}
-                                  onChange={(e) =>
-                                    setEditingDisciplineModal({
-                                      ...editingDisciplineModal,
-                                      type: e.target
-                                        .value as DisciplineEntry["type"],
-                                    })
-                                  }
-                                >
-                                  <option value="commendation">
-                                    Commendation
-                                  </option>
-                                  <option value="verbal">Verbal Warning</option>
-                                  <option value="written">
-                                    Written Warning
-                                  </option>
-                                  <option value="suspension">Suspension</option>
-                                  <option value="termination">
-                                    Termination
-                                  </option>
-                                </select>
-                                <textarea
-                                  className="input input-xs w-full"
-                                  value={editingDisciplineModal.note}
-                                  onChange={(e) =>
-                                    setEditingDisciplineModal({
-                                      ...editingDisciplineModal,
-                                      note: e.target.value,
-                                    })
-                                  }
-                                  rows={2}
-                                />
-                                <div className="flex gap-1">
-                                  <button
-                                    className="button-primary text-xs px-1.5 py-0.5"
-                                    onClick={handleSaveDisciplineEditModal}
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    className="button-secondary text-xs px-1.5 py-0.5"
-                                    onClick={handleCancelEditModal}
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <p
-                                  className={`font-semibold ${getNoteTypeColor(
-                                    entry.type
-                                  )} uppercase text-[10px] mb-0.5`}
-                                >
-                                  {entry.type || "N/A"}
-                                </p>
-                                <p className="text-gray-300 whitespace-pre-wrap text-[11px]">
-                                  {entry.note || "No details"}
-                                </p>
-                                <small className="text-gray-500 block mt-1 text-[10px]">
-                                  By: {entry.issuedBy || "Unknown"} on{" "}
-                                  {formatTimestamp(entry.issuedAt)}
-                                </small>
-                                <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    title="Edit"
-                                    className="bg-blue-600 hover:bg-blue-500 text-white p-0.5 rounded text-[9px]"
-                                    onClick={() =>
-                                      handleStartEditDisciplineModal(entry)
-                                    }
-                                  >
-                                    ✏️
-                                  </button>
-                                  <button
-                                    title="Delete"
-                                    className="bg-red-600 hover:bg-red-500 text-white p-0.5 rounded text-[9px]"
-                                    onClick={() =>
-                                      handleDeleteDisciplineModal(entry.id)
-                                    }
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-gray-500 italic text-sm">
-                          No discipline records found.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mb-6 border-t border-gray-700 pt-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-lg font-semibold text-yellow-400">
-                    General Notes
-                  </h3>
-                  <button
-                    className="button-secondary text-sm px-3 py-1"
-                    onClick={() => {
-                      setShowAddNoteModal(!showAddNoteModal);
-                      setShowAddDisciplineModal(false);
-                      setEditingDisciplineModal(null);
-                      setEditingNoteModal(null);
-                    }}
-                  >
-                    {showAddNoteModal ? "Cancel Add" : "+ Add Note"}
-                  </button>
-                </div>
-
-                {showAddNoteModal && (
-                  <div className="space-y-2 p-3 bg-gray-700 rounded-md mb-3 border border-yellow-500/50">
-                    <h4 className="text-md font-semibold text-gray-200">
-                      New General Note
-                    </h4>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                        Note
-                      </label>
-                      <textarea
-                        className="input input-sm"
-                        rows={3}
-                        value={newGeneralNoteModal}
-                        onChange={(e) => setNewGeneralNoteModal(e.target.value)}
-                        placeholder="Enter note..."
-                      />
-                    </div>
-                    {modalSubmitError && (
-                      <p className="text-red-500 text-xs">{modalSubmitError}</p>
-                    )}
-                    <button
-                      className="button-primary text-sm px-3 py-1"
-                      onClick={handleAddNoteModal}
-                    >
-                      Submit Note
-                    </button>
-                  </div>
-                )}
-
-                <div className="modal-list-container">
-                  {modalDataLoading && (
-                    <p className="text-yellow-400 italic text-sm">
-                      Loading notes...
-                    </p>
-                  )}
-                  {modalDataError && (
-                    <p className="text-red-500 text-sm">{modalDataError}</p>
-                  )}
-                  {!modalDataLoading && !modalDataError && (
-                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                      {modalGeneralNotes.length > 0 ? (
-                        modalGeneralNotes.map((note) => (
-                          <div
-                            key={note.id}
-                            className="note-card bg-gray-700/80 p-2 rounded border border-gray-600 relative group text-xs"
-                          >
-                            {editingNoteModal?.id === note.id ? (
-                              <div className="space-y-1">
-                                <textarea
-                                  className="input input-xs w-full"
-                                  value={editingNoteModal.note}
-                                  onChange={(e) =>
-                                    setEditingNoteModal({
-                                      ...editingNoteModal,
-                                      note: e.target.value,
-                                    })
-                                  }
-                                  rows={2}
-                                />
-                                <div className="flex gap-1">
-                                  <button
-                                    className="button-primary text-xs px-1.5 py-0.5"
-                                    onClick={handleSaveNoteEditModal}
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    className="button-secondary text-xs px-1.5 py-0.5"
-                                    onClick={handleCancelEditModal}
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <p className="text-gray-300 whitespace-pre-wrap text-[11px]">
-                                  {note.note || "No details"}
-                                </p>
-                                <small className="text-gray-500 block mt-1 text-[10px]">
-                                  By: {note.issuedBy || "Unknown"} on{" "}
-                                  {formatTimestamp(note.issuedAt)}
-                                </small>
-                                <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    title="Edit"
-                                    className="bg-blue-600 hover:bg-blue-500 text-white p-0.5 rounded text-[9px]"
-                                    onClick={() =>
-                                      handleStartEditNoteModal(note)
-                                    }
-                                  >
-                                    ✏️
-                                  </button>
-                                  <button
-                                    title="Delete"
-                                    className="bg-red-600 hover:bg-red-500 text-white p-0.5 rounded text-[9px]"
-                                    onClick={() =>
-                                      handleDeleteNoteModal(note.id)
-                                    }
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-gray-500 italic text-sm">
-                          No general notes found.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-yellow-400 mb-2 border-t border-gray-700 pt-3">
-                  Fleet Management
-                </h3>
-                <div className="space-y-2">
-                  {assignedVehicle ? (
-                    <div className="bg-gray-700 p-3 rounded border border-gray-600">
-                      <p className="text-sm text-gray-300">
-                        Assigned Vehicle: {assignedVehicle}
-                      </p>
-                      <button
-                        className="button-secondary text-sm px-3 py-1 mt-2"
-                        onClick={() => setAssignedVehicle(null)}
-                      >
-                        Unassign Vehicle
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 italic">
-                      No vehicle assigned.
-                    </p>
-                  )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">
-                      Assign Vehicle
+                    <label className="block text-sm font-medium text-gray-400">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      className="input text-sm"
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400">
+                      Rank
+                    </label>
+                    <input
+                      type="text"
+                      className="input text-sm"
+                      value={editedRank}
+                      onChange={(e) => setEditedRank(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400">
+                      Badge
+                    </label>
+                    <input
+                      type="text"
+                      className="input text-sm"
+                      value={editedBadge}
+                      onChange={(e) => setEditedBadge(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400">
+                      Callsign
+                    </label>
+                    <input
+                      type="text"
+                      className="input text-sm"
+                      value={editedCallsign}
+                      onChange={(e) => setEditedCallsign(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400">
+                      Assigned Vehicle Plate
                     </label>
                     <select
                       className="input text-sm"
@@ -1549,22 +845,545 @@ export default function AdminMenu({ user }: { user: AuthUser }) {
                       }
                     >
                       <option value="">None</option>
-                      {fleetData.map((vehicle) => (
-                        <option key={vehicle.id} value={vehicle.plate}>
-                          {vehicle.plate}
-                        </option>
-                      ))}
+                      {fleetData
+                        .filter((v: any) => v.inService !== false)
+                        .sort((a, b) => a.plate.localeCompare(b.plate))
+                        .map((vehicle: any) => (
+                          <option key={vehicle.id} value={vehicle.plate}>
+                            {vehicle.plate} ({vehicle.vehicle || "N/A"})
+                          </option>
+                        ))}
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400">
+                      Discord ID
+                    </label>
+                    <input
+                      type="text"
+                      className="input text-sm"
+                      value={editedDiscordId}
+                      onChange={(e) => setEditedDiscordId(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400">
+                      LOA Start Date
+                    </label>
+                    <input
+                      type="date"
+                      className="input text-sm"
+                      value={editedLoaStart || ""}
+                      onChange={(e) =>
+                        setEditedLoaStart(e.target.value || null)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400">
+                      LOA End Date
+                    </label>
+                    <input
+                      type="date"
+                      className="input text-sm"
+                      value={editedLoaEnd || ""}
+                      onChange={(e) => setEditedLoaEnd(e.target.value || null)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      id="isActiveCheckboxModal"
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-yellow-500 focus:ring-yellow-500"
+                      checked={editedIsActive}
+                      onChange={(e) => setEditedIsActive(e.target.checked)}
+                    />
+                    <label
+                      htmlFor="isActiveCheckboxModal"
+                      className="text-sm font-medium text-gray-300"
+                    >
+                      Is Active Member
+                    </label>
+                  </div>
+                  <div className="space-y-3 pt-4 border-t border-gray-600 mt-4">
+                    <h4 className="text-md font-semibold text-yellow-300">
+                      Divisions & Certs
+                    </h4>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      {["SWAT", "K9", "FTO", "CIU", "MBU", "HEAT", "ACU"].map(
+                        (key) => (
+                          <div key={key} className="flex items-center gap-2">
+                            <label className="text-sm w-16 flex-shrink-0">
+                              {key}:
+                            </label>
+                            <select
+                              className="input input-xs flex-grow"
+                              value={editedCerts[key] || ""}
+                              onChange={(e) =>
+                                handleCertChange(
+                                  key,
+                                  e.target.value as CertStatus
+                                )
+                              }
+                            >
+                              <option value="">None</option>
+                              {["SWAT", "K9", "FTO", "CIU"].includes(key) ? (
+                                <>
+                                  <option value="CERT">CERT</option>
+                                  <option value="LEAD">LEAD</option>
+                                  <option value="SUPER">SUPER</option>
+                                </>
+                              ) : (
+                                <option value="CERT">CERT</option>
+                              )}
+                            </select>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="button-primary text-sm px-4 py-2 mt-6 w-full"
+                    onClick={handleUpdateUser}
+                  >
+                    Save Roster Changes
+                  </button>
+                </div>
+
+                <div className="lg:col-span-1 space-y-4">
+                  <div className="border border-gray-700 rounded p-3 bg-gray-800/30">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-lg font-semibold text-yellow-400">
+                        Discipline
+                      </h3>
+                      <button
+                        className="button-secondary text-xs px-2 py-1"
+                        onClick={() => {
+                          setShowAddDisciplineForm(!showAddDisciplineForm);
+                          setShowAddNoteForm(false);
+                          setEditingDiscipline(null);
+                          setEditingNote(null);
+                        }}
+                        disabled={!!editingDiscipline || !!editingNote}
+                      >
+                        {showAddDisciplineForm ? "Cancel" : "Add New"}
+                      </button>
+                    </div>
+                    {showAddDisciplineForm && (
+                      <div className="bg-gray-700/50 p-3 rounded space-y-2 mb-3">
+                        <select
+                          className="input text-sm w-full"
+                          value={newDisciplineType}
+                          onChange={(e) =>
+                            setNewDisciplineType(
+                              e.target.value as DisciplineEntry["type"]
+                            )
+                          }
+                        >
+                          <option value="commendation">Commendation</option>
+                          <option value="verbal">Verbal Warning</option>
+                          <option value="written">Written Warning</option>
+                          <option value="suspension">Suspension</option>
+                          <option value="termination">Termination</option>
+                        </select>
+                        <textarea
+                          className="input text-sm w-full"
+                          rows={2}
+                          value={newDisciplineNote}
+                          onChange={(e) => setNewDisciplineNote(e.target.value)}
+                          placeholder="Discipline details..."
+                        />
+                        {modalSubmitError && (
+                          <p className="text-red-500 text-xs">
+                            {modalSubmitError}
+                          </p>
+                        )}
+                        <button
+                          className="button-primary text-sm px-3 py-1"
+                          onClick={handleAddDiscipline}
+                        >
+                          Submit Entry
+                        </button>
+                      </div>
+                    )}
+                    <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1 text-sm">
+                      {modalDataLoading && (
+                        <p className="italic text-gray-400">Loading...</p>
+                      )}
+                      {modalDataError && (
+                        <p className="text-red-500">{modalDataError}</p>
+                      )}
+                      {!modalDataLoading &&
+                        modalDisciplineEntries.length === 0 && (
+                          <p className="italic text-gray-500">No records.</p>
+                        )}
+                      {modalDisciplineEntries.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className={`p-2 rounded border ${
+                            editingDiscipline?.id === entry.id
+                              ? "border-blue-500 bg-gray-700"
+                              : "border-gray-600 bg-gray-700/50"
+                          } relative group`}
+                        >
+                          {editingDiscipline?.id === entry.id ? (
+                            <div className="space-y-2">
+                              <select
+                                className="input text-sm w-full"
+                                value={editingDiscipline.type}
+                                onChange={(e) =>
+                                  setEditingDiscipline({
+                                    ...editingDiscipline,
+                                    type: e.target
+                                      .value as DisciplineEntry["type"],
+                                  })
+                                }
+                              >
+                                <option value="commendation">
+                                  Commendation
+                                </option>
+                                <option value="verbal">Verbal Warning</option>
+                                <option value="written">Written Warning</option>
+                                <option value="suspension">Suspension</option>
+                                <option value="termination">Termination</option>
+                              </select>
+                              <textarea
+                                className="input text-sm w-full"
+                                value={editingDiscipline.note}
+                                onChange={(e) =>
+                                  setEditingDiscipline({
+                                    ...editingDiscipline,
+                                    note: e.target.value,
+                                  })
+                                }
+                                rows={3}
+                              />
+                              <div className="flex gap-2 pt-1">
+                                <button
+                                  className="button-primary text-xs px-2 py-1"
+                                  onClick={handleSaveDisciplineEdit}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  className="button-secondary text-xs px-2 py-1"
+                                  onClick={handleCancelEdit}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <span
+                                className={`font-semibold ${getDisciplineColor(
+                                  entry.type
+                                )}`}
+                              >
+                                {entry.type.charAt(0).toUpperCase() +
+                                  entry.type.slice(1)}
+                                :
+                              </span>{" "}
+                              {entry.note}
+                              <small className="text-gray-400 block mt-1 text-xs">
+                                By: {entry.issuedBy} on{" "}
+                                {formatTimestamp(entry.issuedAt)}
+                              </small>
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  title="Edit"
+                                  className="bg-blue-600 hover:bg-blue-500 text-white p-1 rounded text-xs disabled:opacity-50"
+                                  onClick={() =>
+                                    handleStartEditDiscipline(entry)
+                                  }
+                                  disabled={
+                                    !!editingDiscipline ||
+                                    !!editingNote ||
+                                    showAddDisciplineForm ||
+                                    showAddNoteForm
+                                  }
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  title="Delete"
+                                  className="bg-red-600 hover:bg-red-500 text-white p-1 rounded text-xs disabled:opacity-50"
+                                  onClick={() =>
+                                    handleDeleteDiscipline(entry.id)
+                                  }
+                                  disabled={
+                                    !!editingDiscipline ||
+                                    !!editingNote ||
+                                    showAddDisciplineForm ||
+                                    showAddNoteForm
+                                  }
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-700 rounded p-3 bg-gray-800/30">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-lg font-semibold text-yellow-400">
+                        General Notes
+                      </h3>
+                      <button
+                        className="button-secondary text-xs px-2 py-1"
+                        onClick={() => {
+                          setShowAddNoteForm(!showAddNoteForm);
+                          setShowAddDisciplineForm(false);
+                          setEditingDiscipline(null);
+                          setEditingNote(null);
+                        }}
+                        disabled={!!editingDiscipline || !!editingNote}
+                      >
+                        {showAddNoteForm ? "Cancel" : "Add New"}
+                      </button>
+                    </div>
+                    {showAddNoteForm && (
+                      <div className="bg-gray-700/50 p-3 rounded space-y-2 mb-3">
+                        <textarea
+                          className="input text-sm w-full"
+                          rows={2}
+                          value={newGeneralNote}
+                          onChange={(e) => setNewGeneralNote(e.target.value)}
+                          placeholder="General note details..."
+                        />
+                        {modalSubmitError && (
+                          <p className="text-red-500 text-xs">
+                            {modalSubmitError}
+                          </p>
+                        )}
+                        <button
+                          className="button-primary text-sm px-3 py-1"
+                          onClick={handleAddNote}
+                        >
+                          Submit Note
+                        </button>
+                      </div>
+                    )}
+                    <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1 text-sm">
+                      {modalDataLoading && (
+                        <p className="italic text-gray-400">Loading...</p>
+                      )}
+                      {modalDataError && (
+                        <p className="text-red-500">{modalDataError}</p>
+                      )}
+                      {!modalDataLoading && modalNotesEntries.length === 0 && (
+                        <p className="italic text-gray-500">No notes.</p>
+                      )}
+                      {modalNotesEntries.map((note) => (
+                        <div
+                          key={note.id}
+                          className={`p-2 rounded border ${
+                            editingNote?.id === note.id
+                              ? "border-blue-500 bg-gray-700"
+                              : "border-gray-600 bg-gray-700/50"
+                          } relative group`}
+                        >
+                          {editingNote?.id === note.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                className="input text-sm w-full"
+                                value={editingNote.note}
+                                onChange={(e) =>
+                                  setEditingNote({
+                                    ...editingNote,
+                                    note: e.target.value,
+                                  })
+                                }
+                                rows={3}
+                              />
+                              <div className="flex gap-2 pt-1">
+                                <button
+                                  className="button-primary text-xs px-2 py-1"
+                                  onClick={handleSaveNoteEdit}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  className="button-secondary text-xs px-2 py-1"
+                                  onClick={handleCancelEdit}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {note.note}
+                              <small className="text-gray-400 block mt-1 text-xs">
+                                By: {note.issuedBy} on{" "}
+                                {formatTimestamp(note.issuedAt)}
+                              </small>
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  title="Edit"
+                                  className="bg-blue-600 hover:bg-blue-500 text-white p-1 rounded text-xs disabled:opacity-50"
+                                  onClick={() => handleStartEditNote(note)}
+                                  disabled={
+                                    !!editingDiscipline ||
+                                    !!editingNote ||
+                                    showAddDisciplineForm ||
+                                    showAddNoteForm
+                                  }
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  title="Delete"
+                                  className="bg-red-600 hover:bg-red-500 text-white p-1 rounded text-xs disabled:opacity-50"
+                                  onClick={() => handleDeleteNote(note.id)}
+                                  disabled={
+                                    !!editingDiscipline ||
+                                    !!editingNote ||
+                                    showAddDisciplineForm ||
+                                    showAddNoteForm
+                                  }
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-1 space-y-4">
+                  <div className="border border-gray-700 rounded p-3 bg-gray-800/30">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-lg font-semibold text-yellow-400">
+                        Assigned Tasks
+                      </h3>
+                      <button
+                        className="button-secondary text-xs px-2 py-1"
+                        onClick={() => setShowAddTaskForm(!showAddTaskForm)}
+                      >
+                        {showAddTaskForm ? "Cancel" : "Assign New"}
+                      </button>
+                    </div>
+                    {showAddTaskForm && (
+                      <div className="bg-gray-700/50 p-3 rounded space-y-2 mb-3">
+                        <textarea
+                          className="input text-sm w-full"
+                          placeholder="Task Description"
+                          rows={2}
+                          value={newTaskDescription}
+                          onChange={(e) =>
+                            setNewTaskDescription(e.target.value)
+                          }
+                        />
+                        <div className="flex gap-2 items-center">
+                          <select
+                            className="input text-sm flex-grow"
+                            value={newTaskType}
+                            onChange={(e) =>
+                              setNewTaskType(
+                                e.target.value as "goal" | "normal"
+                              )
+                            }
+                          >
+                            <option value="goal">Goal-Oriented</option>
+                            <option value="normal">Normal</option>
+                          </select>
+                          {newTaskType === "goal" && (
+                            <input
+                              type="number"
+                              className="input text-sm w-24"
+                              placeholder="Goal"
+                              value={newTaskGoal}
+                              onChange={(e) =>
+                                setNewTaskGoal(Number(e.target.value))
+                              }
+                            />
+                          )}
+                        </div>
+                        {modalSubmitError && (
+                          <p className="text-red-500 text-xs">
+                            {modalSubmitError}
+                          </p>
+                        )}
+                        <button
+                          className="button-primary text-sm px-3 py-1"
+                          onClick={assignTaskToSelectedUser}
+                        >
+                          Assign Task
+                        </button>
+                      </div>
+                    )}
+                    <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1 text-sm">
+                      {modalDataLoading && (
+                        <p className="italic text-gray-400">Loading...</p>
+                      )}
+                      {modalDataError && (
+                        <p className="text-red-500">{modalDataError}</p>
+                      )}
+                      {!modalDataLoading && modalTasks.length === 0 && (
+                        <p className="italic text-gray-500">
+                          No tasks assigned.
+                        </p>
+                      )}
+                      {modalTasks.map((task) => (
+                        <div
+                          key={task.id}
+                          className="p-2 rounded border border-gray-600 bg-gray-700/50 relative group"
+                        >
+                          <p
+                            className={`inline ${
+                              task.completed ? "line-through text-gray-500" : ""
+                            }`}
+                          >
+                            {task.description}
+                          </p>
+                          <small className="text-gray-400 block mt-1 text-xs">
+                            Type: {task.type}
+                            {task.type === "goal-oriented" &&
+                              ` | Goal: ${task.goal ?? "N/A"}, Progress: ${
+                                task.progress ?? 0
+                              }`}
+                            | Status:{" "}
+                            {task.completed ? (
+                              <span className="text-green-400">Completed</span>
+                            ) : (
+                              <span className="text-yellow-400">
+                                In Progress
+                              </span>
+                            )}
+                            | Assigned:{" "}
+                            {task.assignedAt
+                              ? formatAssignedAt(
+                                  task.assignedAt instanceof Timestamp
+                                    ? task.assignedAt.toDate()
+                                    : new Date(task.assignedAt)
+                                )
+                              : "N/A"}
+                          </small>
+                          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              title="Delete Task"
+                              className="bg-red-600 hover:bg-red-500 text-white p-1 rounded text-xs"
+                              onClick={() =>
+                                deleteTask(selectedUser.id, task.id)
+                              }
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <button
-                className="button-primary text-sm px-4 py-2 mt-6 w-full"
-                onClick={handleUpdateUser}
-              >
-                Save Roster Changes
-              </button>
             </div>
           </div>
         )}

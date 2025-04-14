@@ -30,10 +30,6 @@ export default function Bulletins({ user }: BulletinsProps) {
   const [background, setBackground] = useState(""); // State for background image
 
   useEffect(() => {
-    // Set background
-    const randomImage = images[Math.floor(Math.random() * images.length)];
-    setBackground(randomImage);
-
     const fetchBulletins = async () => {
       try {
         const snapshot = await getDocs(collection(db, "bulletins"));
@@ -118,7 +114,7 @@ export default function Bulletins({ user }: BulletinsProps) {
   };
 
   return (
-    <Layout user={user}>
+    <Layout>
       {/* Background Image */}
       {background && (
         <div
@@ -192,7 +188,7 @@ export default function Bulletins({ user }: BulletinsProps) {
                       Created at: {formatTimestamp(bulletin.createdAt)}
                     </small>
                     {user?.isAdmin && (
-                      <div className="bulletin-actions flex gap-2 absolute top-2 right-2 opacity-0 hover:opacity-100 transition-opacity">
+                      <div className="bulletin-actions flex gap-2 absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           className="button-secondary text-xs p-1"
                           onClick={() => setEditingBulletin(bulletin)}
@@ -200,10 +196,10 @@ export default function Bulletins({ user }: BulletinsProps) {
                           ✏️ Edit
                         </button>
                         <button
-                          className="bg-red-500 text-white text-xs px-2 py-1 rounded-md hover:bg-red-400"
+                          className="delete-button small p-1"
                           onClick={() => deleteBulletin(bulletin.id)}
                         >
-                          🗑 Delete
+                          🗑️ Delete
                         </button>
                       </div>
                     )}

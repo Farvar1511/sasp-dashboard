@@ -138,7 +138,8 @@ const determineAllowedVehicles = (
     let requiredCertKey: string | null = null; // The key needed for the vehicle (e.g., MOTO, HEAT)
     // Prioritize division for determining required cert
     if (division.includes("HEAT")) requiredCertKey = "HEAT";
-    else if (division.includes("MOTO")) requiredCertKey = "MOTO"; // Vehicle requires MOTO
+    else if (division.includes("MOTO"))
+      requiredCertKey = "MOTO"; // Vehicle requires MOTO
     else if (division.includes("ACU")) requiredCertKey = "ACU";
     else if (division.includes("SWAT")) requiredCertKey = "SWAT";
     else if (division.includes("K9")) requiredCertKey = "K9";
@@ -147,7 +148,8 @@ const determineAllowedVehicles = (
     // If division didn't set it, check restrictions (lowercase already)
     if (!requiredCertKey) {
       if (restriction.includes("heat")) requiredCertKey = "HEAT";
-      else if (restriction.includes("moto")) requiredCertKey = "MOTO"; // Vehicle requires MOTO
+      else if (restriction.includes("moto"))
+        requiredCertKey = "MOTO"; // Vehicle requires MOTO
       else if (restriction.includes("acu")) requiredCertKey = "ACU";
       else if (restriction.includes("swat")) requiredCertKey = "SWAT";
       else if (restriction.includes("k9")) requiredCertKey = "K9";
@@ -156,7 +158,8 @@ const determineAllowedVehicles = (
 
     // Determine the key to check in the user's certifications
     // If the vehicle requires "MOTO", check if the user has "MBU"
-    const userCertLookupKey = requiredCertKey === "MOTO" ? "MBU" : requiredCertKey;
+    const userCertLookupKey =
+      requiredCertKey === "MOTO" ? "MBU" : requiredCertKey;
 
     const certOK = hasCertAccess(userCertLookupKey); // Check using the potentially mapped key
     console.log(` - Cert Required by Vehicle: ${requiredCertKey || "None"}`);
@@ -366,82 +369,163 @@ const BadgeLookup: React.FC = () => {
     return { bgColor: "bg-gray-600", textColor: "text-gray-300" };
   };
 
-const certificationKeys = ["HEAT", "ACU", "MBU"]; // Removed "MOTO"
+  const certificationKeys = ["HEAT", "ACU", "MBU"]; // Removed "MOTO"
   const divisionKeys = ["K9", "FTO", "SWAT", "CIU"];
 
   return (
-    <Layout user={authUser!}>
-      <div
-        className="page-content space-y-8 bg-cover bg-center min-h-screen p-4 md:p-6 lg:p-8" // Added padding
-        style={{ backgroundImage: `url(${randomBackgroundImage})` }} // Use memoized background image
-      >
-        {/* Header Section */}
-        <div className="flex flex-col items-center space-y-3 mb-6">
-          <img src={saspStar} alt="SASP Star" className="w-20 h-20" />{" "}
-          {/* Increased size */}
-          <h1 className="text-4xl font-extrabold text-[#f3c700] text-center tracking-tight">
-            {" "}
-            {/* Adjusted size/tracking */}
-            Badge Lookup
-          </h1>
-        </div>
+    <Layout>
+      <h1 className="text-3xl font-bold text-yellow-400 mb-6">Badge Lookup</h1>
+      <div className="max-w-md mx-auto flex items-center gap-3 p-4 bg-black bg-opacity-60 rounded-lg shadow-lg">
+        <input
+          type="text"
+          value={badgeInput}
+          onChange={(e) => setBadgeInput(e.target.value)}
+          placeholder="Enter Badge Number"
+          className="input flex-grow bg-gray-700 text-white border-gray-600 placeholder-gray-400 focus:ring-[#f3c700] focus:border-[#f3c700]"
+          onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+        />
+        <button
+          onClick={handleLookup}
+          className="button-primary bg-[#f3c700] text-black font-semibold py-2 px-4 rounded-lg hover:bg-[#d4a900] transition duration-150 ease-in-out disabled:opacity-50"
+          disabled={loading}
+        >
+          {loading ? "Searching..." : "Lookup"}
+        </button>
+      </div>
+      {error && (
+        <p className="text-red-400 text-center font-medium bg-red-900 bg-opacity-50 py-2 px-4 rounded-md max-w-md mx-auto">
+          {error}
+        </p>
+      )}
+      {foundUser && (
+        <div className="space-y-6 max-w-4xl mx-auto">
+          <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
+            <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
+              Trooper Information
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-base">
+              {[
+                { label: "Name", value: foundUser.name },
+                { label: "Rank", value: foundUser.rank },
+                { label: "Badge", value: foundUser.badge },
+                { label: "Callsign", value: foundUser.callsign || "-" },
+                { label: "Discord ID", value: foundUser.discordId || "-" },
+                {
+                  label: "Status",
+                  value: foundUser.isActive ? "Active" : "Inactive",
+                  color: foundUser.isActive ? "bg-green-600" : "bg-red-600",
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="flex justify-between items-center py-1"
+                >
+                  <strong className="text-yellow-500 font-medium">
+                    {item.label}:
+                  </strong>
+                  <span
+                    className={`px-3 py-1 rounded-md text-sm font-medium ${
+                      item.color
+                        ? `${item.color} text-white`
+                        : "bg-gray-700 text-gray-200"
+                    }`}
+                  >
+                    {item.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
+            <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
+              Certifications & Divisions
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div>
+                <h3 className="text-xl font-semibold text-yellow-500 mb-3">
+                  Divisions
+                </h3>
+                <div className="space-y-2.5">
+                  {divisionKeys.map((divKey) => {
+                    const lookupKey = divKey.toUpperCase();
+                    const displayName = divKey;
+                    const status =
+                      foundUser.certifications?.[lookupKey] ?? null;
+                    const style = getCertStyle(status);
 
-        {/* Lookup Input Section */}
-        <div className="max-w-md mx-auto flex items-center gap-3 p-4 bg-black bg-opacity-60 rounded-lg shadow-lg">
-          {" "}
-          {/* Centered and styled container */}
-          <input
-            type="text"
-            value={badgeInput}
-            onChange={(e) => setBadgeInput(e.target.value)}
-            placeholder="Enter Badge Number"
-            className="input flex-grow bg-gray-700 text-white border-gray-600 placeholder-gray-400 focus:ring-[#f3c700] focus:border-[#f3c700]" // Improved input styling
-            onKeyDown={(e) => e.key === "Enter" && handleLookup()}
-          />
-          <button
-            onClick={handleLookup}
-            className="button-primary bg-[#f3c700] text-black font-semibold py-2 px-4 rounded-lg hover:bg-[#d4a900] transition duration-150 ease-in-out disabled:opacity-50" // Adjusted padding/styling
-            disabled={loading}
-          >
-            {loading ? "Searching..." : "Lookup"}
-          </button>
-        </div>
+                    return (
+                      <div
+                        key={divKey}
+                        className={`flex items-center justify-between text-sm`}
+                      >
+                        <span className="text-gray-300 font-medium w-16">
+                          {displayName}:
+                        </span>
+                        <span
+                          className={`px-2.5 py-1 rounded text-xs font-semibold ${style.bgColor} ${style.textColor}`}
+                        >
+                          {status || "None"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-yellow-500 mb-3">
+                  Certifications
+                </h3>
+                <div className="space-y-2.5">
+                  {certificationKeys.map((certKey) => {
+                    const lookupKey = certKey.toUpperCase();
+                    const displayName = certKey;
+                    const status =
+                      foundUser.certifications?.[lookupKey] ?? null;
+                    const style = getCertStyle(status);
 
-        {/* Error Message */}
-        {error && (
-          <p className="text-red-400 text-center font-medium bg-red-900 bg-opacity-50 py-2 px-4 rounded-md max-w-md mx-auto">
-            {error}
-          </p> // Improved error styling
-        )}
-
-        {/* Results Section */}
-        {foundUser && (
-          <div className="space-y-6 max-w-4xl mx-auto">
-            {" "}
-            {/* Centered results container */}
-            {/* Trooper Info Section */}
-            <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
-              {" "}
-              {/* Increased padding/opacity/shadow */}
-              <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
-                {" "}
-                {/* Adjusted size/border */}
-                Trooper Information
-              </h2>
+                    return (
+                      <div
+                        key={certKey}
+                        className={`flex items-center justify-between text-sm`}
+                      >
+                        <span className="text-gray-300 font-medium w-16">
+                          {displayName}:
+                        </span>
+                        <span
+                          className={`px-2.5 py-1 rounded text-xs font-semibold ${style.bgColor} ${style.textColor}`}
+                        >
+                          {status || "None"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
+            <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
+              Assigned Vehicle
+            </h2>
+            {assignedVehicle ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-base">
-                {" "}
-                {/* Adjusted gap/text size */}
-                {/* Info Item Helper */}
                 {[
-                  { label: "Name", value: foundUser.name },
-                  { label: "Rank", value: foundUser.rank },
-                  { label: "Badge", value: foundUser.badge },
-                  { label: "Callsign", value: foundUser.callsign || "-" },
-                  { label: "Discord ID", value: foundUser.discordId || "-" },
+                  { label: "Vehicle", value: assignedVehicle.vehicle },
+                  { label: "Plate", value: assignedVehicle.plate || "-" },
                   {
-                    label: "Status",
-                    value: foundUser.isActive ? "Active" : "Inactive",
-                    color: foundUser.isActive ? "bg-green-600" : "bg-red-600",
+                    label: "Division",
+                    value: assignedVehicle.division || "-",
+                  },
+                  {
+                    label: "Restrictions",
+                    value: assignedVehicle.restrictions || "-",
+                  },
+                  {
+                    label: "In Service",
+                    value: assignedVehicle.inService ? "Yes" : "No",
+                    color: assignedVehicle.inService
+                      ? "bg-green-600"
+                      : "bg-red-600",
                   },
                 ].map((item) => (
                   <div
@@ -463,198 +547,73 @@ const certificationKeys = ["HEAT", "ACU", "MBU"]; // Removed "MOTO"
                   </div>
                 ))}
               </div>
-            </div>
-            {/* Certifications & Divisions Section */}
-            <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
-              <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
-                Certifications & Divisions
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                {" "}
-                {/* Increased gap */}
-                {/* Divisions */}
-                <div>
-                  <h3 className="text-xl font-semibold text-yellow-500 mb-3">
-                    {" "}
-                    {/* Adjusted size/margin */}
-                    Divisions
-                  </h3>
-                  <div className="space-y-2.5">
-                    {" "}
-                    {/* Increased spacing */}
-                    {divisionKeys.map((divKey) => {
-                      const lookupKey = divKey.toUpperCase();
-                      const displayName = divKey;
-                      const status =
-                        foundUser.certifications?.[lookupKey] ?? null;
-                      const style = getCertStyle(status);
-
-                      return (
-                        <div
-                          key={divKey}
-                          className={`flex items-center justify-between text-sm`}
-                        >
-                          <span className="text-gray-300 font-medium w-16">
-                            {displayName}:
-                          </span>{" "}
-                          {/* Adjusted width */}
-                          <span
-                            className={`px-2.5 py-1 rounded text-xs font-semibold ${style.bgColor} ${style.textColor}`}
-                          >
-                            {" "}
-                            {/* Adjusted padding */}
-                            {status || "None"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                {/* Certifications */}
-                <div>
-                  <h3 className="text-xl font-semibold text-yellow-500 mb-3">
-                    Certifications
-                  </h3>
-                  <div className="space-y-2.5">
-                    {certificationKeys.map((certKey) => {
-                      const lookupKey = certKey.toUpperCase();
-                      const displayName = certKey;
-                      const status =
-                        foundUser.certifications?.[lookupKey] ?? null;
-                      const style = getCertStyle(status);
-
-                      return (
-                        <div
-                          key={certKey}
-                          className={`flex items-center justify-between text-sm`}
-                        >
-                          <span className="text-gray-300 font-medium w-16">
-                            {displayName}:
-                          </span>
-                          <span
-                            className={`px-2.5 py-1 rounded text-xs font-semibold ${style.bgColor} ${style.textColor}`}
-                          >
-                            {status || "None"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* Assigned Vehicle Section */}
-            <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
-              <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
-                Assigned Vehicle
-              </h2>
-              {assignedVehicle ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-base">
-                  {[
-                    { label: "Vehicle", value: assignedVehicle.vehicle },
-                    { label: "Plate", value: assignedVehicle.plate || "-" },
-                    { label: "Division", value: assignedVehicle.division || "-" },
-                    { label: "Restrictions", value: assignedVehicle.restrictions || "-" },
-                    {
-                      label: "In Service",
-                      value: assignedVehicle.inService ? "Yes" : "No",
-                      color: assignedVehicle.inService ? "bg-green-600" : "bg-red-600",
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="flex justify-between items-center py-1"
-                    >
-                      <strong className="text-yellow-500 font-medium">
-                        {item.label}:
-                      </strong>
-                      <span
-                        className={`px-3 py-1 rounded-md text-sm font-medium ${
-                          item.color
-                            ? `${item.color} text-white`
-                            : "bg-gray-700 text-gray-200"
-                        }`}
-                      >
-                        {item.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-400 italic">
-                  No specific vehicle assigned to this trooper.
-                </p>
-              )}
-            </div>
-            {/* Allowed Vehicles Section */}
-            <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
-              <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
-                Allowed Vehicles
-              </h2>
-              {allowedVehicles.length > 0 ? (
-                <div className="overflow-x-auto custom-scrollbar">
-                  <table className="min-w-full text-sm text-left">
-                    <thead className="text-xs text-yellow-300 uppercase bg-gray-700 bg-opacity-60">
-                      {" "}
-                      {/* Adjusted colors */}
-                      <tr>
-                        <th scope="col" className="px-5 py-3">
-                          {" "}
-                          {/* Increased padding */}
-                          Vehicle
-                        </th>
-                        <th scope="col" className="px-5 py-3">
-                          Plate
-                        </th>
-                        <th scope="col" className="px-5 py-3">
-                          Division
-                        </th>
-                        <th scope="col" className="px-5 py-3">
-                          Assignee
-                        </th>
-                        <th scope="col" className="px-5 py-3">
-                          Restrictions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allowedVehicles.map((vehicle, index) => (
-                        <tr
-                          key={vehicle.id || index}
-                          className="border-b border-gray-700 hover:bg-gray-800/60 transition duration-150 ease-in-out" // Added transition
-                        >
-                          <td className="px-5 py-3 font-medium text-white whitespace-nowrap">
-                            {" "}
-                            {/* Increased padding */}
-                            {vehicle.vehicle}
-                          </td>
-                          <td className="px-5 py-3 text-gray-300">
-                            {vehicle.plate || "-"}
-                          </td>
-                          <td className="px-5 py-3 text-gray-300">
-                            {vehicle.division || "-"}
-                          </td>
-                          <td className="px-5 py-3 text-gray-300">
-                            {vehicle.assignee || "Communal"}
-                          </td>
-                          <td className="px-5 py-3 text-gray-300">
-                            {vehicle.restrictions || "-"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-gray-400 italic">
-                  No specific vehicles allowed or assigned based on rank and
-                  certifications. Standard patrol vehicles may be available.
-                </p>
-              )}
-            </div>
+            ) : (
+              <p className="text-gray-400 italic">
+                No specific vehicle assigned to this trooper.
+              </p>
+            )}
           </div>
-        )}
-      </div>
+          <div className="admin-section p-5 bg-black bg-opacity-75 rounded-lg shadow-xl">
+            <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-yellow-600 pb-2">
+              Allowed Vehicles
+            </h2>
+            {allowedVehicles.length > 0 ? (
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="min-w-full text-sm text-left">
+                  <thead className="text-xs text-yellow-300 uppercase bg-gray-700 bg-opacity-60">
+                    <tr>
+                      <th scope="col" className="px-5 py-3">
+                        Vehicle
+                      </th>
+                      <th scope="col" className="px-5 py-3">
+                        Plate
+                      </th>
+                      <th scope="col" className="px-5 py-3">
+                        Division
+                      </th>
+                      <th scope="col" className="px-5 py-3">
+                        Assignee
+                      </th>
+                      <th scope="col" className="px-5 py-3">
+                        Restrictions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allowedVehicles.map((vehicle, index) => (
+                      <tr
+                        key={vehicle.id || index}
+                        className="border-b border-gray-700 hover:bg-gray-800/60 transition duration-150 ease-in-out"
+                      >
+                        <td className="px-5 py-3 font-medium text-white whitespace-nowrap">
+                          {vehicle.vehicle}
+                        </td>
+                        <td className="px-5 py-3 text-gray-300">
+                          {vehicle.plate || "-"}
+                        </td>
+                        <td className="px-5 py-3 text-gray-300">
+                          {vehicle.division || "-"}
+                        </td>
+                        <td className="px-5 py-3 text-gray-300">
+                          {vehicle.assignee || "Communal"}
+                        </td>
+                        <td className="px-5 py-3 text-gray-300">
+                          {vehicle.restrictions || "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-gray-400 italic">
+                No specific vehicles allowed or assigned based on rank and
+                certifications. Standard patrol vehicles may be available.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

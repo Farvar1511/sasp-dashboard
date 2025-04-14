@@ -18,8 +18,8 @@ export interface User {
   rank: string;
   badge?: string;
   cid?: string;
-  isAdmin?: boolean;
-  // Roster fields
+  isAdmin: boolean;
+  role?: string; // Added role property
   callsign?: string;
   certifications?: {
     ACU?: boolean;
@@ -31,8 +31,16 @@ export interface User {
   };
   loaStartDate?: string | Timestamp; // Store as ISO string or Timestamp
   loaEndDate?: string | Timestamp;
-  isActive?: boolean; // Default should be true
+  isActive: boolean; // Default should be true
   discordId?: string;
+  discipline?: string; // Add discipline property
+  disciplineIssuedAt?: string; // Add disciplineIssuedAt property
+  notes?: string; // Add notes property
+  notesIssuedAt?: string; // Add notesIssuedAt property
+  joinDate?: string;
+  lastPromotionDate?: string;
+  category?: string;
+  isPlaceholder?: boolean;
 }
 
 // Interface for discipline/notes entries (can be expanded)

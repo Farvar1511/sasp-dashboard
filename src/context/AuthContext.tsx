@@ -1,94 +1,105 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
-} from "react";
-import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { User as FirebaseUser, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db as dbFirestore } from "../firebase";
-import { User as AppUser } from "../types/User"; // Import your custom User type
+import { auth, db } from "../firebase";
+import { User } from "../types/User";
 
 interface AuthContextType {
-  user: AppUser | null;
+  user: User | null;
   loading: boolean;
+  login: () => Promise<void>;
+  logout: () => void;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => useContext(AuthContext);
-
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState(true); // Start loading
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (firebaseUser: FirebaseUser | null) => {
-        setLoading(true); // Set loading true whenever auth state might change
-        if (firebaseUser && firebaseUser.email) {
-          // Ensure email exists
-          const userDocRef = doc(dbFirestore, "users", firebaseUser.email);
-          try {
-            const userDoc = await getDoc(userDocRef);
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              // Check ONLY for the isadmin? boolean field (matching Firestore)
-              const isAdminStatus = userData["isadmin?"] === true; // Use bracket notation for the field with '?'
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(null); // Reset user state
+      setLoading(true); // Start loading
 
-              // Combine Firebase Auth data with Firestore data
-              setUser({
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                name: userData.name || "Unknown",
-                rank: userData.rank || "Unknown",
-                badge: userData.badge,
-                cid: userData.cid,
-                isAdmin: isAdminStatus, // Use the direct boolean check
-                callsign: userData.callsign,
-                certifications: userData.certifications,
-                loaStartDate: userData.loaStartDate,
-                loaEndDate: userData.loaEndDate,
-                isActive: userData.isActive,
-                discordId: userData.discordId,
-              });
-            } else {
-              console.warn(
-                "User document not found in Firestore for:",
-                firebaseUser.email
-              );
-              setUser(null); // User exists in Auth but not Firestore, treat as logged out/error
-            }
-          } catch (error) {
-            console.error("Error fetching user data from Firestore:", error);
-            setUser(null); // Error fetching data, treat as logged out
-          } finally {
-            setLoading(false); // Firestore fetch finished (success or error)
+      if (firebaseUser && firebaseUser.email) {
+        const userEmail = firebaseUser.email;
+        try {
+          const userDocRef = doc(db, "users", userEmail);
+          const userDoc = await getDoc(userDocRef);
+
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+
+            // Map Firestore data to the User interface
+            const completeUser: User = {
+              uid: firebaseUser.uid, // Add the uid property
+              email: userEmail,
+              name: userData.name,
+              rank: userData.rank,
+              badge: userData.badge,
+              role: userData.role || "user",
+              callsign: userData.callsign,
+              certifications: userData.certifications || {},
+              isActive: userData.isActive ?? false,
+              loaStartDate: userData.loaStartDate || undefined,
+              loaEndDate: userData.loaEndDate || undefined,
+              discordId: userData.discordId || undefined,
+              discipline: userData.discipline || undefined, // Now valid
+              disciplineIssuedAt: userData.disciplineIssuedAt || undefined, // Now valid
+              notes: userData.notes || undefined, // Now valid
+              notesIssuedAt: userData.notesIssuedAt || undefined, // Now valid
+              joinDate: userData.joinDate || undefined,
+              lastPromotionDate: userData.lastPromotionDate || undefined,
+              category: userData.category || undefined,
+              cid: userData.cid || undefined,
+              isPlaceholder: userData.isPlaceholder ?? false,
+              isAdmin: userData.isadmin ?? false, // Map `isadmin?` to `isAdmin`
+            };
+
+            setUser(completeUser);
+          } else {
+            console.error(`User profile not found for email: ${userEmail}`);
+            setUser(null);
           }
-        } else {
-          // User is signed out
+        } catch (error) {
+          console.error("Error fetching user data:", error);
           setUser(null);
-          setLoading(false); // No user, loading finished
         }
+      } else {
+        console.log("User is signed out or missing email.");
+        setUser(null);
       }
-    );
 
-    // Cleanup subscription on unmount
+      setLoading(false); // Stop loading
+    });
+
     return () => unsubscribe();
-  }, []); // Run only on mount
+  }, []);
+
+  const login = async () => {
+    console.warn("Login function not fully implemented.");
+  };
+
+  const logout = () => {
+    auth.signOut().catch((error) => {
+      console.error("Sign out error:", error);
+    });
+  };
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 };

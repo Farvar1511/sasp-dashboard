@@ -245,7 +245,7 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
   ]);
 
   return (
-    <Layout user={user}>
+    <Layout>
       <div className="page-content space-y-6">
         <h1 className="text-3xl font-bold text-[#f3c700]">SASP Fleet</h1>
 
@@ -301,7 +301,7 @@ const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
 
         {!loading && !error && (
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="min-w-full bg-gray-900/50 border border-gray-700 text-sm">
+            <table className="min-w-full bg-gray-900/90 border border-gray-700 text-sm">
               <thead className="bg-gray-800 text-yellow-400">
                 <tr>
                   <th className="p-2 border-r border-gray-600 w-8"></th>

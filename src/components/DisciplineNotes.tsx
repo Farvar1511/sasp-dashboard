@@ -446,7 +446,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
     allUsers.find((u) => u.id === selectedUserId)?.name || "Selected User";
 
   return (
-    <Layout user={user}>
+    <Layout>
       <div
         className="page-content space-y-6"
         style={{ fontFamily: "'Inter', sans-serif" }}

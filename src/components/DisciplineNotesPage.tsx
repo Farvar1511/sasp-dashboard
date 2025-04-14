@@ -24,7 +24,7 @@ interface UserRecord {
   notesIssuedAt?: Timestamp;
 }
 
-export default function DisciplineNotesPage({ user }: { user: AuthUser }) {
+export default function DisciplineNotesPage() {
   const [notes, setNotes] = useState<string>("");
   const [discipline, setDiscipline] = useState<string>("");
   const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
@@ -153,7 +153,7 @@ export default function DisciplineNotesPage({ user }: { user: AuthUser }) {
   };
 
   return (
-    <Layout user={user}>
+    <Layout>
       <div
         className="admin-menu-container p-6 bg-gray-800 rounded-lg shadow-lg max-w-4xl mx-auto space-y-6"
         style={{ fontFamily: "'Inter', sans-serif" }}

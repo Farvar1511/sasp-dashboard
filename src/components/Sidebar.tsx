@@ -1,101 +1,157 @@
-import { useLocation } from "react-router-dom";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase";
+import React from "react"; // Removed useState
+import { NavLink } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import {
+  FaHome,
+  FaUsers,
+  FaCar,
+  FaIdBadge,
+  FaSignOutAlt,
+  FaUserCircle,
+  FaChevronLeft,
+  FaChevronRight,
+  FaTools,
+  FaBullhorn,
+} from "react-icons/fa";
 
-export default function Sidebar({
-  navigate,
-  user,
-  isCollapsed,
-  toggleCollapse,
-}: {
-  navigate: (path: string) => void;
-  user?: { rank?: string; isAdmin?: boolean };
+export const saspStar = "/SASPLOGO2.png";
+export const saspFavicon = "/public/SASPfavicon.png"; // Define the favicon path
+export const everfallLogo = "/public/everfall.webp";
+
+interface SidebarProps {
   isCollapsed: boolean;
-  toggleCollapse: () => void;
-}) {
-  const location = useLocation();
+  setIsCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+}
 
-  const buttons = [
-    { label: "Dashboard", path: "/" },
-    { label: "Tasks", path: "/tasks" },
-    { label: "Badge Lookup", path: "/badge-lookup" },
-    ...(user?.isAdmin === true
-      ? [{ label: "Admin Menu", path: "/admin" }]
-      : []),
-    { label: "Bulletins", path: "/bulletins" },
-  ];
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
+  const { user, logout } = useAuth();
+  // Assuming user type includes roles: user: (User & { roles?: string[] }) | null;
+  const isAdmin = user?.role?.includes("admin");
+
+  const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
+    `flex items-center px-4 py-2.5 rounded-md transition-colors duration-150 ease-in-out ${
+      isActive
+        ? "bg-yellow-500 text-black font-semibold shadow-md"
+        : "text-gray-300 hover:bg-gray-700 hover:text-white"
+    } ${isCollapsed ? "justify-center" : ""}`; // Center icons when collapsed
 
   return (
-    // Apply higher z-index (z-30) and ensure width transitions correctly
     <div
-      className={`fixed top-0 left-0 h-full bg-black text-yellow-400 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out z-30 ${
-        // Use z-30 for highest layer
-        isCollapsed ? "w-16" : "w-40"
-      }`}
+      className={`${
+        isCollapsed ? "w-16" : "w-64"
+      } h-screen bg-gray-900 text-gray-200 flex flex-col fixed shadow-lg z-50 transition-all duration-300 ease-in-out`} // Use transition-all
     >
-      {/* Toggle Button - Always visible */}
-      <button
-        className="w-full px-2 py-2 rounded-md bg-yellow-400 text-black font-bold hover:bg-yellow-300 transition flex items-center justify-center" // Already centered
-        onClick={toggleCollapse}
-      >
-        {isCollapsed ? "☰" : "Collapse"}
-      </button>
+      {/* Logo and Title */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-700 h-16">
+        {" "}
+        {/* Fixed height */}
+        <div className="flex items-center overflow-hidden">
+          <img
+            src={isCollapsed ? saspFavicon : saspStar}
+            alt="SASP Logo"
+            className={`flex-shrink-0 object-contain transition-all duration-300 ${
+              isCollapsed ? "h-8 w-8" : "h-10 w-10"
+            }`}
+          />
+          {!isCollapsed && (
+            <span className="text-xl font-bold text-yellow-400 ml-3 whitespace-nowrap">
+              SASP Portal
+            </span>
+          )}
+        </div>
+        {/* Collapse/Expand Button */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="text-gray-300 hover:text-white focus:outline-none flex-shrink-0"
+        >
+          {isCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
+        </button>
+      </div>
 
-      {/* Navigation Links - Hidden when collapsed */}
-      <div
-        className={`flex-grow flex flex-col ${
-          isCollapsed ? "hidden" : "space-y-4"
-        }`}
-      >
-        {buttons.map((button) =>
-          button.path
-            ? button.path !== location.pathname && (
-                <button
-                  key={button.path}
-                  // Removed text-left, added text-center, flex, justify-center, items-center
-                  className="w-full px-4 py-2 rounded-md bg-yellow-400 text-black font-bold hover:bg-yellow-300 transition text-center flex justify-center items-center"
-                  onClick={() => {
-                    navigate(button.path);
-                  }}
-                >
-                  {button.label}
-                </button>
-              )
-            : null
+      {/* Navigation Links */}
+      <nav className="flex-grow px-3 py-4 space-y-2 overflow-y-auto overflow-x-hidden">
+        <NavLink to="/" className={getNavLinkClass} title="Home">
+          <FaHome className={isCollapsed ? "" : "mr-3"} />
+          {!isCollapsed && "Home"}
+        </NavLink>
+        <NavLink
+          to="/bulletins"
+          className={getNavLinkClass}
+          title="Bulletin Board"
+        >
+          <FaBullhorn className={isCollapsed ? "" : "mr-3"} />
+          {!isCollapsed && "Bulletin"}
+        </NavLink>
+        <NavLink
+          to="/my-dashboard"
+          className={getNavLinkClass}
+          title="Dashboard"
+        >
+          <FaUserCircle className={isCollapsed ? "" : "mr-3"} />
+          {!isCollapsed && "Dashboard"}
+        </NavLink>
+        <NavLink
+          to="/sasp-roster"
+          className={getNavLinkClass}
+          title="SASP Roster"
+        >
+          <FaUsers className={isCollapsed ? "" : "mr-3"} />
+          {!isCollapsed && "SASP Roster"}
+        </NavLink>
+        <NavLink to="/fleet" className={getNavLinkClass} title="SASP Fleet">
+          <FaCar className={isCollapsed ? "" : "mr-3"} />
+          {!isCollapsed && "SASP Fleet"}
+        </NavLink>
+        <NavLink
+          to="/badge-lookup"
+          className={getNavLinkClass}
+          title="Badge Lookup"
+        >
+          <FaIdBadge className={isCollapsed ? "" : "mr-3"} />
+          {!isCollapsed && "Badge Lookup"}
+        </NavLink>
+
+        {/* Admin Menu */}
+        {isAdmin && (
+          <NavLink to="/admin" className={getNavLinkClass} title="Admin Menu">
+            <FaTools className={isCollapsed ? "" : "mr-3"} />
+            {!isCollapsed && "Admin Menu"}
+          </NavLink>
         )}
-        {/* Spacer to push logout to bottom */}
-        <div className="flex-grow"></div>
-        {/* Everfall Community Link */}
+      </nav>
+
+      {/* Everfall Logo Button */}
+      <div className="p-4 border-t border-gray-700">
         <a
-          href="https://everfallcommunity.com/"
+          href="https://everfall.com" // Replace with actual Everfall website URL
           target="_blank"
           rel="noopener noreferrer"
-          className="w-full px-4 py-2 rounded-md bg-yellow-400 text-black font-bold hover:bg-yellow-300 transition text-center flex justify-center items-center"
-          title="Everfall Community" // Add title for accessibility
+          className="flex items-center justify-center"
+          title="Visit Everfall"
         >
-          {/* Replace text with image */}
           <img
-            src="/everfall.webp" // Path relative to the public folder
-            alt="Everfall Community"
-            className="h-4 w-auto" // Adjusted height from h-5 to h-4
+            src={everfallLogo}
+            alt="Everfall Logo"
+            className={`transition-all duration-300 ${
+              isCollapsed ? "h-6" : "h-8" // Adjust size when collapsed
+            }`}
           />
         </a>
-        {/* Logout Button */}
+      </div>
+
+      {/* Footer - Logout */}
+      <div className="p-4 border-t border-gray-700">
         <button
-          // Added text-center, flex, justify-center, items-center
-          className="w-full px-4 py-2 rounded-md bg-yellow-400 text-black font-bold hover:bg-red-500 transition mt-auto text-center flex justify-center items-center"
-          onClick={async () => {
-            try {
-              await signOut(auth);
-              // Navigation to /login should happen automatically via App.tsx's auth listener
-            } catch (error) {
-              console.error("Error logging out:", error);
-            }
-          }}
+          onClick={logout}
+          className="w-full flex items-center justify-center px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors duration-150 ease-in-out"
+          title="Logout"
         >
-          Logout
+          <FaSignOutAlt className={isCollapsed ? "" : "mr-2"} />
+          {!isCollapsed && "Logout"}
         </button>
       </div>
     </div>
   );
-}
+};
+
+export default Sidebar;

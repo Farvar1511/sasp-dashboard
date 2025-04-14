@@ -1,39 +1,30 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom"; // Import useNavigate
+import { useNavigate } from "react-router-dom";
 import Layout from "./Layout";
 import links from "../data/links";
-import { images } from "../data/images";
+import { useAuth } from "../context/AuthContext";
 
-interface User {
-  name: string;
-  rank: string;
-  email: string;
-}
-
-export default function Dashboard({ user }: { user: User }) {
-  const [background, setBackground] = useState("");
+export default function Dashboard() {
+  const { user } = useAuth();
   const [time, setTime] = useState(new Date());
-  const [fullWelcomeMessage, setFullWelcomeMessage] = useState(""); // Renamed state for the full message
-  const [displayedWelcomeMessage, setDisplayedWelcomeMessage] = useState(""); // State for the typewriter effect
+  const [fullWelcomeMessage, setFullWelcomeMessage] = useState("");
+  const [displayedWelcomeMessage, setDisplayedWelcomeMessage] = useState("");
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
-  const navigate = useNavigate(); // Instantiate useNavigate
+  const navigate = useNavigate();
 
-  // Debugging log to confirm the runtime value of the user prop
-  console.log("🚨 user prop:", user);
-
-  // Moved sanitize function outside component body if it doesn't depend on component state/props
   const sanitize = (text: string | undefined | null): string =>
     typeof text === "string" ? text.replace(/undefined/g, "").trim() : "";
 
   useEffect(() => {
-    const randomImage = images[Math.floor(Math.random() * images.length)];
-    setBackground(randomImage);
-
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
+    if (!user) {
+      return;
+    }
+
     const hours = new Date().getHours();
     const greeting =
       hours < 12
@@ -42,32 +33,25 @@ export default function Dashboard({ user }: { user: User }) {
         ? "Good Afternoon"
         : "Good Evening";
 
-    // Sanitize inputs carefully
-    const cleanName = sanitize(user?.name) || "Name Undefined"; // Fallback if sanitize results in empty string
-    const cleanRank = sanitize(user?.rank);
+    const cleanName = sanitize(user?.name) || "Name Undefined";
+    const cleanRank = sanitize(user?.rank) || "Rank Undefined";
 
-    // Build message parts conditionally
-    const parts = [greeting + ","]; // Start with greeting and comma
-    if (cleanRank) {
-      parts.push(cleanRank); // Add rank if it exists
+    const parts = [greeting + ","];
+    if (cleanRank !== "Rank Undefined") {
+      parts.push(cleanRank);
     }
-    // Add name if it's valid, OR if rank is also missing (to show "Name Undefined")
-    if (cleanName !== "Name Undefined" || !cleanRank) {
+    if (cleanName !== "Name Undefined" || cleanRank === "Rank Undefined") {
       parts.push(cleanName);
     }
 
-    const finalMessage = parts.join(" ").trim(); // Join with spaces and trim
-    console.log("Setting fullWelcomeMessage to:", finalMessage); // Log the message being set
+    const finalMessage = parts.join(" ").trim();
     setFullWelcomeMessage(finalMessage);
-  }, [user]); // Dependency: user
+  }, [user]);
 
   useEffect(() => {
     setDisplayedWelcomeMessage("");
 
     if (!fullWelcomeMessage) return;
-
-    // Log the message the typewriter will use
-    console.log("Typewriter using message:", fullWelcomeMessage);
 
     let index = 0;
     let timeoutId: NodeJS.Timeout;
@@ -78,31 +62,20 @@ export default function Dashboard({ user }: { user: User }) {
         setDisplayedWelcomeMessage((prev) => prev + charToAppend);
         index++;
         timeoutId = setTimeout(typeChar, 100);
-      } else {
-        console.log("Typing finished."); // Log completion
       }
     };
 
-    typeChar(); // Start typing
+    typeChar();
 
     return () => {
-      console.log("Clearing typewriter timeout."); // Log cleanup
       clearTimeout(timeoutId);
     };
-  }, [fullWelcomeMessage]); // Dependency: fullWelcomeMessage
+  }, [fullWelcomeMessage]);
 
-  // Debugging logs to confirm the issue
-  useEffect(() => {
-    console.log("Full message:", fullWelcomeMessage);
-    console.log("Displayed:", displayedWelcomeMessage);
-  }, [displayedWelcomeMessage, fullWelcomeMessage]);
-
-  // Separate top links
   const topLinks = links.filter((link) =>
     ["Fleet Management", "SASP Roster"].includes(link.Label)
   );
 
-  // Group remaining links by category, excluding internal/community/tools
   const excludedCategories = ["Community", "Tools", "Internal"];
   const groupedLinks = links
     .filter(
@@ -120,49 +93,28 @@ export default function Dashboard({ user }: { user: User }) {
   const closeModal = () => setOverlayUrl(null);
 
   return (
-    <Layout user={user}>
-      {/* Background Image */}
-      {background && (
-        <div
-          className="fixed top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10 backdrop-blur-md"
-          style={{
-            backgroundImage: `url('${background}')`,
-            backgroundRepeat: "no-repeat",
-            backgroundSize: "cover",
-            backgroundAttachment: "fixed",
-          }}
-        />
-      )}
-
-      {/* Main Content */}
-      <div className="relative z-10 flex flex-col items-center w-full max-w-[1600px] px-10 pt-6 mx-auto">
-        {/* Header */}
+    <Layout>
+      <div className="flex flex-col items-center w-full mx-auto">
         <div className="flex flex-col items-center mb-8 space-y-2">
-          {/* SASP Logo */}
           <img
-            src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png" // Verified URL
+            src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
             alt="SASP Logo"
-            className="h-12" // 3rem
+            className="h-12"
           />
-          {/* SASP Star Badge */}
           <img
-            src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png" // Verified URL
+            src="https://i.gyazo.com/6e5fafdef23c369d0151409fb79b44ca.png"
             alt="SASP Star Badge"
-            className="h-16 mt-4" // Added margin-top for spacing
+            className="h-16 mt-4"
           />
-          <h1 className="text-4xl font-black uppercase text-center drop-shadow-md">
+          <h1 className="text-4xl font-black uppercase text-center drop-shadow-md text-[#f3c700]">
             San Andreas State Police
           </h1>
-          <p className="text-lg font-semibold text-center min-h-[1.5em]">
-            {" "}
-            {/* Added min-height to prevent layout shift */}
+          <p className="text-lg font-semibold text-center min-h-[1.5em] text-[#f3c700]">
             {displayedWelcomeMessage}
-            <span className="animate-pulse">|</span>{" "}
-            {/* Optional blinking cursor */}
+            <span className="animate-pulse">|</span>
           </p>
         </div>
 
-        {/* Clock */}
         <div className="bg-black/70 border border-yellow-400 rounded-lg p-4 text-center w-60 mb-8 shadow">
           <div
             className="space-y-1 text-xl font-bold text-yellow-400 font-display"
@@ -174,7 +126,6 @@ export default function Dashboard({ user }: { user: User }) {
           </div>
         </div>
 
-        {/* Top Links */}
         <div className="flex flex-wrap justify-center gap-4 mb-10">
           {topLinks.map((link) => (
             <button
@@ -183,9 +134,9 @@ export default function Dashboard({ user }: { user: User }) {
                 if (link.Label === "SASP Roster") {
                   navigate("/sasp-roster");
                 } else if (link.Label === "Fleet Management") {
-                  navigate("/fleet"); // Navigate to /fleet for Fleet Management button
+                  navigate("/fleet");
                 } else if (link.Url) {
-                  openModal(link.Url); // Fallback for any other unexpected top links
+                  openModal(link.Url);
                 }
               }}
               className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-lg shadow hover:scale-105 hover:bg-yellow-300 transition-transform duration-150 font-sans"
@@ -195,7 +146,6 @@ export default function Dashboard({ user }: { user: User }) {
           ))}
         </div>
 
-        {/* Grouped Links */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
           {Object.entries(groupedLinks).map(([category, items]) => (
             <div
@@ -219,10 +169,8 @@ export default function Dashboard({ user }: { user: User }) {
         </div>
       </div>
 
-      {/* Modal Overlay */}
       {overlayUrl && (
         <div className="fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center">
-          {/* Controls container - align with sidebar and limit width */}
           <div className="w-full flex justify-end gap-2 p-4 z-10 ml-40 max-w-[calc(100%-10rem)]">
             <a
               href={overlayUrl}
@@ -239,7 +187,6 @@ export default function Dashboard({ user }: { user: User }) {
               ✕
             </button>
           </div>
-          {/* Iframe container - align with sidebar and limit width */}
           <div className="flex-grow w-full h-full bg-black border border-yellow-400 rounded-lg overflow-hidden ml-40 max-w-[calc(100%-10rem)]">
             <iframe
               src={overlayUrl}
