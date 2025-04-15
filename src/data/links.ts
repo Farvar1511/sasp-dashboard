@@ -25,10 +25,6 @@ const links = [
   { Label: 'Video Footage Guidelines', Url: 'https://docs.google.com/document/d/1bfGLiCfNrZZM0GqSphsswD51kj6uMeM5ofh4v8gerR8/edit?usp=sharing', Category: 'Department of Justice' },
   { Label: 'SASP Roster', Url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQY_reY_QNw_faOG9LvgJm0TiDujgCxXD3KXQQ37e6PMY44E9aRIQ_g-tUThtvnJQ1LHzSrZHuQRYyw/pubhtml?gid=1777737199', Category: 'Resources' },
   { Label: 'Fleet Management', Url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQBCfEXdC6jygMC25n1545ZZiNcWwzljaI09-1lqZjd5AHJrRoX38ecyDuZk_GMipcGpXkkuMF3XYR8/pubhtml?gid=0', Category: 'Resources' },
-  { Label: 'Everfall Community', Url: 'https://www.everfallcommunity.com', Category: 'Community' },
-  { Label: 'Trooper Tools', Url: 'https://script.google.com/macros/s/AKfycbwtIXoTvpYIxdvWRY1CJ9sy0ZZayRqbx43R9_VeVF7BVxK_xVyrhh9_yd4MSgWbl71L6g/exec', Category: 'Tools' },
-  { Label: 'Badge Lookup', Url: '/badge-lookup', Category: 'Internal' },
-  { Label: 'Admin Menu', Url: '/admin-menu', Category: 'Internal' },
 ];
 
 export default links;

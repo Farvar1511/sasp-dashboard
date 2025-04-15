@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   collection,
   getDocs,
@@ -9,7 +9,6 @@ import {
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
-import { User as AuthUser } from "../types/User";
 
 // Define a specific type for this page, including the fields we need
 interface UserRecord {

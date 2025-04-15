@@ -4,33 +4,35 @@ import {
   getDocs,
   doc,
   updateDoc,
-  Timestamp,
+  query,
+  orderBy,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
-import { User, Task } from "../types/User";
-import { images } from "../data/images";
+import { User, UserTask } from "../types/User";
+import { getRandomBackgroundImage } from "../utils/backgroundImage";
+
+// NEW HELPER: Combines issueddate and issuedtime from a task to produce an assignedAt string.
+const getAssignedAt = (task: UserTask): string => {
+  const combined = `${task.issueddate} ${task.issuedtime}`;
+  const date = new Date(combined);
+  return isNaN(date.getTime()) ? combined : date.toLocaleString();
+};
 
 interface TasksProps {
-  user: User;
+  user: User | null;
 }
 
 const Tasks: React.FC<TasksProps> = ({ user }) => {
   const [background, setBackground] = useState("");
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<UserTask[]>([]);
 
   useEffect(() => {
     const fetchUserTasks = async () => {
       if (!user || !user.email) {
-        setError("User data is not available.");
-        setLoading(false);
         return;
       }
 
-      setLoading(true);
-      setError(null);
       try {
         const tasksCollectionRef = collection(
           dbFirestore,
@@ -38,49 +40,54 @@ const Tasks: React.FC<TasksProps> = ({ user }) => {
           user.email,
           "tasks"
         );
-        const tasksSnapshot = await getDocs(tasksCollectionRef);
-        const fetchedTasks = tasksSnapshot.docs.map((taskDoc) => {
-          const data = taskDoc.data();
-          return {
-            id: taskDoc.id,
-            ...data,
-            assignedAt:
-              data.assignedAt instanceof Timestamp
-                ? data.assignedAt.toDate().toISOString()
-                : data.assignedAt || new Date(0).toISOString(),
-          } as Task;
-        });
+        const tasksQuery = query(
+          tasksCollectionRef,
+          orderBy("issueddate", "desc"),
+          orderBy("issuedtime", "desc")
+        );
+        const tasksSnapshot = await getDocs(tasksQuery);
 
-        fetchedTasks.sort((a, b) => {
-          if (a.completed !== b.completed) {
-            return a.completed ? 1 : -1;
-          }
-          return (
-            new Date(
-              b.assignedAt instanceof Timestamp
-                ? b.assignedAt.toDate()
-                : b.assignedAt
-            ).getTime() -
-            new Date(
-              a.assignedAt instanceof Timestamp
-                ? a.assignedAt.toDate()
-                : a.assignedAt
-            ).getTime()
-          );
-        });
+        const fetchedTasks = tasksSnapshot.docs
+          .map((doc) => {
+            const data = doc.data();
+            if (
+              typeof data.task === "string" &&
+              (data.type === "goal" || data.type === "normal") &&
+              typeof data.issuedby === "string" &&
+              typeof data.issueddate === "string" &&
+              typeof data.issuedtime === "string" &&
+              typeof data.completed === "boolean" &&
+              (data.type === "goal" ? typeof data.progress === "number" : true)
+            ) {
+              return {
+                id: doc.id,
+                task: data.task,
+                type: data.type,
+                issuedby: data.issuedby,
+                issueddate: data.issueddate,
+                issuedtime: data.issuedtime,
+                progress: data.progress,
+                completed: data.completed,
+                goal: data.goal,
+              } as UserTask;
+            }
+            return null;
+          })
+          .filter((task): task is UserTask => task !== null)
+          .sort((a, b) => {
+            if (a.completed !== b.completed) return a.completed ? 1 : -1;
+            const dateTimeA = `${a.issueddate} ${a.issuedtime}`;
+            const dateTimeB = `${b.issueddate} ${b.issuedtime}`;
+            return dateTimeB.localeCompare(dateTimeA);
+          });
 
         setTasks(fetchedTasks);
       } catch (err) {
         console.error("Error fetching user tasks:", err);
-        setError("Failed to load tasks.");
-      } finally {
-        setLoading(false);
       }
     };
 
-    const randomImage = images[Math.floor(Math.random() * images.length)];
-    setBackground(randomImage);
-
+    setBackground(getRandomBackgroundImage());
     fetchUserTasks();
   }, [user]);
 
@@ -89,28 +96,34 @@ const Tasks: React.FC<TasksProps> = ({ user }) => {
     currentStatus: boolean
   ) => {
     if (!user || !user.email) return;
+
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const newStatus = !currentStatus;
+
+    if (task.type === "goal" && newStatus) {
+      const currentProgress = task.progress ?? 0;
+      const goal = task.goal ?? Infinity;
+      if (goal !== Infinity && currentProgress < goal) {
+        alert(
+          `Goal task cannot be marked complete. Progress (${currentProgress}/${goal}) is not 100%.`
+        );
+        return;
+      }
+    }
+
     const taskDocRef = doc(dbFirestore, "users", user.email, "tasks", taskId);
     try {
-      await updateDoc(taskDocRef, { completed: !currentStatus });
+      await updateDoc(taskDocRef, { completed: newStatus });
       setTasks((prevTasks) =>
         prevTasks
-          .map((task) =>
-            task.id === taskId ? { ...task, completed: !currentStatus } : task
-          )
+          .map((t) => (t.id === taskId ? { ...t, completed: newStatus } : t))
           .sort((a, b) => {
             if (a.completed !== b.completed) return a.completed ? 1 : -1;
-            return (
-              new Date(
-                b.assignedAt instanceof Timestamp
-                  ? b.assignedAt.toDate()
-                  : b.assignedAt
-              ).getTime() -
-              new Date(
-                a.assignedAt instanceof Timestamp
-                  ? a.assignedAt.toDate()
-                  : a.assignedAt
-              ).getTime()
-            );
+            const dateTimeA = `${a.issueddate} ${a.issuedtime}`;
+            const dateTimeB = `${b.issueddate} ${b.issuedtime}`;
+            return dateTimeB.localeCompare(dateTimeA);
           })
       );
     } catch (err) {
@@ -123,39 +136,31 @@ const Tasks: React.FC<TasksProps> = ({ user }) => {
     if (!user || !user.email) return;
 
     const task = tasks.find((t) => t.id === taskId);
-    if (!task || task.type !== "goal-oriented" || task.goal == null) return;
+    if (!task || task.type !== "goal" || task.goal == null) return;
 
+    const currentProgress = task.progress ?? 0;
     const newProgress = Math.max(
       0,
-      Math.min(task.goal, (task.progress ?? 0) + change)
+      Math.min(task.goal, currentProgress + change)
+    );
+
+    setTasks((prevTasks) =>
+      prevTasks.map((t) =>
+        t.id === taskId ? { ...t, progress: newProgress } : t
+      )
     );
 
     const taskDocRef = doc(dbFirestore, "users", user.email, "tasks", taskId);
     try {
       await updateDoc(taskDocRef, { progress: newProgress });
-      setTasks((prevTasks) =>
-        prevTasks.map((t) =>
-          t.id === taskId ? { ...t, progress: newProgress } : t
-        )
-      );
     } catch (err) {
       console.error("Error updating task progress:", err);
       alert("Failed to update task progress.");
-    }
-  };
-
-  const formatAssignedAt = (
-    assignedAtValue: string | Timestamp | undefined
-  ): string => {
-    if (!assignedAtValue) return "Date unknown";
-    try {
-      const date =
-        assignedAtValue instanceof Timestamp
-          ? assignedAtValue.toDate()
-          : new Date(assignedAtValue);
-      return date.toLocaleString();
-    } catch {
-      return "Invalid date";
+      setTasks((prevTasks) =>
+        prevTasks.map((t) =>
+          t.id === taskId ? { ...t, progress: currentProgress } : t
+        )
+      );
     }
   };
 
@@ -168,44 +173,21 @@ const Tasks: React.FC<TasksProps> = ({ user }) => {
 
       <div className="page-content">
         <div className="max-w-7xl mx-auto px-6 pt-12">
-          <h1 className="text-4xl font-black uppercase text-center mb-4 drop-shadow-md">
+          <h1 className="text-4xl font-black uppercase text-center mb-4 drop-shadow-md text-yellow-400">
             Your Tasks
           </h1>
-          <p className="text-lg font-semibold text-center mb-8">
-            Manage your assigned duties.
-          </p>
-
-          {loading ? (
-            <div className="text-center text-yellow-300 italic">
-              Loading tasks...
-            </div>
-          ) : error ? (
-            <div className="text-center text-red-500">{error}</div>
-          ) : tasks.length === 0 ? (
-            <div className="text-center text-yellow-300 italic">
-              🎉 No tasks assigned. Enjoy the peace!
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {tasks.length > 0 && (
+            <div className="space-y-4">
               {tasks.map((task) => (
                 <div
                   key={task.id}
-                  className={`bg-black/80 border ${
-                    task.completed ? "border-green-600" : "border-yellow-400"
-                  } text-yellow-400 rounded-lg p-5 shadow-lg space-y-3 flex flex-col`}
+                  className="p-3 bg-gray-800 border border-gray-700 rounded-lg shadow-sm"
                 >
-                  <h3
-                    className={`text-lg font-semibold ${
-                      task.completed ? "line-through text-gray-500" : ""
-                    }`}
-                  >
-                    {task.description}
-                  </h3>
                   <small className="text-xs text-gray-400 block">
-                    Assigned: {formatAssignedAt(task.assignedAt)}
+                    Assigned: {getAssignedAt(task)}
                   </small>
 
-                  {task.type === "goal-oriented" && task.goal != null && (
+                  {task.type === "goal" && task.goal != null && (
                     <div className="mt-1 flex-grow">
                       <div className="w-full h-3 bg-gray-700 rounded-full overflow-hidden my-1">
                         <div
@@ -242,9 +224,7 @@ const Tasks: React.FC<TasksProps> = ({ user }) => {
                     </div>
                   )}
 
-                  {task.type !== "goal-oriented" && (
-                    <div className="flex-grow"></div>
-                  )}
+                  {task.type !== "goal" && <div className="flex-grow"></div>}
 
                   <button
                     className={`w-full mt-4 px-4 py-2 rounded-md font-semibold shadow transition ${

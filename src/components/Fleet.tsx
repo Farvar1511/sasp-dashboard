@@ -1,393 +1,521 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import Layout from "./Layout";
 import {
   collection,
-  getDocs,
+  addDoc,
+  updateDoc,
   doc,
-  getDoc,
-  Timestamp,
+  getDocs,
+  query,
+  orderBy,
+  deleteDoc,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
-import Layout from "./Layout";
-import { User as AuthUser } from "../types/User";
+import { useAuth } from "../context/AuthContext";
+import { FaPlus } from "react-icons/fa"; // Modified
+import { computeIsAdmin } from "../utils/isadmin";
 
-type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
-
-const rankOrder: { [key: string]: number } = {
-  Commissioner: 1,
-  "Assistant Deputy Commissioner": 2,
-  "Deputy Commissioner": 3,
-  "Assistant Commissioner": 4,
-  Commander: 5,
-  Captain: 6,
-  Lieutenant: 7,
-  "Staff Sergeant": 8,
-  Sergeant: 9,
-  Corporal: 10,
-  "Trooper First Class": 11,
-  Trooper: 12,
-  Cadet: 13,
-  Unknown: 99,
-};
-
-interface RosterUser {
+interface FleetVehicle {
   id: string;
-  name: string;
-  rank: string;
-  badge?: string;
-  callsign?: string;
-  certifications?: { [key: string]: CertStatus | undefined };
-  loaStartDate?: string | Timestamp;
-  loaEndDate?: string | Timestamp;
-  isActive?: boolean;
-  discordId?: string;
-  assignedVehicleId?: string;
-  email?: string;
-}
-
-interface Vehicle {
-  id: string;
+  plate: string;
   vehicle: string;
-  plate?: string;
-  division?: string;
-  restrictions?: string;
-  assignee?: string;
-  inService?: boolean;
-  lastCheckedOutBy?: string;
-  lastCheckedOutAt?: Timestamp;
-  notes?: string;
+  division: string;
+  inService: boolean;
+  assignee: string;
+  restrictions: string;
 }
 
-const determineAllowedVehicles = (
-  user: RosterUser | null,
-  allVehicles: Vehicle[]
-): Vehicle[] => {
-  if (!user || !user.rank || !user.certifications) return [];
+const divisions = [
+  "Patrol",
+  "SWAT",
+  "K9",
+  "CIU",
+  "MBU",
+  "HEAT",
+  "ACU",
+  "Training",
+  "Patrol [Offroad]",
+  "Patrol [Parking]",
+];
 
-  const userRankOrder = rankOrder[user.rank] ?? rankOrder.Unknown;
-  const userCerts = user.certifications || {};
-
-  const hasCertAccess = (certKey: string | null): boolean => {
-    if (!certKey) return true;
-    const lookupKey = (certKey === "MOTO" ? "MBU" : certKey).toUpperCase();
-    const status = userCerts[lookupKey];
-    return ["CERT", "SUPER", "LEAD"].includes((status || "").toUpperCase());
-  };
-
-  return allVehicles.filter((vehicle) => {
-    const division = (vehicle.division || "").trim().toUpperCase();
-    const restriction = (vehicle.restrictions || "").trim().toLowerCase();
-    const assignee = (vehicle.assignee || "").trim().toUpperCase();
-
-    const isCommunal = !assignee || assignee === "COMMUNAL";
-    if (!isCommunal) return false;
-
-    let meetsRankRequirement = true;
-    let requiredRankLevel = Infinity;
-    if (restriction.includes("high command"))
-      requiredRankLevel = rankOrder.Commander;
-    else if (restriction.includes("command"))
-      requiredRankLevel = rankOrder.Lieutenant;
-    else if (restriction.includes("supervisor"))
-      requiredRankLevel = rankOrder.Sergeant;
-    else if (restriction.includes("trooper first class"))
-      requiredRankLevel = rankOrder["Trooper First Class"];
-
-    if (userRankOrder > requiredRankLevel) {
-      meetsRankRequirement = false;
-    }
-    if (!meetsRankRequirement) return false;
-
-    let requiredCertKey: string | null = null;
-    if (division.includes("HEAT")) requiredCertKey = "HEAT";
-    else if (division.includes("MOTO")) requiredCertKey = "MOTO";
-    else if (division.includes("ACU")) requiredCertKey = "ACU";
-    else if (division.includes("SWAT")) requiredCertKey = "SWAT";
-    else if (division.includes("K9")) requiredCertKey = "K9";
-    else if (division.includes("CIU")) requiredCertKey = "CIU";
-
-    if (!requiredCertKey) {
-      if (restriction.includes("heat")) requiredCertKey = "HEAT";
-      else if (restriction.includes("moto")) requiredCertKey = "MOTO";
-      else if (restriction.includes("acu")) requiredCertKey = "ACU";
-      else if (restriction.includes("swat")) requiredCertKey = "SWAT";
-      else if (restriction.includes("k9")) requiredCertKey = "K9";
-      else if (restriction.includes("ciu")) requiredCertKey = "CIU";
-    }
-
-    const certOK = hasCertAccess(requiredCertKey);
-    if (!certOK) return false;
-
-    return true;
-  });
-};
-
-const Fleet: React.FC<{ user: AuthUser }> = ({ user }) => {
-  const [fleet, setFleet] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
+const Fleet: React.FC = () => {
+  const { user: currentUser } = useAuth();
+  const isAdmin = computeIsAdmin(currentUser); // Use centralized admin check
+  const [fleetData, setFleetData] = useState<FleetVehicle[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [selectedDivision, setSelectedDivision] = useState<string>("All");
-  const [hideOutOfService, setHideOutOfService] = useState(true);
-  const [filterMode, setFilterMode] = useState<"all" | "myAllowed">("all");
-  const [currentUserProfile, setCurrentUserProfile] =
-    useState<RosterUser | null>(null);
+  const [editingVehicle, setEditingVehicle] = useState<FleetVehicle | null>(
+    null
+  );
+  const [newVehicle, setNewVehicle] = useState<Partial<FleetVehicle> | null>(
+    null
+  );
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterDivision, setFilterDivision] = useState("All");
+  const [hideOutOfService, setHideOutOfService] = useState(true); // New state
+
+  const fetchFleetData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const fleetQuery = query(
+        collection(dbFirestore, "fleet"),
+        orderBy("plate")
+      );
+      const querySnapshot = await getDocs(fleetQuery);
+      const vehicles = querySnapshot.docs.map(
+        (doc) =>
+          ({
+            id: doc.id,
+            ...doc.data(),
+            division:
+              doc.data().division === "MOTO" ? "MBU" : doc.data().division, // Treat MOTO as MBU
+          } as FleetVehicle)
+      );
+      setFleetData(vehicles);
+    } catch (err) {
+      console.error("Error fetching fleet data:", err);
+      setError(
+        `Failed to load fleet data: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchFleet = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const fleetSnapshot = await getDocs(collection(dbFirestore, "fleet"));
-        const fleetData = fleetSnapshot.docs.map(
-          (doc) =>
-            ({
-              id: doc.id,
-              ...doc.data(),
-            } as Vehicle)
-        );
-        setFleet(fleetData);
+    fetchFleetData();
+  }, [fetchFleetData]);
 
-        if (user?.email) {
-          const userDocRef = doc(dbFirestore, "users", user.email);
-          const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            const normalizedCerts = userData.certifications
-              ? Object.entries(userData.certifications).reduce(
-                  (acc, [key, value]) => {
-                    let normalizedValue: CertStatus = null;
-                    const currentKeyUpper = key.toUpperCase();
-                    if (typeof value === "string") {
-                      const upperValue = value.toUpperCase();
-                      if (["CERT", "SUPER", "LEAD"].includes(upperValue)) {
-                        normalizedValue = upperValue as CertStatus;
-                      }
-                    } else if (typeof value === "boolean" && value === true) {
-                      normalizedValue = "CERT";
-                    }
-                    acc[currentKeyUpper] = normalizedValue;
-                    return acc;
-                  },
-                  {} as { [key: string]: CertStatus | null }
-                )
-              : {};
-            setCurrentUserProfile({
-              id: userDocSnap.id,
-              ...userData,
-              certifications: normalizedCerts,
-            } as RosterUser);
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching fleet:", err);
-        setError("Failed to load fleet data. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchFleet();
-  }, [user]);
-
-  const uniqueDivisions = useMemo(() => {
-    const divisions = new Set<string>(["All"]);
-    fleet.forEach((v) => {
-      if (v.division && v.division.trim()) {
-        divisions.add(v.division.trim());
-      }
+  const filteredFleet = useMemo(() => {
+    return fleetData.filter((vehicle) => {
+      const divisionMatch =
+        filterDivision === "All" || vehicle.division === filterDivision;
+      const searchMatch =
+        !searchTerm ||
+        vehicle.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        vehicle.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        vehicle.assignee.toLowerCase().includes(searchTerm.toLowerCase());
+      const inServiceMatch = hideOutOfService ? vehicle.inService : true;
+      return divisionMatch && searchMatch && inServiceMatch;
     });
-    return Array.from(divisions).sort();
-  }, [fleet]);
+  }, [fleetData, filterDivision, searchTerm, hideOutOfService]);
 
-  const groupedAndFilteredFleet = useMemo(() => {
-    const lowerSearchTerm = searchTerm.toLowerCase();
-    let baseVehicleList = fleet;
-    if (filterMode === "myAllowed" && currentUserProfile) {
-      baseVehicleList = determineAllowedVehicles(currentUserProfile, fleet);
+  const handleSaveVehicle = async () => {
+    if (!editingVehicle?.id) return;
+    const vehicleRef = doc(dbFirestore, "fleet", editingVehicle.id);
+    const { id, ...updateData } = editingVehicle;
+    try {
+      await updateDoc(vehicleRef, updateData);
+      setEditingVehicle(null);
+      // Refresh fleet data after update
+      fetchFleetData();
+    } catch (error) {
+      console.error("Error saving vehicle:", error);
+      alert(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     }
+  };
 
-    const filteredFleet = baseVehicleList.filter((v) => {
-      const matchesSearch =
-        !lowerSearchTerm ||
-        v.vehicle?.toLowerCase().includes(lowerSearchTerm) ||
-        v.plate?.toLowerCase().includes(lowerSearchTerm) ||
-        v.division?.toLowerCase().includes(lowerSearchTerm) ||
-        v.assignee?.toLowerCase().includes(lowerSearchTerm);
+  const handleAddVehicle = async () => {
+    if (!newVehicle) return;
+    try {
+      const vehicleRef = collection(dbFirestore, "fleet");
+      await addDoc(vehicleRef, newVehicle);
+      setNewVehicle(null);
+      // Refresh fleet data after adding
+      fetchFleetData();
+    } catch (error) {
+      console.error("Error adding vehicle:", error);
+      alert(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  };
 
-      const matchesDivision =
-        selectedDivision === "All" || v.division === selectedDivision;
+  const handleDeleteVehicle = async (vehicleId: string) => {
+    if (!window.confirm("Are you sure you want to delete this vehicle?"))
+      return;
+    try {
+      const vehicleRef = doc(dbFirestore, "fleet", vehicleId);
+      await deleteDoc(vehicleRef);
+      // Refresh fleet data after deletion
+      fetchFleetData();
+    } catch (error) {
+      console.error("Error deleting vehicle:", error);
+      alert(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  };
 
-      const matchesServiceStatus = hideOutOfService ? v.inService : true;
-
-      return matchesSearch && matchesDivision && matchesServiceStatus;
+  const openAddVehicleForm = () => {
+    if (!isAdmin) return;
+    setNewVehicle({
+      plate: "",
+      vehicle: "",
+      division: "Patrol",
+      inService: true,
+      assignee: "COMMUNAL",
+      restrictions: "",
     });
-
-    const groupedFleet = filteredFleet.reduce((acc, v) => {
-      const division = v.division || "Unknown";
-      if (!acc[division]) {
-        acc[division] = [];
-      }
-      acc[division].push(v);
-      return acc;
-    }, {} as Record<string, Vehicle[]>);
-
-    return Object.entries(groupedFleet).map(([division, vehicles]) => ({
-      division,
-      vehicles,
-    }));
-  }, [
-    fleet,
-    searchTerm,
-    selectedDivision,
-    hideOutOfService,
-    filterMode,
-    currentUserProfile,
-  ]);
+  };
 
   return (
     <Layout>
-      <div className="page-content space-y-6">
-        <h1 className="text-3xl font-bold text-[#f3c700]">SASP Fleet</h1>
+      <div className="page-content p-6 text-white min-h-screen">
+        <h1 className="text-3xl font-bold mb-6 text-[#f3c700]">
+          Fleet Management
+        </h1>
 
-        <div className="flex flex-col md:flex-row gap-4 mb-4 items-center">
+        <div className="flex flex-col md:flex-row gap-4 mb-6 items-center">
           <input
             type="text"
-            placeholder="Search Fleet..."
+            placeholder="Search Plate, Vehicle, Assignee..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="input flex-grow"
+            className="input flex-grow bg-gray-900 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
           />
           <select
-            value={selectedDivision}
-            onChange={(e) => setSelectedDivision(e.target.value)}
-            className="input md:w-auto"
+            value={filterDivision}
+            onChange={(e) => setFilterDivision(e.target.value)}
+            className="input md:w-auto bg-gray-900 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
           >
-            {uniqueDivisions.map((division) => (
-              <option key={division} value={division}>
-                {division === "All" ? "All Divisions" : division}
+            <option value="All">All Divisions</option>
+            {divisions.map((div) => (
+              <option key={div} value={div}>
+                {div}
               </option>
             ))}
           </select>
-          <select
-            value={filterMode}
-            onChange={(e) =>
-              setFilterMode(e.target.value as "all" | "myAllowed")
-            }
-            className="input md:w-auto"
-            disabled={!currentUserProfile}
-          >
-            <option value="all">All Vehicles</option>
-            <option value="myAllowed">My Allowed Vehicles</option>
-          </select>
-          <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-yellow-400 bg-black bg-opacity-90 p-2 rounded">
             <input
               type="checkbox"
-              id="hideOutOfServiceToggleFleet"
               checked={hideOutOfService}
               onChange={(e) => setHideOutOfService(e.target.checked)}
-              className="form-checkbox h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+              className="form-checkbox h-4 w-4 text-[#f3c700] bg-gray-700 border-gray-600 rounded focus:ring-[#f3c700]"
             />
-            <label
-              htmlFor="hideOutOfServiceToggleFleet"
-              className="text-sm text-gray-300 whitespace-nowrap"
+            Hide Out-of-Service Vehicles
+          </label>
+          {isAdmin && (
+            <button
+              className="button-primary flex items-center gap-2 px-4 py-2"
+              onClick={openAddVehicleForm}
             >
-              Hide Out-of-Service
-            </label>
-          </div>
+              <FaPlus /> Add Vehicle
+            </button>
+          )}
         </div>
 
-        {loading && <p className="text-yellow-400 italic">Loading fleet...</p>}
-        {error && <p className="text-red-500">{error}</p>}
+        {loading && (
+          <p className="text-center text-yellow-400">Loading fleet data...</p>
+        )}
+        {error && <p className="text-center text-red-500">{error}</p>}
 
         {!loading && !error && (
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="min-w-full bg-gray-900/90 border border-gray-700 text-sm">
-              <thead className="bg-gray-800 text-yellow-400">
+          <div className="overflow-x-auto custom-scrollbar shadow-lg border border-gray-800 rounded">
+            <table className="min-w-full border-collapse text-sm text-center bg-black bg-opacity-80">
+              <thead className="bg-black text-[#f3c700]">
                 <tr>
-                  <th className="p-2 border-r border-gray-600 w-8"></th>
-                  <th className="p-2 border-r border-gray-600">Vehicle</th>
-                  <th className="p-2 border-r border-gray-600">Plate</th>
-                  <th className="p-2 border-r border-gray-600">Division</th>
-                  <th className="p-2 border-r border-gray-600">Restrictions</th>
-                  <th className="p-2 border-r border-gray-600">Assignee</th>
-                  <th className="p-2">In Service</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Plate</th>
+                  <th className="p-3">Vehicle</th>
+                  <th className="p-3">Division</th>
+                  <th className="p-3">Assignee</th>
+                  <th className="p-3">Restrictions</th>
+                  {isAdmin && (
+                    <th className="p-2 border border-gray-800 text-center font-semibold">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
-              {groupedAndFilteredFleet.map(({ division, vehicles }) =>
-                vehicles.length > 0 ? (
-                  <tbody key={division} className="text-gray-300">
-                    {vehicles.map((v, index) => (
-                      <tr
-                        key={v.id}
-                        className={`border-t border-gray-700 hover:bg-gray-800/50 ${
-                          !v.inService ? "opacity-60" : ""
-                        }`}
-                      >
-                        {index === 0 && (
-                          <td
-                            rowSpan={vehicles.length}
-                            className="p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300 category-vertical"
-                            style={{ writingMode: "vertical-lr" }}
+              <tbody className="text-gray-300">
+                {filteredFleet.length > 0 ? (
+                  filteredFleet.map((vehicle) => (
+                    <tr
+                      key={vehicle.id}
+                      className="border-t border-gray-800 hover:bg-gray-900/90"
+                    >
+                      <td className="p-3 align-middle">
+                        <span
+                          className={`inline-block w-3 h-3 rounded-full ${
+                            vehicle.inService ? "bg-green-500" : "bg-red-500"
+                          }`}
+                          title={
+                            vehicle.inService ? "In Service" : "Out of Service"
+                          }
+                        ></span>
+                      </td>
+                      <td className="p-3 font-mono">{vehicle.plate}</td>
+                      <td className="p-3">{vehicle.vehicle}</td>
+                      <td className="p-3">{vehicle.division}</td>
+                      <td className="p-3">{vehicle.assignee}</td>
+                      <td className="p-3">{vehicle.restrictions || "-"}</td>
+                      {isAdmin && (
+                        <td className="p-2 border border-gray-800 text-center">
+                          <button
+                            onClick={() => setEditingVehicle(vehicle)}
+                            className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
+                            title="Edit Vehicle"
                           >
-                            {division}
-                          </td>
-                        )}
-                        <td className="p-2 border-r border-gray-600">
-                          {v.vehicle}
-                        </td>
-                        <td className="p-2 border-r border-gray-600">
-                          {v.plate || "-"}
-                        </td>
-                        <td className="p-2 border-r border-gray-600">
-                          {v.division || "-"}
-                        </td>
-                        <td className="p-2 border-r border-gray-600">
-                          {v.restrictions || "-"}
-                        </td>
-                        <td className="p-2 border-r border-gray-600">
-                          {v.assignee || "Communal"}
-                        </td>
-                        <td className={`p-0 text-center align-middle`}>
-                          <span
-                            className={`block w-full h-full px-2 py-2 font-semibold ${
-                              v.inService
-                                ? "bg-green-600 text-white"
-                                : "bg-red-600 text-white"
-                            }`}
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteVehicle(vehicle.id)}
+                            className="bg-red-600 hover:bg-red-500 text-white text-xs py-1 px-2 rounded ml-2"
+                            title="Delete Vehicle"
                           >
-                            {v.inService ? "YES" : "NO"}
-                          </span>
+                            Delete
+                          </button>
                         </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                ) : null
-              )}
-              {groupedAndFilteredFleet.length === 0 && !loading && (
-                <tbody>
+                      )}
+                    </tr>
+                  ))
+                ) : (
                   <tr>
                     <td
-                      colSpan={7}
-                      className="text-center p-4 text-gray-400 italic"
+                      colSpan={isAdmin ? 7 : 6}
+                      className="text-center p-4 text-gray-500 italic"
                     >
-                      No vehicles found matching the criteria.
+                      No vehicles found matching criteria.
                     </td>
                   </tr>
-                </tbody>
-              )}
+                )}
+              </tbody>
             </table>
           </div>
         )}
+
+        {editingVehicle && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md">
+              <h2 className="text-xl font-bold text-yellow-400 mb-4">
+                Edit Vehicle: {editingVehicle.plate}
+              </h2>
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Plate
+              </label>
+              <input
+                type="text"
+                placeholder="Plate"
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
+                value={editingVehicle.plate}
+                onChange={(e) =>
+                  setEditingVehicle((prev) =>
+                    prev
+                      ? { ...prev, plate: e.target.value.toUpperCase() }
+                      : null
+                  )
+                }
+              />
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Vehicle Model
+              </label>
+              <input
+                type="text"
+                placeholder="Vehicle Model"
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
+                value={editingVehicle.vehicle}
+                onChange={(e) =>
+                  setEditingVehicle((prev) =>
+                    prev ? { ...prev, vehicle: e.target.value } : null
+                  )
+                }
+              />
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Division
+              </label>
+              <select
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
+                value={editingVehicle.division}
+                onChange={(e) =>
+                  setEditingVehicle((prev) =>
+                    prev ? { ...prev, division: e.target.value } : null
+                  )
+                }
+              >
+                {divisions.map((div) => (
+                  <option key={div} value={div}>
+                    {div}
+                  </option>
+                ))}
+              </select>
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Assignee (Name or COMMUNAL)
+              </label>
+              <input
+                type="text"
+                placeholder="Assignee Name or COMMUNAL"
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
+                value={editingVehicle.assignee}
+                onChange={(e) =>
+                  setEditingVehicle((prev) =>
+                    prev ? { ...prev, assignee: e.target.value } : null
+                  )
+                }
+              />
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Restrictions
+              </label>
+              <textarea
+                placeholder="Restrictions (e.g., Supervisor, HEAT, MOTO)"
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full text-sm"
+                rows={2}
+                value={editingVehicle.restrictions}
+                onChange={(e) =>
+                  setEditingVehicle((prev) =>
+                    prev ? { ...prev, restrictions: e.target.value } : null
+                  )
+                }
+              />
+              <label className="flex items-center gap-2 text-gray-300 mb-4">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500"
+                  checked={editingVehicle.inService}
+                  onChange={(e) =>
+                    setEditingVehicle((prev) =>
+                      prev ? { ...prev, inService: e.target.checked } : null
+                    )
+                  }
+                />
+                In Service
+              </label>
+              <div className="flex justify-end gap-4">
+                <button
+                  className="button-secondary px-4 py-2"
+                  onClick={() => setEditingVehicle(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button-primary px-4 py-2"
+                  onClick={handleSaveVehicle}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {newVehicle && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md">
+              <h2 className="text-xl font-bold text-yellow-400 mb-4">
+                Add New Vehicle
+              </h2>
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Plate
+              </label>
+              <input
+                type="text"
+                placeholder="Plate"
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
+                value={newVehicle.plate || ""}
+                onChange={(e) =>
+                  setNewVehicle((prev) =>
+                    prev
+                      ? { ...prev, plate: e.target.value.toUpperCase() }
+                      : null
+                  )
+                }
+              />
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Vehicle Model
+              </label>
+              <input
+                type="text"
+                placeholder="Vehicle Model"
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
+                value={newVehicle.vehicle || ""}
+                onChange={(e) =>
+                  setNewVehicle((prev) =>
+                    prev ? { ...prev, vehicle: e.target.value } : null
+                  )
+                }
+              />
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Division
+              </label>
+              <select
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
+                value={newVehicle.division || "Patrol"}
+                onChange={(e) =>
+                  setNewVehicle((prev) =>
+                    prev ? { ...prev, division: e.target.value } : null
+                  )
+                }
+              >
+                {divisions.map((div) => (
+                  <option key={div} value={div}>
+                    {div}
+                  </option>
+                ))}
+              </select>
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Assignee
+              </label>
+              <input
+                type="text"
+                placeholder="Assignee Name or COMMUNAL"
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
+                value={newVehicle.assignee || "COMMUNAL"}
+                onChange={(e) =>
+                  setNewVehicle((prev) =>
+                    prev ? { ...prev, assignee: e.target.value } : null
+                  )
+                }
+              />
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Restrictions
+              </label>
+              <textarea
+                placeholder="Restrictions (e.g., Supervisor, HEAT)"
+                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full text-sm"
+                rows={2}
+                value={newVehicle.restrictions || ""}
+                onChange={(e) =>
+                  setNewVehicle((prev) =>
+                    prev ? { ...prev, restrictions: e.target.value } : null
+                  )
+                }
+              />
+              <label className="flex items-center gap-2 text-gray-300 mb-4">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500"
+                  checked={newVehicle.inService ?? true}
+                  onChange={(e) =>
+                    setNewVehicle((prev) =>
+                      prev ? { ...prev, inService: e.target.checked } : null
+                    )
+                  }
+                />
+                In Service
+              </label>
+              <div className="flex justify-end gap-4">
+                <button
+                  className="button-secondary px-4 py-2"
+                  onClick={() => setNewVehicle(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button-primary px-4 py-2"
+                  onClick={handleAddVehicle}
+                >
+                  Add Vehicle
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-      <style>{`
-        .category-vertical {
-          writing-mode: vertical-lr;
-          text-orientation: mixed;
-          white-space: nowrap;
-          transform: rotate(180deg);
-          padding: 8px 4px;
-        }
-      `}</style>
     </Layout>
   );
 };

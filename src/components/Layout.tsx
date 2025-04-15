@@ -1,42 +1,50 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react"; // Added useEffect
 import Sidebar from "./Sidebar";
-import { images } from "../data/images";
+import { backgroundImages } from "../data/images"; // Import the image array
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
-export default function Layout({ children }: LayoutProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [background, setBackground] = useState<string>("");
+const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [currentBgImage, setCurrentBgImage] = useState<string>("");
 
+  // Select a random background image on component mount
   useEffect(() => {
-    const randomImage = images[Math.floor(Math.random() * images.length)];
-    setBackground(randomImage);
-  }, []);
+    const randomIndex = Math.floor(Math.random() * backgroundImages.length);
+    setCurrentBgImage(backgroundImages[randomIndex]);
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   return (
-    <div className="flex min-h-screen">
-      {/* Background Image - Fixed position */}
-      {background && (
-        <div
-          className="fixed inset-0 w-full h-full bg-cover bg-center -z-10"
-          style={{
-            backgroundImage: `url('${background}')`,
-            backgroundRepeat: "no-repeat",
-            backgroundSize: "cover",
-          }}
+    <div className="relative min-h-screen">
+      {/* Background Image Container */}
+      <div
+        className="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: `url(${currentBgImage})`,
+          backgroundSize: "cover", // Ensure the image covers the entire screen
+          backgroundPosition: "center", // Center the image
+          backgroundRepeat: "no-repeat", // Prevent tiling
+        }}
+      ></div>
+
+      {/* Main Flex Container */}
+      <div className="flex h-screen relative z-10">
+        <Sidebar
+          isCollapsed={isSidebarCollapsed}
+          setIsCollapsed={setIsSidebarCollapsed}
         />
-      )}
-      <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
-      {/* Main Content Area - Apply overlay and blur */}
-      <main
-        className={`flex-1 transition-all duration-300 ease-in-out ${
-          isCollapsed ? "ml-16" : "ml-64"
-        } p-6 bg-black/50 backdrop-blur-[3px] overflow-y-auto`}
-      >
-        {children}
-      </main>
+        <main
+          className={`flex-1 overflow-x-hidden overflow-y-auto transition-all duration-300 ease-in-out ${
+            isSidebarCollapsed ? "pl-16" : "pl-64"
+          }`}
+        >
+          {children}
+        </main>
+      </div>
     </div>
   );
-}
+};
+
+export default Layout;

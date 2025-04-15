@@ -51,3 +51,49 @@ export function formatTimestampForDisplay(
     minute: "2-digit",
   });
 }
+
+export const formatIssuedAt = (dateStr: string, timeStr: string): string => {
+  if (!dateStr || !timeStr) return "Invalid Date/Time";
+  return `${dateStr} at ${timeStr}`;
+};
+
+export function showTime(): { day: string; date: string; time: string } {
+  const now = new Date();
+  const days = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const day = days[now.getDay()];
+  const date = now.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit",
+  });
+  const time = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  return { day, date, time };
+}
+
+/**
+ * Converts a date string in YYYY-MM-DD format to MM/DD/YY format.
+ * @param dateString - The date string in YYYY-MM-DD format.
+ * @returns A string in MM/DD/YY format or "Invalid Date" if the input is invalid.
+ */
+export const convertFirestoreDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Invalid Date";
+  return date.toLocaleDateString("en-US", {
+    month: "numeric",
+    day: "numeric",
+    year: "2-digit",
+  });
+};

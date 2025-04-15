@@ -1,150 +1,154 @@
-import React from "react"; // Removed useState
+import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { computeIsAdmin } from "../utils/isadmin";
+import { showTime } from "../utils/timeHelpers";
 import {
   FaHome,
+  FaBullhorn,
   FaUsers,
   FaCar,
-  FaIdBadge,
+  FaTools,
   FaSignOutAlt,
-  FaUserCircle,
   FaChevronLeft,
   FaChevronRight,
-  FaTools,
-  FaBullhorn,
+  FaFileAlt,
 } from "react-icons/fa";
 
-export const saspStar = "/SASPLOGO2.png";
-export const saspFavicon = "/SASPfavicon.png"; // Define the favicon path
-export const everfallLogo = "/everfall.webp"; // Remove "/public" from the path
+const saspLogo = "/SASPLOGO2.png";
 
 interface SidebarProps {
   isCollapsed: boolean;
-  setIsCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsCollapsed: (isCollapsed: boolean) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
   const { user, logout } = useAuth();
-  // Assuming user type includes roles: user: (User & { roles?: string[] }) | null;
-  const isAdmin = user?.role?.includes("admin");
+  const isAdmin = computeIsAdmin(user);
+
+  const [clock, setClock] = useState({ day: "", date: "", time: "" });
+
+  useEffect(() => {
+    const updateClock = () => setClock(showTime());
+    updateClock();
+    const interval = setInterval(updateClock, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
-    `flex items-center px-4 py-2.5 rounded-md transition-colors duration-150 ease-in-out ${
+    `flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out ${
       isActive
-        ? "bg-yellow-500 text-black font-semibold shadow-md"
-        : "text-gray-300 hover:bg-gray-700 hover:text-white"
-    } ${isCollapsed ? "justify-center" : ""}`; // Center icons when collapsed
+        ? "bg-[#f3c700] text-black font-semibold shadow-md"
+        : "text-gray-300 hover:bg-gray-800 hover:text-white"
+    }`;
+
+  const NavItem = ({
+    to,
+    icon: Icon,
+    label,
+    title,
+  }: {
+    to: string;
+    icon: React.ElementType;
+    label: string;
+    title: string;
+  }) => (
+    <NavLink to={to} className={getNavLinkClass} title={title}>
+      <div className="flex items-center w-full">
+        <div className="w-8 h-8 flex items-center justify-center">
+          <Icon className="text-[18px]" />
+        </div>
+        {!isCollapsed && (
+          <span className="ml-3 whitespace-nowrap">{label}</span>
+        )}
+      </div>
+    </NavLink>
+  );
 
   return (
     <div
       className={`${
         isCollapsed ? "w-16" : "w-64"
-      } h-screen bg-gray-900 text-gray-200 flex flex-col fixed shadow-lg z-50 transition-all duration-300 ease-in-out`}
+      } h-screen bg-black/90 text-gray-200 flex flex-col fixed shadow-lg z-50 transition-all duration-300 ease-in-out border-r border-gray-800`}
     >
-      {/* Logo and Title */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-700 h-16">
-        <div className="flex items-center overflow-hidden">
-          <img
-            src={isCollapsed ? saspFavicon : saspStar}
-            alt="SASP Logo"
-            className={`flex-shrink-0 object-contain transition-all duration-300 ${
-              isCollapsed ? "h-8 w-8" : "h-10 w-10"
-            }`}
-          />
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-800 h-16">
+        <div className="flex items-center">
+          <div className="w-10 h-10 flex items-center justify-center">
+            <img
+              src={saspLogo}
+              alt="SASP Logo"
+              className="h-8 w-8 object-contain"
+            />
+          </div>
           {!isCollapsed && (
-            <span className="text-xl font-bold text-yellow-400 ml-3 whitespace-nowrap">
+            <span className="text-xl font-bold text-[#f3c700] ml-3 whitespace-nowrap">
               SASP Portal
             </span>
           )}
         </div>
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-gray-300 hover:text-white focus:outline-none flex-shrink-0"
+          className="text-gray-400 hover:text-white focus:outline-none"
+          title={isCollapsed ? "Expand" : "Collapse"}
         >
           {isCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
         </button>
       </div>
 
-      {/* Navigation Links */}
-      <nav className="flex-grow px-3 py-4 space-y-2 overflow-y-auto overflow-x-hidden">
-        <NavLink to="/" className={getNavLinkClass} title="Home">
-          <FaHome className={isCollapsed ? "" : "mr-3"} />
-          {!isCollapsed && "Home"}
-        </NavLink>
-        <NavLink
-          to="/bulletins"
-          className={getNavLinkClass}
-          title="Bulletin Board"
-        >
-          <FaBullhorn className={isCollapsed ? "" : "mr-3"} />
-          {!isCollapsed && "Bulletin"}
-        </NavLink>
-        <NavLink
-          to="/my-dashboard"
-          className={getNavLinkClass}
-          title="Dashboard"
-        >
-          <FaUserCircle className={isCollapsed ? "" : "mr-3"} />
-          {!isCollapsed && "Dashboard"}
-        </NavLink>
-        <NavLink
+      {/* Navigation */}
+      <nav className="flex-grow px-3 py-4 space-y-2 overflow-y-auto custom-scrollbar">
+        <NavItem to="/home" icon={FaHome} label="Home" title="Home" />
+        <NavItem to="/" icon={FaFileAlt} label="Documents" title="Documents" />
+        <NavItem
           to="/sasp-roster"
-          className={getNavLinkClass}
+          icon={FaUsers}
+          label="SASP Roster"
           title="SASP Roster"
-        >
-          <FaUsers className={isCollapsed ? "" : "mr-3"} />
-          {!isCollapsed && "SASP Roster"}
-        </NavLink>
-        <NavLink to="/fleet" className={getNavLinkClass} title="SASP Fleet">
-          <FaCar className={isCollapsed ? "" : "mr-3"} />
-          {!isCollapsed && "SASP Fleet"}
-        </NavLink>
-        <NavLink
-          to="/badge-lookup"
-          className={getNavLinkClass}
-          title="Badge Lookup"
-        >
-          <FaIdBadge className={isCollapsed ? "" : "mr-3"} />
-          {!isCollapsed && "Badge Lookup"}
-        </NavLink>
-
-        {/* Admin Menu */}
+        />
+        <NavItem
+          to="/fleet"
+          icon={FaCar}
+          label="SASP Fleet"
+          title="SASP Fleet"
+        />
         {isAdmin && (
-          <NavLink to="/admin" className={getNavLinkClass} title="Admin Menu">
-            <FaTools className={isCollapsed ? "" : "mr-3"} />
-            {!isCollapsed && "Admin Menu"}
-          </NavLink>
+          <NavItem
+            to="/admin"
+            icon={FaTools}
+            label="Admin Menu"
+            title="Admin Menu"
+          />
         )}
       </nav>
 
-      {/* Everfall Logo Button */}
-      <div className="p-4 border-t border-gray-700">
-        <a
-          href="https://everfall.com" // Replace with actual Everfall website URL
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center"
-          title="Visit Everfall"
-        >
-          <img
-            src={everfallLogo}
-            alt="Everfall Logo"
-            className={`transition-all duration-300 ${
-              isCollapsed ? "h-6" : "h-8" // Adjust size when collapsed
-            }`}
-          />
-        </a>
-      </div>
+      {/* Clock */}
+      {!isCollapsed && (
+        <div className="px-6 py-5 border-t border-gray-800">
+          <div
+            className="text-[#f3c700] tracking-wide space-y-1"
+            style={{ fontFamily: "Orbitron, sans-serif" }} // Force Orbitron font
+          >
+            <div className="text-md">{clock.day}</div>
+            <div className="text-md">{clock.date}</div>
+            <div className="text-lg font-semibold">{clock.time}</div>
+          </div>
+        </div>
+      )}
 
-      {/* Footer - Logout */}
-      <div className="p-4 border-t border-gray-700">
+      {/* Footer */}
+      <div className="p-4">
         <button
           onClick={logout}
-          className="w-full flex items-center justify-center px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors duration-150 ease-in-out"
+          className="w-full flex items-center justify-center px-4 py-2 rounded-md bg-red-700 text-white hover:bg-red-800 transition-colors duration-150 ease-in-out"
           title="Logout"
         >
-          <FaSignOutAlt className={isCollapsed ? "" : "mr-2"} />
-          {!isCollapsed && "Logout"}
+          <div className="w-8 h-8 flex items-center justify-center">
+            <FaSignOutAlt className="text-[18px]" />
+          </div>
+          {!isCollapsed && (
+            <span className="ml-2 whitespace-nowrap">Logout</span>
+          )}
         </button>
       </div>
     </div>

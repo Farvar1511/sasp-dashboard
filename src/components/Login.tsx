@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../context/AuthContext";
-import { images } from "../data/images"; // Import the images array
+import { getRandomBackgroundImage } from "../utils/backgroundImage";
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -18,8 +18,7 @@ const Login: React.FC = () => {
     if (user) {
       navigate("/");
     } else {
-      const randomIndex = Math.floor(Math.random() * images.length);
-      setBackgroundImageUrl(images[randomIndex]);
+      setBackgroundImageUrl(getRandomBackgroundImage());
     }
   }, [user, navigate]);
 

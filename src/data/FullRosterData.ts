@@ -8,8 +8,7 @@ export interface RosterTemplateEntry {
     FTO?: string | null;
     Heat?: string | null; // Note: Case difference
     K9?: string | null;
-    MOTO?: string | null;
-    OVERWATCH?: string | null;
+    MBU?: string | null;
     SWAT?: string | null;
     [key: string]: string | null | undefined;
   };
@@ -41,7 +40,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "SUPER",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "SUPER",
     },
@@ -65,31 +64,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
-      OVERWATCH: null,
-      SWAT: "",
-    },
-    cid: "",
-    discordId: "",
-    email: "",
-    isActive: false,
-    "isadmin?": false,
-    loaEndDate: null,
-    loaStartDate: null,
-    name: "VACANT",
-    rank: "Assistant Deputy Commissioner",
-    role: "",
-  },
-  {
-    badge: "",
-    callsign: "1E-3",
-    certifications: {
-      ACU: "",
-      CIU: "",
-      FTO: "",
-      Heat: "",
-      K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -105,6 +80,30 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
     role: "",
   },
   {
+    badge: "",
+    callsign: "1E-3",
+    certifications: {
+      ACU: "",
+      CIU: "",
+      FTO: "",
+      Heat: "",
+      K9: "",
+      MBU: "",
+      OVERWATCH: null,
+      SWAT: "",
+    },
+    cid: "",
+    discordId: "",
+    email: "",
+    isActive: false,
+    "isadmin?": false,
+    loaEndDate: null,
+    loaStartDate: null,
+    name: "VACANT",
+    rank: "Deputy Commissioner",
+    role: "",
+  },
+  {
     badge: "110",
     callsign: "1E-4",
     certifications: {
@@ -113,7 +112,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "SUPER",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "SUPER",
     },
@@ -137,7 +136,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "SUPER",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "LEAD",
     },
@@ -161,7 +160,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -185,7 +184,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -209,7 +208,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "LEAD",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "CERT",
     },
@@ -233,7 +232,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -257,7 +256,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "SUPER",
       Heat: "CERT",
       K9: "SUPER",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "SUPER",
     },
@@ -268,6 +267,8 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
     "isadmin?": false,
     loaEndDate: null,
     loaStartDate: null,
+    joinDate: "2025-02-05",
+    lastPromotionDate: "2023-02-05",
     name: "Abdul Mousa",
     rank: "Staff Sergeant",
     role: "",
@@ -281,7 +282,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "SUPER",
       Heat: "CERT",
       K9: "SUPER",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "SUPER",
     },
@@ -292,6 +293,8 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
     "isadmin?": false,
     loaEndDate: null,
     loaStartDate: null,
+    joinDate: "2024-05-29",
+    lastPromotionDate: "2025-02-28",
     name: "Jimmy Sweet",
     rank: "Staff Sergeant",
     role: "",
@@ -305,7 +308,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -329,7 +332,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -353,7 +356,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "CERT",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -377,7 +380,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "CERT",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -401,7 +404,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -425,7 +428,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -449,7 +452,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "CERT",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "TRAIN",
     },
@@ -473,7 +476,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -497,7 +500,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "CERT",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "TRAIN",
     },
@@ -521,7 +524,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "TRAIN",
     },
@@ -545,7 +548,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "TRAIN",
     },
@@ -569,7 +572,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -593,7 +596,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -617,7 +620,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "CERT",
       K9: "",
-      MOTO: "CERT",
+      MBU: "CERT",
       OVERWATCH: null,
       SWAT: "TRAIN",
     },
@@ -641,7 +644,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -665,7 +668,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -689,7 +692,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -713,7 +716,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -737,7 +740,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -761,7 +764,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -785,7 +788,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -809,7 +812,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -833,7 +836,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -857,7 +860,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -881,7 +884,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -905,7 +908,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -929,7 +932,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -953,7 +956,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -977,7 +980,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -1001,7 +1004,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
       FTO: "",
       Heat: "",
       K9: "",
-      MOTO: "",
+      MBU: "",
       OVERWATCH: null,
       SWAT: "",
     },
@@ -1022,54 +1025,15 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
 export default fullRosterTemplate;
 
 // Named export for the normalization function
-export const normalizeTemplateCertKeys = (certs: {
-  [key: string]: any;
-}): { [key: string]: CertStatus } => {
-  const normalized: { [key: string]: CertStatus } = {};
-  const keyMap: { [key: string]: string } = {
-    // Map template keys to Firestore keys
-    heat: "HEAT",
-    moto: "MOTO",
-    acu: "ACU",
-    swat: "SWAT",
-    ciu: "CIU",
-    k9: "K9",
-    fto: "FTO",
-    overwatch: "OVERWATCH",
-  };
-  // Ensure these match the keys used elsewhere (certificationKeys, divisionKeys)
-  const expectedKeys = [
-    "HEAT",
-    "MOTO",
-    "ACU",
-    "SWAT",
-    "CIU",
-    "K9",
-    "FTO",
-    "OVERWATCH",
-  ];
-
-  for (const key in certs) {
-    const lowerKey = key.toLowerCase();
-    const mappedKey = keyMap[lowerKey] || key.toUpperCase(); // Use mapped key or uppercase
-    if (expectedKeys.includes(mappedKey)) {
-      const value = certs[key];
-      // Ensure value matches CertStatus type (LEAD, SUPER, CERT, or null)
-      if (value === "LEAD" || value === "SUPER" || value === "CERT") {
-        normalized[mappedKey] = value;
-      } else {
-        normalized[mappedKey] = null; // Treat empty strings or other values as null
-      }
-    }
-  }
-  // Ensure all expected keys exist, even if null
-  expectedKeys.forEach((expKey) => {
-    if (!(expKey in normalized)) {
-      normalized[expKey] = null;
-    }
-  });
-  return normalized;
-};
+export const normalizeTemplateCertKeys = (
+  templateEntry: RosterTemplateEntry
+) => ({
+  ...templateEntry,
+  loaStartDate: templateEntry.loaStartDate || "N/A",
+  loaEndDate: templateEntry.loaEndDate || "N/A",
+  joinDate: templateEntry.joinDate || "N/A",
+  lastPromotionDate: templateEntry.lastPromotionDate || "N/A",
+});
 
 // Define CertStatus type if not already globally available
 type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
@@ -1082,8 +1046,8 @@ export interface RosterUser {
   badge?: string;
   callsign?: string;
   certifications?: { [key: string]: CertStatus };
-  loaStartDate?: string | Timestamp; // Keep Timestamp for Firestore data
-  loaEndDate?: string | Timestamp; // Keep Timestamp for Firestore data
+  loaStartDate?: string; // Changed to string
+  loaEndDate?: string; // Changed to string
   isActive?: boolean;
   discordId?: string;
   email?: string;
@@ -1091,14 +1055,6 @@ export interface RosterUser {
   category?: string | null;
   notes?: string; // Notes field
   discipline?: string; // Discipline field
-  notesIssuedAt?: Timestamp; // Added timestamp for notes
-  disciplineIssuedAt?: Timestamp; // Added timestamp for discipline
+  notesIssuedAt?: string | null; // Changed to string
+  disciplineIssuedAt?: string | null; // Changed to string
 }
-
-// Define Timestamp type if not globally available (e.g., if not importing from firebase)
-// This is just a placeholder if 'Timestamp' isn't recognized from imports
-// import { Timestamp } from "firebase/firestore"; // Ensure this import exists where needed
-type Timestamp = {
-  toDate: () => Date;
-  // Add other Timestamp properties/methods if needed
-};

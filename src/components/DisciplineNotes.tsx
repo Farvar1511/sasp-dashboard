@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   collection,
   getDocs,
@@ -11,6 +11,7 @@ import {
   query,
   orderBy,
   limit,
+  getDoc, // Import getDoc
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
@@ -242,9 +243,19 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       );
       return;
     }
+    if (!user || !user.email) {
+      setSubmitError("Could not identify the issuer. Please log in again.");
+      return;
+    }
     setSubmitError(null);
     setIsSubmitting(true);
     try {
+      const issuerDocRef = doc(dbFirestore, "users", user.email);
+      const issuerDocSnap = await getDoc(issuerDocRef);
+      const issuerName = issuerDocSnap.exists()
+        ? issuerDocSnap.data().name || user.displayName || "Unknown Issuer"
+        : user.displayName || "Unknown Issuer";
+
       const disciplineColRef = collection(
         dbFirestore,
         "users",
@@ -254,7 +265,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       await addDoc(disciplineColRef, {
         type: newDisciplineType,
         note: newDisciplineNote.trim(),
-        issuedBy: user.name,
+        issuedBy: issuerName,
         issuedAt: serverTimestamp(),
       });
       setNewDisciplineNote("");
@@ -275,9 +286,19 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       setSubmitError("Please ensure a user is selected and a note is entered.");
       return;
     }
+    if (!user || !user.email) {
+      setSubmitError("Could not identify the issuer. Please log in again.");
+      return;
+    }
     setSubmitError(null);
     setIsSubmitting(true);
     try {
+      const issuerDocRef = doc(dbFirestore, "users", user.email);
+      const issuerDocSnap = await getDoc(issuerDocRef);
+      const issuerName = issuerDocSnap.exists()
+        ? issuerDocSnap.data().name || user.displayName || "Unknown Issuer"
+        : user.displayName || "Unknown Issuer";
+
       const notesColRef = collection(
         dbFirestore,
         "users",
@@ -286,7 +307,7 @@ export default function DisciplineNotes({ user }: { user: AuthUser }) {
       );
       await addDoc(notesColRef, {
         note: newGeneralNote.trim(),
-        issuedBy: user.name,
+        issuedBy: issuerName,
         issuedAt: serverTimestamp(),
       });
       setNewGeneralNote("");

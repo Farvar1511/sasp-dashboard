@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react"; // Import useMemo
+import React, { useState } from "react"; // Import useMemo
 import {
   collection,
   query,
@@ -10,8 +10,6 @@ import {
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
-import { useAuth } from "../context/AuthContext";
-import { images } from "../data/images"; // Import images array
 export const saspStar = "/SASPLOGO2.png"; // Corrected path to logo
 
 // --- Types ---
@@ -178,19 +176,12 @@ const determineAllowedVehicles = (
 
 // --- Component ---
 const BadgeLookup: React.FC = () => {
-  const { user: authUser } = useAuth();
   const [badgeInput, setBadgeInput] = useState<string>("");
   const [foundUser, setFoundUser] = useState<RosterUser | null>(null);
   const [assignedVehicle, setAssignedVehicle] = useState<Vehicle | null>(null);
   const [allowedVehicles, setAllowedVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Use useMemo to ensure the background image is only selected once
-  const randomBackgroundImage = useMemo(
-    () => images[Math.floor(Math.random() * images.length)],
-    []
-  );
 
   const handleLookup = async () => {
     if (!badgeInput.trim()) {

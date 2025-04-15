@@ -1,5 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Orbitron:wght@400..900&display=swap");
 @import "tailwindcss";
+@import "tailwindcss/utilities";
 
 @tailwind base;
 @tailwind components;
@@ -78,18 +79,18 @@
 
   /* Admin Menu */
   .admin-menu {
-    @apply bg-gray-800 text-yellow-400 rounded-lg p-6 shadow-lg flex flex-col gap-4;
+    @apply flex flex-col gap-4 mb-8 max-w-xl;
   }
-  .admin-menu h2 {
-    @apply text-2xl font-bold mb-4;
+  .admin-menu label {
+    @apply block mb-2;
   }
   .admin-menu input,
   .admin-menu select,
   .admin-menu textarea {
-    @apply w-full p-2 rounded-md bg-gray-700 text-yellow-400 border border-yellow-400;
+    @apply w-full p-2 mb-4 rounded-md bg-gray-800 text-yellow-400 border border-yellow-400;
   }
   .admin-menu button {
-    @apply px-4 py-2 rounded-md bg-yellow-400 text-black font-semibold shadow hover:bg-yellow-300;
+    @apply px-4 py-2 bg-yellow-400 text-black font-bold rounded-md hover:bg-yellow-300;
   }
 
   /* Admin Panel */
@@ -97,7 +98,7 @@
     @apply max-w-6xl mx-auto px-6 py-12;
   }
   .admin-section {
-    @apply bg-black border border-[#f3c700] p-6 rounded-lg shadow-lg space-y-4;
+    @apply bg-black/90 border border-[#f3c700] p-6 rounded-lg shadow-lg space-y-4; /* Changed bg-black to bg-black/90 */
   }
   .admin-section h2 {
     @apply text-2xl font-bold text-[#f3c700] border-b border-[#f3c700] pb-2;
@@ -109,7 +110,7 @@
     @apply w-full px-4 py-3 rounded-md bg-black border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400;
   }
   .user-card {
-    @apply bg-gray-900 p-4 rounded-lg border border-yellow-400 space-y-3;
+    @apply bg-black/95 p-4 rounded-lg border border-yellow-400 space-y-3; /* Changed bg-gray-900 to bg-black/95 */
   }
   .task-card {
     @apply bg-gray-800 text-white rounded-md p-4 shadow-inner border border-gray-700 space-y-1;
@@ -136,6 +137,14 @@
   }
   .bulletin-edit-form {
     @apply bg-gray-900 border border-yellow-400 p-4 rounded-md space-y-2;
+  }
+
+  .bulletin-container {
+    @apply relative;
+  }
+
+  .bulletin-actions {
+    @apply absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity;
   }
 
   /* Tasks */
@@ -218,6 +227,22 @@
   .roster-category-cell {
     @apply p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300;
   }
+
+  /* Documents Page Styles */
+  .documents-category-container {
+    @apply bg-black/90 border border-[#f3c700] rounded-lg shadow-lg p-6;
+    /* Ensures background is black with 90% opacity */
+  }
+
+  .documents-category-container h2 {
+    @apply text-xl font-semibold text-[#f3c700] border-b border-[#f3c700]/50 pb-2 mb-4;
+    /* Header text color yellow, border semi-transparent yellow */
+  }
+
+  .document-link {
+    @apply block w-full p-3 bg-black border border-transparent rounded hover:border-[#f3c700] hover:bg-black transition duration-150 ease-in-out text-white hover:text-[#f3c700];
+    /* Link background black, text white, hover border/text yellow */
+  }
 }
 
 /* === Utility Styles === */
@@ -253,6 +278,22 @@
   .glow {
     animation: glow 1.5s infinite alternate;
   }
+
+  .page-background {
+    background-size: cover; /* Ensure the image covers the screen */
+    background-position: center; /* Center the image */
+    background-repeat: no-repeat; /* Prevent tiling */
+    position: fixed; /* Fix the background */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1; /* Place it behind all content */
+  }
+
+  .font-inter {
+    font-family: "Inter", sans-serif;
+  }
 }
 
 /* === Admin Menu (from AdminMenu.css) === */
@@ -274,7 +315,8 @@
 }
 
 .admin-menu input,
-.admin-menu select {
+.admin-menu select,
+.admin-menu textarea {
   @apply w-full p-2 mb-4 rounded-md bg-gray-800 text-yellow-400 border border-yellow-400;
 }
 
