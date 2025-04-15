@@ -77,7 +77,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
     loaEndDate: null,
     loaStartDate: null,
     name: "VACANT",
-    rank: "Assistant Deputy Commissioner",
+    rank: "Deputy Commissioner",
     role: "",
   },
   {
@@ -201,7 +201,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
     role: "",
   },
   {
-    badge: "204",
+    badge: "",
     callsign: "1K-100",
     certifications: {
       ACU: "CERT",

@@ -19,20 +19,19 @@ type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
 
 // Use rankOrder for comparisons
 const rankOrder: { [key: string]: number } = {
-  Commissioner: 1,
-  "Assistant Deputy Commissioner": 2,
-  "Deputy Commissioner": 3,
-  "Assistant Commissioner": 4,
-  Commander: 5,
-  Captain: 6,
-  Lieutenant: 7, // Command starts here
-  "Staff Sergeant": 8,
-  Sergeant: 9, // Supervisors start here
-  Corporal: 10,
-  "Trooper First Class": 11,
-  Trooper: 12,
-  Cadet: 13,
-  Unknown: 99,
+  "Commissioner": 1,
+  "Deputy Commissioner": 2,
+  "Assistant Commissioner": 3,
+  "Commander": 4,
+  "Captain": 5,
+  "Lieutenant": 6,
+  "Staff Sergeant": 7,
+  "Sergeant": 8,
+  "Corporal": 9,
+  "Trooper First Class": 10,
+  "Trooper": 11,
+  "Cadet": 12,
+  "Unknown": 99,
 };
 
 interface RosterUser {

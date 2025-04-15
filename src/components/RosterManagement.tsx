@@ -51,15 +51,14 @@ const formatDateForDisplay = (
 const rankCategories: { [key: string]: string[] } = {
   "High Command": [
     "Commissioner",
-    "Assistant Deputy Commissioner",
     "Deputy Commissioner",
     "Assistant Commissioner",
     "Commander",
   ],
-  Command: ["Captain", "Lieutenant"],
-  Supervisors: ["Staff Sergeant", "Sergeant"],
+  "Command": ["Captain", "Lieutenant"],
+  "Supervisors": ["Staff Sergeant", "Sergeant"],
   "State Troopers": ["Corporal", "Trooper First Class", "Trooper"],
-  Cadets: ["Cadet"],
+  "Cadets": ["Cadet"],
 };
 
 const categoryOrder = [
