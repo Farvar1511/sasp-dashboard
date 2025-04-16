@@ -576,7 +576,7 @@ export const normalizeTemplateCertKeys = (
 });
 
 // Define CertStatus type if not already globally available
-type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
+type CertStatus = "LEAD" | "SUPER" | "CERT" | "TRAIN" | null;
 
 // Define RosterUser interface
 export interface RosterUser {

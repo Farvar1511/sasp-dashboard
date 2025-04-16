@@ -52,7 +52,7 @@ export const formatLoaRange = (
 };
 
 // Add rankOrder, CertStatus, certOptions, getCertStyle
-export type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
+export type CertStatus = "LEAD" | "SUPER" | "CERT" | "TRAIN" | null;
 
 export const rankOrder: { [key: string]: number } = {
   Commissioner: 1,
@@ -83,6 +83,12 @@ export const certOptions: {
     bgColor: "bg-gray-700",
     textColor: "text-gray-300",
   },
+  {
+    value: "TRAIN",
+    label: "TRAIN",
+    bgColor: "bg-orange-600",
+    textColor: "text-white",
+  }
   {
     value: "CERT",
     label: "CERT",

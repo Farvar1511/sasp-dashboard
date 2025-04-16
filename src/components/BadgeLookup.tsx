@@ -13,7 +13,7 @@ import Layout from "./Layout";
 export const saspStar = "/SASPLOGO2.png"; // Corrected path to logo
 
 // --- Types ---
-type CertStatus = "LEAD" | "SUPER" | "CERT" | null;
+type CertStatus = "LEAD" | "SUPER" | "CERT" | "TRAIN" | null;
 
 // Use rankOrder for comparisons
 const rankOrder: { [key: string]: number } = {
@@ -79,7 +79,7 @@ const determineAllowedVehicles = (
     if (!certKey) return true; // If no specific cert is required by the check, pass the check
     const status = userCerts[certKey.toUpperCase()]; // Get status using uppercase key
     // Check if the status (converted to uppercase) is one of the valid access levels
-    return ["CERT", "SUPER", "LEAD"].includes((status || "").toUpperCase());
+    return ["TRAIN", "CERT", "SUPER", "LEAD"].includes((status || "").toUpperCase());
   };
 
   return allVehicles.filter((vehicle) => {
@@ -222,6 +222,7 @@ const BadgeLookup: React.FC = () => {
               if (typeof value === "string") {
                 const upperValue = value.toUpperCase();
                 if (
+                  upperValue === "LEAD" ||
                   upperValue === "CERT" ||
                   upperValue === "SUPER" ||
                   upperValue === "LEAD"
@@ -354,9 +355,11 @@ const BadgeLookup: React.FC = () => {
     if (status === "LEAD")
       return { bgColor: "bg-blue-600", textColor: "text-white" };
     if (status === "SUPER")
-      return { bgColor: "bg-orange-600", textColor: "text-white" };
+      return { bgColor: "bg-yellow-600", textColor: "text-white" };
     if (status === "CERT")
       return { bgColor: "bg-green-600", textColor: "text-white" };
+    if (status === "TRAIN")
+      return { bgColor: "bg-orange-600", textColor: "text-white" };
     return { bgColor: "bg-gray-600", textColor: "text-gray-300" };
   };
 

@@ -3,7 +3,7 @@ import { Timestamp } from "firebase/firestore";
 // -----------------------------
 // 🔐 Certification Types
 // -----------------------------
-export type CertStatus = "CERT" | "LEAD" | "SUPER" | null;
+export type CertStatus = "CERT" | "LEAD" | "SUPER" | "TRAIN" | null;
 
 // -----------------------------
 // 📋 Task Interface (Subcollection: /users/:id/tasks)

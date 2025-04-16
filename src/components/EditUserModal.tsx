@@ -146,7 +146,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   };
 
   const handleCertificationChange = (certKey: string, value: string | null) => {
-    const validValue = ["CERT", "LEAD", "SUPER"].includes(value || "")
+    const validValue = ["TRAIN", "CERT", "LEAD", "SUPER"].includes(value || "")
       ? (value as Exclude<CertStatus, null>)
       : null;
 
@@ -1139,9 +1139,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                       <option value="CERT">CERT</option>
                     ) : (
                       <>
-                        <option value="CERT">CERT</option>
                         <option value="LEAD">LEAD</option>
                         <option value="SUPER">SUPER</option>
+                        <option value="CERT">CERT</option>
+                        <option value="TRAIN">TRAIN</option>
                       </>
                     )}
                   </select>
