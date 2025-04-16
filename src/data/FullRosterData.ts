@@ -153,7 +153,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "1B-100",
+    callsign: "1E-100",
     certifications: {
       ACU: "",
       CIU: "",
@@ -177,7 +177,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "1R-110",
+    callsign: "1E-200",
     certifications: {
       ACU: "",
       CIU: "",
@@ -201,7 +201,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "204",
-    callsign: "1K-100",
+    callsign: "1K-10",
     certifications: {
       ACU: "CERT",
       CIU: "CERT",
@@ -225,7 +225,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "205",
-    callsign: "1K-101",
+    callsign: "1K-11",
     certifications: {
       ACU: "",
       CIU: "",
@@ -249,7 +249,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "208",
-    callsign: "1K-102",
+    callsign: "1K-12",
     certifications: {
       ACU: "CERT",
       CIU: "SUPER",
@@ -275,7 +275,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "111",
-    callsign: "1K-103",
+    callsign: "1K-13",
     certifications: {
       ACU: "CERT",
       CIU: "SUPER",
@@ -301,7 +301,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "1K-200",
+    callsign: "1K-50",
     certifications: {
       ACU: "",
       CIU: "",
@@ -325,7 +325,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "1K-201",
+    callsign: "1K-51",
     certifications: {
       ACU: "",
       CIU: "",
@@ -349,7 +349,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "206",
-    callsign: "1Y-200",
+    callsign: "1D-10",
     certifications: {
       ACU: "",
       CIU: "",
@@ -373,7 +373,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "205",
-    callsign: "1Y-201",
+    callsign: "1D-11",
     certifications: {
       ACU: "",
       CIU: "",
@@ -397,7 +397,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "203",
-    callsign: "1Y-202",
+    callsign: "1D-12",
     certifications: {
       ACU: "",
       CIU: "",
@@ -421,7 +421,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "1Y-203",
+    callsign: "1D-13",
     certifications: {
       ACU: "",
       CIU: "",
@@ -445,7 +445,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "211",
-    callsign: "1L-10",
+    callsign: "1D-100",
     certifications: {
       ACU: "CERT",
       CIU: "",
@@ -469,7 +469,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "212",
-    callsign: "1L-11",
+    callsign: "1D-101",
     certifications: {
       ACU: "",
       CIU: "CERT",
@@ -493,7 +493,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "207",
-    callsign: "1L-12",
+    callsign: "1D-102",
     certifications: {
       ACU: "CERT",
       CIU: "",
@@ -517,7 +517,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "209",
-    callsign: "1L-13",
+    callsign: "1D-103",
     certifications: {
       ACU: "CERT",
       CIU: "",
@@ -541,7 +541,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "213",
-    callsign: "1L-14",
+    callsign: "1D-104",
     certifications: {
       ACU: "",
       CIU: "",
@@ -565,7 +565,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "210",
-    callsign: "1L-15",
+    callsign: "1D-105",
     certifications: {
       ACU: "",
       CIU: "",
@@ -589,7 +589,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "203",
-    callsign: "1L-16",
+    callsign: "1D-106",
     certifications: {
       ACU: "CERT",
       CIU: "",
@@ -613,7 +613,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "214",
-    callsign: "2L-40",
+    callsign: "1D-200",
     certifications: {
       ACU: "",
       CIU: "",
@@ -637,7 +637,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "2L-41",
+    callsign: "1D-201",
     certifications: {
       ACU: "",
       CIU: "",
@@ -661,7 +661,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "2L-42",
+    callsign: "1D-202",
     certifications: {
       ACU: "",
       CIU: "",
@@ -685,7 +685,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "2L-43",
+    callsign: "1D-203",
     certifications: {
       ACU: "",
       CIU: "",
@@ -709,7 +709,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "2L-44",
+    callsign: "1D-204",
     certifications: {
       ACU: "",
       CIU: "",
@@ -733,7 +733,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "2L-45",
+    callsign: "1D-205",
     certifications: {
       ACU: "",
       CIU: "",
@@ -757,7 +757,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-50",
+    callsign: "1Y-100",
     certifications: {
       ACU: "",
       CIU: "",
@@ -781,7 +781,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-51",
+    callsign: "1Y-101",
     certifications: {
       ACU: "",
       CIU: "",
@@ -805,7 +805,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-52",
+    callsign: "1Y-102",
     certifications: {
       ACU: "",
       CIU: "",
@@ -829,7 +829,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-53",
+    callsign: "1Y-103",
     certifications: {
       ACU: "",
       CIU: "",
@@ -853,7 +853,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-54",
+    callsign: "1Y-104",
     certifications: {
       ACU: "",
       CIU: "",
@@ -877,7 +877,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-55",
+    callsign: "1Y-105",
     certifications: {
       ACU: "",
       CIU: "",
@@ -901,7 +901,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-56",
+    callsign: "1Y-106",
     certifications: {
       ACU: "",
       CIU: "",
@@ -925,7 +925,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-57",
+    callsign: "1Y-107",
     certifications: {
       ACU: "",
       CIU: "",
@@ -949,7 +949,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-58",
+    callsign: "1Y-108",
     certifications: {
       ACU: "",
       CIU: "",
@@ -973,7 +973,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-59",
+    callsign: "1Y-109",
     certifications: {
       ACU: "",
       CIU: "",
@@ -997,7 +997,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   },
   {
     badge: "",
-    callsign: "5D-60",
+    callsign: "1Y-100",
     certifications: {
       ACU: "",
       CIU: "",
