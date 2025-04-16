@@ -402,8 +402,11 @@ const MyDashboard: React.FC = () => {
             return false;
           }
           let requiredCertKey: string | null = null;
-          if (displayDivisionKeys.includes(division))
+          if (displayDivisionKeys.includes(division)) {
             requiredCertKey = division;
+          } else if (displayCertificationKeys.includes(division)) {
+            requiredCertKey = division;
+          }
           return hasCertAccess(requiredCertKey);
         });
         setAllowedVehicles(allowed);
