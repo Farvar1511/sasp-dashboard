@@ -22,24 +22,36 @@ interface SidebarProps {
   setIsCollapsed: (isCollapsed: boolean) => void;
 }
 
+// Add ClockDisplay component to isolate clock rendering:
+const ClockDisplay = React.memo(() => {
+  const [clock, setClock] = useState(showTime());
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setClock(showTime());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <div
+      className="text-[#f3c700] tracking-wide space-y-1"
+      style={{ fontFamily: "Orbitron, sans-serif" }}
+    >
+      <div className="text-md">{clock.day}</div>
+      <div className="text-md">{clock.date}</div>
+      <div className="text-lg font-semibold">{clock.time}</div>
+    </div>
+  );
+});
+
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
   const { user, logout } = useAuth();
   const isAdmin = computeIsAdmin(user);
 
-  const [clock, setClock] = useState({ day: "", date: "", time: "" });
-
-  useEffect(() => {
-    const updateClock = () => setClock(showTime());
-    updateClock();
-    const interval = setInterval(updateClock, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
-    `flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out ${
+    `flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out border border-transparent ${
       isActive
         ? "bg-[#f3c700] text-black font-semibold shadow-md"
-        : "text-gray-300 hover:bg-gray-800 hover:text-white"
+        : "text-gray-300 hover:bg-gray-800 hover:text-white hover:border-gray-700"
     }`;
 
   const NavItem = ({
@@ -130,14 +142,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
       {/* Clock */}
       {!isCollapsed && (
         <div className="px-6 py-5 border-t border-gray-800">
-          <div
-            className="text-[#f3c700] tracking-wide space-y-1"
-            style={{ fontFamily: "Orbitron, sans-serif" }} // Force Orbitron font
-          >
-            <div className="text-md">{clock.day}</div>
-            <div className="text-md">{clock.date}</div>
-            <div className="text-lg font-semibold">{clock.time}</div>
-          </div>
+          <ClockDisplay />
         </div>
       )}
 
