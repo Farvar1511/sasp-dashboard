@@ -390,7 +390,11 @@ const MyDashboard: React.FC = () => {
             return false;
           }
           const restrictions = (v.restrictions || "").toLowerCase();
-          const division = (v.division || "").toUpperCase();
+          // Calculate canonical division: treat MOTO as MBU
+          let division = (v.division || "").toUpperCase();
+          if (division === "MOTO") {
+            division = "MBU"; // Connect MOTO division to MBU cert logic
+          }
           let requiredRankLevel = Infinity;
           if (restrictions.includes("high command"))
             requiredRankLevel = rankOrder.Commander;
