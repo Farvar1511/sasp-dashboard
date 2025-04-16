@@ -517,8 +517,27 @@ export default function AdminMenu(): JSX.Element {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [selectedUsers, usersData]);
 
+  const rankOrder: { [key: string]: number } = {
+    Commissioner: 1,
+    "Deputy Commissioner": 2,
+    "Assistant Commissioner": 3,
+    Commander: 4,
+    Captain: 5,
+    Lieutenant: 6,
+    "Staff Sergeant": 7,
+    Sergeant: 8,
+    Corporal: 9,
+    "Trooper First Class": 10,
+    Trooper: 11,
+    Cadet: 12,
+  };
+
   const sortedUsersData = useMemo(() => {
-    return [...usersData].sort((a, b) => a.name.localeCompare(b.name));
+    return [...usersData].sort((a, b) => {
+      const aOrder = rankOrder[a.rank] || Infinity;
+      const bOrder = rankOrder[b.rank] || Infinity;
+      return aOrder - bOrder;
+    });
   }, [usersData]);
 
   const closeEditUserModal = () => {
