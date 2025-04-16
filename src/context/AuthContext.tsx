@@ -9,6 +9,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { User } from "../types/User";
+import { useNavigate } from "react-router-dom"; // Import useNavigate
 
 // Define rank order for admin check
 const adminRanks = [
@@ -25,6 +26,7 @@ interface AuthContextProps {
   loading: boolean;
   isAdmin: boolean;
   logout: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps>({
@@ -32,6 +34,7 @@ const AuthContext = createContext<AuthContextProps>({
   loading: true,
   isAdmin: false,
   logout: async () => {},
+  login: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -39,6 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate(); // Ensure useNavigate is used correctly
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -59,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               email: firebaseUser.email,
               displayName: firebaseUser.displayName,
               id: userSnap.id,
-              isAdmin, // Inject isAdmin flag
+              isAdmin,
             };
             setUser(fullUser);
           } else {
@@ -79,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     return () => unsubscribe();
-  }, []);
+  }, []); // Ensure this effect runs only once on mount
 
   const isAdmin = useMemo(() => {
     if (!user) return false;
@@ -92,14 +96,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       await signOut(auth);
       setUser(null);
-      window.location.reload();
+      navigate("/login", { replace: true }); // Redirect to login after logout
     } catch (error) {
       console.error("Error signing out:", error);
     }
   };
 
+  const login = async (email: string, password: string) => {
+    try {
+      const loggedInUser: User = {
+        uid: "exampleUid",
+        email,
+        displayName: "Example User",
+        rank: "exampleRank",
+        role: "exampleRole",
+        id: "exampleId",
+        isAdmin: false,
+      };
+      setUser(loggedInUser);
+      navigate("/home"); // Navigate to Home page
+    } catch (error) {
+      console.error("Login failed:", error);
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, logout }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, logout, login }}>
       {children}
     </AuthContext.Provider>
   );

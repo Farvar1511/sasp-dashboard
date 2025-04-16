@@ -97,3 +97,27 @@ export const convertFirestoreDate = (dateString: string): string => {
     year: "2-digit",
   });
 };
+
+/**
+ * Converts a date string or Timestamp to MM/DD/YY format.
+ * @param value - The date string, Timestamp, or null/undefined.
+ * @returns A string in MM/DD/YY format or "-" if the input is invalid or empty.
+ */
+export const formatDateToMMDDYY = (
+  value: string | Timestamp | null | undefined
+): string => {
+  if (!value) return "-"; // Return "-" for null/undefined
+  let date: Date;
+  if (value instanceof Timestamp) {
+    date = value.toDate();
+  } else if (typeof value === "string") {
+    date = new Date(value);
+    if (isNaN(date.getTime())) return "-"; // Return "-" for invalid date strings
+  } else {
+    return "-";
+  }
+  const month = date.getMonth() + 1; // Months are zero-based
+  const day = date.getDate();
+  const year = date.getFullYear().toString().slice(-2); // Get last two digits of the year
+  return `${month}/${day}/${year}`;
+};

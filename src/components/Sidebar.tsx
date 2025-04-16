@@ -99,7 +99,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
       {/* Navigation */}
       <nav className="flex-grow px-3 py-4 space-y-2 overflow-y-auto custom-scrollbar">
         <NavItem to="/home" icon={FaHome} label="Home" title="Home" />
-        <NavItem to="/" icon={FaFileAlt} label="Documents" title="Documents" />
+        <NavItem
+          to="/documents"
+          icon={FaFileAlt}
+          label="Documents"
+          title="Documents"
+        />
         <NavItem
           to="/sasp-roster"
           icon={FaUsers}

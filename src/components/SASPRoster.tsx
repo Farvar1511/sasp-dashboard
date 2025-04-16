@@ -1,9 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { collection, getDocs, Timestamp } from "firebase/firestore"; // Added Timestamp import
+import {
+  collection,
+  getDocs,
+  Timestamp,
+  updateDoc,
+  doc,
+  setDoc,
+} from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
 import { useAuth } from "../context/AuthContext";
-import EditUserModal from "./EditUserModal";
 import { RosterUser, CertStatus } from "../types/User";
 import fullRosterTemplate, {
   normalizeTemplateCertKeys,
@@ -14,8 +20,9 @@ import {
   divisionKeys,
   getCertStyle,
 } from "../data/rosterConfig";
-import { backgroundImages } from "../data/images"; // Ensure backgroundImages is used
+import { backgroundImages } from "../data/images";
 import { computeIsAdmin } from "../utils/isadmin";
+import { formatDateToMMDDYY } from "../utils/timeHelpers";
 
 const rankCategories: { [key: string]: string[] } = {
   "High Command": [
@@ -79,33 +86,18 @@ const processRosterData = (
   return { groupedRoster: grouped };
 };
 
-// Helper to format dates as M/D/YY
-const formatDateForDisplay = (
-  dateValue: string | Timestamp | null | undefined
-): string => {
-  if (!dateValue) return "-";
-  const parsedDate =
-    dateValue instanceof Timestamp ? dateValue.toDate() : new Date(dateValue);
-  if (!isNaN(parsedDate.getTime())) {
-    return `${parsedDate.getMonth() + 1}/${parsedDate.getDate()}/${
-      parsedDate.getFullYear() % 100
-    }`;
-  }
-  return "-"; // Return a dash if parsing fails
-};
-
 const convertToString = (
   value: string | Timestamp | null | undefined
 ): string => {
   if (value instanceof Timestamp) {
-    return value.toDate().toISOString().split("T")[0]; // Convert to YYYY-MM-DD format
+    return value.toDate().toISOString().split("T")[0];
   }
-  return value || "N/A"; // Default to "N/A" if null or undefined
+  return value || "N/A";
 };
 
 const SASPRoster: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const isAdmin = computeIsAdmin(currentUser); // Use centralized admin check
+  const isAdmin = computeIsAdmin(currentUser);
   const [groupedRoster, setGroupedRoster] = useState<{
     [category: string]: RosterUser[];
   }>({});
@@ -114,12 +106,11 @@ const SASPRoster: React.FC = () => {
   const [hideVacant, setHideVacant] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedRank, setSelectedRank] = useState<string>("All");
-  const [selectedUserForEdit, setSelectedUserForEdit] =
-    useState<RosterUser | null>(null);
   const [backgroundImage, setBackgroundImage] = useState<string>("");
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editedRowData, setEditedRowData] = useState<Partial<RosterUser>>({});
 
   useEffect(() => {
-    // Set a random background image
     const randomIndex = Math.floor(Math.random() * backgroundImages.length);
     setBackgroundImage(backgroundImages[randomIndex]);
   }, []);
@@ -145,7 +136,7 @@ const SASPRoster: React.FC = () => {
             }, {} as { [key: string]: CertStatus })
           : {};
         return {
-          id: doc.id, // Email as the document ID
+          id: doc.id,
           name: data.name || "Unknown",
           rank: data.rank || "Unknown",
           badge: data.badge || "N/A",
@@ -157,7 +148,7 @@ const SASPRoster: React.FC = () => {
             typeof data.loaEndDate === "string" ? data.loaEndDate : null,
           isActive: data.isActive !== undefined ? data.isActive : true,
           discordId: data.discordId || "-",
-          email: doc.id, // Email is the document ID
+          email: doc.id,
           joinDate: typeof data.joinDate === "string" ? data.joinDate : null,
           lastPromotionDate:
             typeof data.lastPromotionDate === "string"
@@ -178,7 +169,7 @@ const SASPRoster: React.FC = () => {
         value: string | Timestamp | null | undefined
       ): string | null => {
         if (value instanceof Timestamp) {
-          return value.toDate().toISOString().split("T")[0]; // Convert to YYYY-MM-DD format
+          return value.toDate().toISOString().split("T")[0];
         }
         return value || null;
       };
@@ -196,7 +187,7 @@ const SASPRoster: React.FC = () => {
             };
           } else {
             const normalizedTemplateEntry =
-              normalizeTemplateCertKeys(templateEntry); // Pass the entire templateEntry
+              normalizeTemplateCertKeys(templateEntry);
             const templateCerts = Object.entries(
               normalizedTemplateEntry.certifications
             ).reduce((acc, [key, value]) => {
@@ -285,6 +276,87 @@ const SASPRoster: React.FC = () => {
 
   const totalColSpan = 5 + divisionKeys.length + certificationKeys.length + 4;
 
+  const handleEditClick = (user: RosterUser) => {
+    setEditingRowId(user.id);
+    setEditedRowData(user);
+  };
+
+  const handleSaveClick = async () => {
+    try {
+      if (!editedRowData.id || editedRowData.id.trim() === "") {
+        console.error("The row does not have a valid Firestore document ID.");
+        alert(
+          "Cannot save rows without a valid Firestore document ID. Please ensure the row has a valid ID."
+        );
+        return;
+      }
+
+      if (!editedRowData.name || !editedRowData.callsign) {
+        console.error("The row does not have a valid name and callsign.");
+        alert(
+          "Cannot save rows without a valid name and callsign. Please provide both."
+        );
+        return;
+      }
+
+      const userRef = doc(dbFirestore, "users", editedRowData.id);
+
+      // Check if the document exists in Firestore
+      const userDoc = await getDocs(collection(dbFirestore, "users"));
+      const userExists = userDoc.docs.some(
+        (doc) => doc.id === editedRowData.id
+      );
+
+      const updatedData = {
+        ...editedRowData,
+        joinDate: formatDateToMMDDYY(editedRowData.joinDate),
+        lastPromotionDate: formatDateToMMDDYY(editedRowData.lastPromotionDate),
+        loaStartDate: formatDateToMMDDYY(editedRowData.loaStartDate),
+        loaEndDate: formatDateToMMDDYY(editedRowData.loaEndDate),
+        certifications: editedRowData.certifications || {},
+      };
+
+      if (userExists) {
+        // Update the existing document
+        await updateDoc(userRef, updatedData);
+        alert("User data updated successfully!");
+      } else {
+        // Create a new document
+        await setDoc(userRef, updatedData);
+        alert("User data created successfully!");
+      }
+
+      setEditingRowId(null);
+      setEditedRowData({});
+      fetchAndMergeRoster(); // Refresh the roster
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("Error saving user data:", error.message);
+      } else {
+        console.error("Error saving user data:", error);
+      }
+      alert(
+        "Failed to save user data. Please check the console for more details."
+      );
+    }
+  };
+
+  const handleCancelClick = () => {
+    setEditingRowId(null);
+    setEditedRowData({});
+  };
+
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+
+    setEditedRowData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
   return (
     <Layout>
       <div
@@ -341,10 +413,6 @@ const SASPRoster: React.FC = () => {
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-black bg-opacity-90 text-[#f3c700] font-semibold">
                 <tr>
-                  <th
-                    className="p-2 border border-[#f3c700] w-8"
-                    rowSpan={2}
-                  ></th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>
                     CALLSIGN
                   </th>
@@ -426,6 +494,7 @@ const SASPRoster: React.FC = () => {
                         </td>
                       </tr>
                       {usersInCategory.map((u, index) => {
+                        const isEditing = editingRowId === u.id;
                         const isVacant = u.name === "VACANT";
                         return (
                           <tr
@@ -435,10 +504,30 @@ const SASPRoster: React.FC = () => {
                             } ${!isVacant && !u.isActive ? "opacity-50" : ""}`}
                           >
                             <td className="p-2 border border-[#f3c700]">
-                              {u.callsign || "-"}
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  name="callsign"
+                                  value={editedRowData.callsign || ""}
+                                  onChange={handleInputChange}
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                />
+                              ) : (
+                                u.callsign || "-"
+                              )}
                             </td>
                             <td className="p-2 border border-[#f3c700]">
-                              {u.badge || "-"}
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  name="badge"
+                                  value={editedRowData.badge || ""}
+                                  onChange={handleInputChange}
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                />
+                              ) : (
+                                u.badge || "-"
+                              )}
                             </td>
                             <td
                               className={`p-2 border border-[#f3c700] ${
@@ -447,91 +536,300 @@ const SASPRoster: React.FC = () => {
                                   : ""
                               }`}
                             >
-                              {u.rank || "-"}
-                            </td>
-                            <td className="p-2 border border-[#f3c700]">
-                              {u.name}
-                            </td>
-                            <td className="p-2 border border-[#f3c700]">
-                              {u.discordId || "-"}
-                            </td>
-                            {divisionKeys.map((divKey) => {
-                              const currentStatus =
-                                u.certifications?.[divKey.toUpperCase()] ??
-                                null;
-                              const style = getCertStyle(currentStatus);
-                              return (
-                                <td
-                                  key={divKey}
-                                  className={`p-0 border border-[#f3c700] text-center align-middle`}
+                              {isEditing ? (
+                                <select
+                                  name="rank"
+                                  value={editedRowData.rank || ""}
+                                  onChange={handleInputChange}
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
                                 >
-                                  <span
-                                    className={`block w-full text-xs py-1 font-semibold rounded ${style.bgColor} ${style.textColor}`}
+                                  {Object.keys(rankOrder).map((rank) => (
+                                    <option key={rank} value={rank}>
+                                      {rank}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                u.rank || "-"
+                              )}
+                            </td>
+                            <td className="p-2 border border-[#f3c700]">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  name="name"
+                                  value={editedRowData.name || ""}
+                                  onChange={handleInputChange}
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                />
+                              ) : (
+                                u.name
+                              )}
+                            </td>
+                            <td className="p-2 border border-[#f3c700]">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  name="discordId"
+                                  value={editedRowData.discordId || ""}
+                                  onChange={handleInputChange}
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                />
+                              ) : (
+                                u.discordId || "-"
+                              )}
+                            </td>
+                            {divisionKeys.map((divKey) => (
+                              <td
+                                key={divKey}
+                                className="p-2 border border-[#f3c700]"
+                              >
+                                {isEditing ? (
+                                  <select
+                                    name={`certifications.${divKey.toUpperCase()}`}
+                                    value={
+                                      editedRowData.certifications?.[
+                                        divKey.toUpperCase()
+                                      ] || ""
+                                    }
+                                    onChange={(e) =>
+                                      setEditedRowData((prev) => ({
+                                        ...prev,
+                                        certifications: {
+                                          ...prev.certifications,
+                                          [divKey.toUpperCase()]: e.target
+                                            .value as CertStatus,
+                                        },
+                                      }))
+                                    }
+                                    className="input w-full bg-gray-700 border-gray-600 text-white"
                                   >
-                                    {currentStatus || "-"}
+                                    <option value="">-</option>
+                                    <option value="LEAD">LEAD</option>
+                                    <option value="SUPER">SUPER</option>
+                                    <option value="CERT">CERT</option>
+                                  </select>
+                                ) : (
+                                  <span
+                                    className={`px-2 py-1 rounded ${
+                                      u.certifications?.[
+                                        divKey.toUpperCase()
+                                      ] === "LEAD"
+                                        ? "bg-blue-600 text-white"
+                                        : u.certifications?.[
+                                            divKey.toUpperCase()
+                                          ] === "SUPER"
+                                        ? "bg-orange-500 text-white"
+                                        : u.certifications?.[
+                                            divKey.toUpperCase()
+                                          ] === "CERT"
+                                        ? "bg-green-600 text-white"
+                                        : "bg-gray-700 text-gray-400"
+                                    }`}
+                                  >
+                                    {u.certifications?.[divKey.toUpperCase()] ||
+                                      "-"}
                                   </span>
-                                </td>
-                              );
-                            })}
-                            {certificationKeys.map((certKey) => {
-                              const currentStatus =
-                                u.certifications?.[certKey.toUpperCase()] ??
-                                null;
-                              const style = getCertStyle(currentStatus);
-                              return (
-                                <td
-                                  key={certKey}
-                                  className={`p-0 border border-[#f3c700] text-center align-middle`}
+                                )}
+                              </td>
+                            ))}
+                            {certificationKeys.map((certKey) => (
+                              <td
+                                key={certKey}
+                                className="p-2 border border-[#f3c700]"
+                              >
+                                {isEditing ? (
+                                  <select
+                                    name={`certifications.${certKey.toUpperCase()}`}
+                                    value={
+                                      editedRowData.certifications?.[
+                                        certKey.toUpperCase()
+                                      ] || ""
+                                    }
+                                    onChange={(e) =>
+                                      setEditedRowData((prev) => ({
+                                        ...prev,
+                                        certifications: {
+                                          ...prev.certifications,
+                                          [certKey.toUpperCase()]: e.target
+                                            .value as CertStatus,
+                                        },
+                                      }))
+                                    }
+                                    className="input w-full bg-gray-700 border-gray-600 text-white"
+                                  >
+                                    <option value="">-</option>
+                                    <option value="LEAD">LEAD</option>
+                                    <option value="SUPER">SUPER</option>
+                                    <option value="CERT">CERT</option>
+                                  </select>
+                                ) : (
+                                  <span
+                                    className={`px-2 py-1 rounded ${
+                                      u.certifications?.[
+                                        certKey.toUpperCase()
+                                      ] === "LEAD"
+                                        ? "bg-blue-600 text-white"
+                                        : u.certifications?.[
+                                            certKey.toUpperCase()
+                                          ] === "SUPER"
+                                        ? "bg-orange-500 text-white"
+                                        : u.certifications?.[
+                                            certKey.toUpperCase()
+                                          ] === "CERT"
+                                        ? "bg-green-600 text-white"
+                                        : "bg-gray-700 text-gray-400"
+                                    }`}
+                                  >
+                                    {u.certifications?.[
+                                      certKey.toUpperCase()
+                                    ] || "-"}
+                                  </span>
+                                )}
+                              </td>
+                            ))}
+                            <td className="p-2 border border-[#f3c700]">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  name="joinDate"
+                                  value={
+                                    editedRowData.joinDate instanceof Timestamp
+                                      ? editedRowData.joinDate
+                                          .toDate()
+                                          .toISOString()
+                                          .split("T")[0]
+                                      : editedRowData.joinDate || ""
+                                  }
+                                  onChange={handleInputChange}
+                                  placeholder="MM/DD/YY"
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                />
+                              ) : (
+                                formatDateToMMDDYY(u.joinDate) || "-"
+                              )}
+                            </td>
+                            <td className="p-2 border border-[#f3c700]">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  name="lastPromotionDate"
+                                  value={
+                                    editedRowData.lastPromotionDate instanceof
+                                    Timestamp
+                                      ? editedRowData.lastPromotionDate
+                                          .toDate()
+                                          .toISOString()
+                                          .split("T")[0]
+                                      : editedRowData.lastPromotionDate || ""
+                                  }
+                                  onChange={handleInputChange}
+                                  placeholder="MM/DD/YY"
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                />
+                              ) : (
+                                formatDateToMMDDYY(u.lastPromotionDate) || "-"
+                              )}
+                            </td>
+                            <td className="p-2 border border-[#f3c700]">
+                              {isEditing ? (
+                                <select
+                                  name="isActive"
+                                  value={
+                                    editedRowData.isActive ? "true" : "false"
+                                  }
+                                  onChange={(e) =>
+                                    setEditedRowData((prev) => ({
+                                      ...prev,
+                                      isActive: e.target.value === "true",
+                                    }))
+                                  }
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
                                 >
-                                  <span
-                                    className={`block w-full text-xs py-1 font-semibold rounded ${style.bgColor} ${style.textColor}`}
-                                  >
-                                    {currentStatus || "-"}
-                                  </span>
-                                </td>
-                              );
-                            })}
-                            <td className="p-2 border border-[#f3c700]">
-                              {formatDateForDisplay(u.joinDate)}
-                            </td>
-                            <td className="p-2 border border-[#f3c700]">
-                              {formatDateForDisplay(u.lastPromotionDate)}
-                            </td>
-                            <td
-                              className={`p-0 border border-[#f3c700] text-center align-middle`}
-                            >
-                              {isVacant ? (
-                                <span className="cert-span text-white block w-full h-full">
-                                  -
-                                </span>
+                                  <option value="true">YES</option>
+                                  <option value="false">NO</option>
+                                </select>
                               ) : (
                                 <span
-                                  className={`cert-span ${
+                                  className={`px-2 py-1 rounded ${
                                     u.isActive
                                       ? "bg-green-600 text-white"
                                       : "bg-red-600 text-white"
-                                  } block w-full h-full`}
+                                  }`}
                                 >
                                   {u.isActive ? "YES" : "NO"}
                                 </span>
                               )}
                             </td>
                             <td className="p-2 border border-[#f3c700]">
-                              {!isVacant && !u.isActive
-                                ? formatDateForDisplay(u.loaStartDate)
-                                : "-"}
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  name="loaStartDate"
+                                  value={
+                                    editedRowData.loaStartDate instanceof
+                                    Timestamp
+                                      ? editedRowData.loaStartDate
+                                          .toDate()
+                                          .toISOString()
+                                          .split("T")[0]
+                                      : editedRowData.loaStartDate || ""
+                                  }
+                                  onChange={handleInputChange}
+                                  placeholder="MM/DD/YY"
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                />
+                              ) : (
+                                formatDateToMMDDYY(u.loaStartDate) || "-"
+                              )}
                             </td>
-                            {isAdmin && (
-                              <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700]">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  name="loaEndDate"
+                                  value={
+                                    editedRowData.loaEndDate instanceof
+                                    Timestamp
+                                      ? editedRowData.loaEndDate
+                                          .toDate()
+                                          .toISOString()
+                                          .split("T")[0]
+                                      : editedRowData.loaEndDate || ""
+                                  }
+                                  onChange={handleInputChange}
+                                  placeholder="MM/DD/YY"
+                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                />
+                              ) : (
+                                formatDateToMMDDYY(u.loaEndDate) || "-"
+                              )}
+                            </td>
+                            <td className="p-2 border border-[#f3c700] text-center">
+                              {isEditing ? (
+                                <div className="flex gap-2 justify-center">
+                                  <button
+                                    onClick={handleSaveClick}
+                                    className="bg-green-600 hover:bg-green-500 text-white text-xs py-1 px-2 rounded"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={handleCancelClick}
+                                    className="bg-red-600 hover:bg-red-500 text-white text-xs py-1 px-2 rounded"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
                                 <button
-                                  onClick={() => setSelectedUserForEdit(u)}
-                                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 block w-full h-full"
-                                  title="Edit User"
+                                  onClick={() => handleEditClick(u)}
+                                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
                                 >
                                   Edit
                                 </button>
-                              </td>
-                            )}
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
@@ -556,39 +854,6 @@ const SASPRoster: React.FC = () => {
           </div>
         )}
       </div>
-      {selectedUserForEdit && (
-        <EditUserModal
-          user={{
-            ...selectedUserForEdit,
-            badge: selectedUserForEdit.badge || "N/A",
-            callsign: selectedUserForEdit.callsign || "-",
-            discordId: selectedUserForEdit.discordId || "-",
-            certifications: selectedUserForEdit.certifications || {},
-            assignedVehicleId:
-              selectedUserForEdit.assignedVehicleId ?? undefined,
-            loaStartDate: convertToString(selectedUserForEdit.loaStartDate),
-            loaEndDate: convertToString(selectedUserForEdit.loaEndDate),
-            joinDate: convertToString(selectedUserForEdit.joinDate),
-            lastPromotionDate: convertToString(
-              selectedUserForEdit.lastPromotionDate
-            ),
-            category: selectedUserForEdit.category || "Uncategorized",
-            cid: selectedUserForEdit.cid || "", // Ensure cid is always a string
-            email: selectedUserForEdit.email || "", // Ensure email is always a string
-            role: selectedUserForEdit.role || "Unknown", // Ensure role is always a string
-            isPlaceholder: selectedUserForEdit.isPlaceholder ?? false, // Ensure isPlaceholder is always a boolean
-            isActive: selectedUserForEdit.isActive ?? true,
-            tasks: selectedUserForEdit.tasks || [],
-            disciplineEntries: selectedUserForEdit.disciplineEntries || [],
-            generalNotes: selectedUserForEdit.generalNotes || [],
-          }}
-          onClose={() => setSelectedUserForEdit(null)}
-          onSave={() => {
-            fetchAndMergeRoster();
-            setSelectedUserForEdit(null);
-          }}
-        />
-      )}
     </Layout>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../context/AuthContext";
@@ -10,17 +10,14 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>("");
 
   useEffect(() => {
-    if (user) {
-      navigate("/");
-    } else {
+    if (!user) {
       setBackgroundImageUrl(getRandomBackgroundImage());
     }
-  }, [user, navigate]);
+  }, [user]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +56,8 @@ const Login: React.FC = () => {
   };
 
   if (user) {
-    return null;
+    // Redirect to /home if already logged in
+    return <Navigate to="/home" replace />;
   }
 
   if (!backgroundImageUrl) {

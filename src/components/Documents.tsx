@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import Layout from "./Layout";
-import links from "../data/links";
+import links from "../data/links"; // Ensure this file exists and is correctly exported
 import classNames from "classnames";
 
 interface LinkItem {

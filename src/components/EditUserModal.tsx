@@ -16,7 +16,7 @@ import {
 } from "../types/User";
 import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
-import { formatIssuedAt } from "../utils/timeHelpers";
+import { formatIssuedAt, formatDateToMMDDYY } from "../utils/timeHelpers";
 
 interface EditUserModalProps {
   user: {
@@ -168,22 +168,24 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const handleSaveRosterInfo = async () => {
     setIsSaving(true);
     try {
-      const userRef = doc(dbFirestore, "users", user.id);
-      const { tasks, disciplineEntries, generalNotes, id, ...rosterData } =
+      const userRef = doc(dbFirestore, "users", user.email); // Use email as the document ID
+      const { tasks, disciplineEntries, generalNotes, ...rosterData } =
         formData;
 
       const updateData = {
         ...rosterData,
-        loaStartDate: rosterData.loaStartDate || null,
-        loaEndDate: rosterData.loaEndDate || null,
-        joinDate: rosterData.joinDate || null,
-        lastPromotionDate: rosterData.lastPromotionDate || null,
+        assignedVehicleId: rosterData.assignedVehicleId || null, // Ensure no undefined values
+        loaStartDate: formatDateToMMDDYY(rosterData.loaStartDate), // Format to MM/DD/YY or empty string
+        loaEndDate: formatDateToMMDDYY(rosterData.loaEndDate), // Format to MM/DD/YY or empty string
+        joinDate: formatDateToMMDDYY(rosterData.joinDate), // Format to MM/DD/YY or empty string
+        lastPromotionDate: formatDateToMMDDYY(rosterData.lastPromotionDate), // Format to MM/DD/YY or empty string
       };
 
-      await updateDoc(userRef, updateData);
-      onSave();
+      await updateDoc(userRef, updateData); // Update Firestore document
+      onSave(); // Trigger the onSave callback
     } catch (error) {
       console.error("Error saving user roster info:", error);
+      alert("Failed to save roster changes. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -688,25 +690,53 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Join Date
+                Join Date (MM/DD/YY)
               </label>
               <input
-                type="date"
+                type="text"
                 name="joinDate"
                 value={formData.joinDate || ""}
                 onChange={handleInputChange}
+                placeholder="MM/DD/YY"
                 className="input w-full bg-gray-700 border-gray-600 text-white"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Last Promotion Date
+                Last Promotion Date (MM/DD/YY)
               </label>
               <input
-                type="date"
+                type="text"
                 name="lastPromotionDate"
                 value={formData.lastPromotionDate || ""}
                 onChange={handleInputChange}
+                placeholder="MM/DD/YY"
+                className="input w-full bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                LOA Start Date (MM/DD/YY)
+              </label>
+              <input
+                type="text"
+                name="loaStartDate"
+                value={formData.loaStartDate || ""}
+                onChange={handleInputChange}
+                placeholder="MM/DD/YY"
+                className="input w-full bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                LOA End Date (MM/DD/YY)
+              </label>
+              <input
+                type="text"
+                name="loaEndDate"
+                value={formData.loaEndDate || ""}
+                onChange={handleInputChange}
+                placeholder="MM/DD/YY"
                 className="input w-full bg-gray-700 border-gray-600 text-white"
               />
             </div>

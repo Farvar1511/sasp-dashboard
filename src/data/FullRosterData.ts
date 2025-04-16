@@ -76,7 +76,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
     loaEndDate: null,
     loaStartDate: null,
     name: "VACANT",
-    rank: "Assistant Commissioner",
+    rank: "Deputy Commissioner",
     role: "",
   },
   {
@@ -100,7 +100,7 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
     loaEndDate: null,
     loaStartDate: null,
     name: "VACANT",
-    rank: "Deputy Commissioner",
+    rank: "Assistant Commissioner",
     role: "",
   },
   {
