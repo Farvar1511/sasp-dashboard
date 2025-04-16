@@ -126,8 +126,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
         <NavItem
           to="/fleet"
           icon={FaCar}
-          label="SASP Fleet"
-          title="SASP Fleet"
+          label="Fleet"
+          title="Fleet"
         />
         {isAdmin && (
           <NavItem
