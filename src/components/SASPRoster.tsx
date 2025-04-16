@@ -5,7 +5,6 @@ import {
   Timestamp,
   updateDoc,
   doc,
-  setDoc,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
@@ -165,21 +164,19 @@ const SASPRoster: React.FC = () => {
         }
       });
 
-      const convertTimestampToString = (
-        value: string | Timestamp | null | undefined
-      ): string | null => {
-        if (value instanceof Timestamp) {
-          return value.toDate().toISOString().split("T")[0];
-        }
-        return value || null;
-      };
-
-      const mergedRoster: RosterUser[] = fullRosterTemplate
-        .map((templateEntry) => {
+      const mergedRoster: RosterUser[] = fullRosterTemplate.map(
+        (templateEntry) => {
           const liveUser = templateEntry.callsign
             ? liveUserMap.get(templateEntry.callsign)
             : undefined;
+
           if (liveUser) {
+            if (
+              templateEntry.callsign &&
+              liveUserMap.has(templateEntry.callsign)
+            ) {
+              liveUserMap.delete(templateEntry.callsign);
+            }
             return {
               ...liveUser,
               callsign: templateEntry.callsign,
@@ -208,18 +205,11 @@ const SASPRoster: React.FC = () => {
               badge: normalizedTemplateEntry.badge || "N/A",
               callsign: normalizedTemplateEntry.callsign,
               certifications: templateCerts,
-              loaStartDate: convertTimestampToString(
-                normalizedTemplateEntry.loaStartDate
-              ),
-              loaEndDate: convertTimestampToString(
-                normalizedTemplateEntry.loaEndDate
-              ),
-              joinDate: convertTimestampToString(
-                normalizedTemplateEntry.joinDate
-              ),
-              lastPromotionDate: convertTimestampToString(
-                normalizedTemplateEntry.lastPromotionDate
-              ),
+              loaStartDate: normalizedTemplateEntry.loaStartDate || null,
+              loaEndDate: normalizedTemplateEntry.loaEndDate || null,
+              joinDate: normalizedTemplateEntry.joinDate || null,
+              lastPromotionDate:
+                normalizedTemplateEntry.lastPromotionDate || null,
               isActive:
                 normalizedTemplateEntry.isActive === true ? true : false,
               discordId: normalizedTemplateEntry.discordId || "-",
@@ -227,8 +217,13 @@ const SASPRoster: React.FC = () => {
               isPlaceholder: true,
             } as RosterUser;
           }
-        })
-        .filter((u) => !hideVacant || u.name !== "VACANT");
+        }
+      );
+
+      // Add any remaining live users that were not matched to the template
+      liveUserMap.forEach((user) => {
+        mergedRoster.push(user);
+      });
 
       const lowerSearchTerm = searchTerm.toLowerCase();
       const filteredRoster = mergedRoster.filter((u) => {
@@ -301,11 +296,18 @@ const SASPRoster: React.FC = () => {
 
       const userRef = doc(dbFirestore, "users", editedRowData.id);
 
-      // Check if the document exists in Firestore
       const userDoc = await getDocs(collection(dbFirestore, "users"));
       const userExists = userDoc.docs.some(
         (doc) => doc.id === editedRowData.id
       );
+
+      if (!userExists) {
+        console.error("No document found in Firestore for the given ID.");
+        alert(
+          "Cannot save data for a row that does not exist in Firestore. Please check the ID."
+        );
+        return;
+      }
 
       const updatedData = {
         ...editedRowData,
@@ -316,19 +318,12 @@ const SASPRoster: React.FC = () => {
         certifications: editedRowData.certifications || {},
       };
 
-      if (userExists) {
-        // Update the existing document
-        await updateDoc(userRef, updatedData);
-        alert("User data updated successfully!");
-      } else {
-        // Create a new document
-        await setDoc(userRef, updatedData);
-        alert("User data created successfully!");
-      }
+      await updateDoc(userRef, updatedData);
 
+      alert("User data saved successfully!");
       setEditingRowId(null);
       setEditedRowData({});
-      fetchAndMergeRoster(); // Refresh the roster
+      fetchAndMergeRoster();
     } catch (error) {
       if (error instanceof Error) {
         console.error("Error saving user data:", error.message);
@@ -413,6 +408,8 @@ const SASPRoster: React.FC = () => {
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-black bg-opacity-90 text-[#f3c700] font-semibold">
                 <tr>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}></th>{" "}
+                  {/* Blank column header */}
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>
                     CALLSIGN
                   </th>
