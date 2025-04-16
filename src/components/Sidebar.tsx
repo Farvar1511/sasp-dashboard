@@ -120,8 +120,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
         <NavItem
           to="/sasp-roster"
           icon={FaUsers}
-          label="SASP Roster"
-          title="SASP Roster"
+          label="Roster"
+          title="Roster"
         />
         <NavItem
           to="/fleet"
