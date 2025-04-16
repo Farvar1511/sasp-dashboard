@@ -398,10 +398,29 @@
 
 @media (max-width: 768px) {
   .sidebar {
-    width: 100%;
-    position: fixed;
-    bottom: 0;
-    height: auto;
-    z-index: 50;
+    @apply fixed bottom-0 left-0 w-full h-auto flex-row items-center justify-around p-2 border-t border-gray-800;
+  }
+
+  .page-content {
+    @apply pt-4 pb-20;
+  }
+
+  .header {
+    @apply flex-col items-center text-center p-4;
+  }
+
+  .button-primary,
+  .button-secondary {
+    @apply text-sm px-3 py-2;
+  }
+
+  .login-form,
+  .admin-section,
+  .card {
+    @apply p-4;
+  }
+
+  .sidebar .flex {
+    @apply gap-2;
   }
 }
