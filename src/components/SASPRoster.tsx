@@ -292,7 +292,28 @@ const SASPRoster: React.FC = () => {
         return;
       }
 
-      const userRef = doc(dbFirestore, "users", editedRowData.id); // Use the correct document ID
+      console.log("Saving data for row:", editedRowData);
+
+      const userRef = doc(dbFirestore, "users", editedRowData.id);
+
+      // Combine all keys from editedRowData.certifications, certificationKeys, and restricted keys
+      const allCertKeys = new Set([
+        ...Object.keys(editedRowData.certifications || {}),
+        ...certificationKeys,
+        "HEAT",
+        "MBU",
+        "ACU",
+      ]);
+
+      // Ensure all keys are present and valid
+      const updatedCertifications = Object.fromEntries(
+        Array.from(allCertKeys).map((key) => [
+          key.toUpperCase(),
+          editedRowData.certifications?.[key.toUpperCase()] || "", // Default to an empty string if missing
+        ])
+      );
+
+      console.log("Updated certifications:", updatedCertifications);
 
       const updatedData = {
         ...editedRowData,
@@ -300,15 +321,14 @@ const SASPRoster: React.FC = () => {
         lastPromotionDate: formatDateToMMDDYY(editedRowData.lastPromotionDate),
         loaStartDate: formatDateToMMDDYY(editedRowData.loaStartDate),
         loaEndDate: formatDateToMMDDYY(editedRowData.loaEndDate),
-        certifications: Object.fromEntries(
-          certificationKeys.map((key) => [
-            key.toUpperCase(),
-            editedRowData.certifications?.[key.toUpperCase()] || "",
-          ])
-        ), // Ensure all certifications are strings
+        certifications: updatedCertifications, // Use the updated certifications map
       };
 
-      await updateDoc(userRef, updatedData); // Write the updated data to Firestore
+      console.log("Final data to save:", updatedData);
+
+      await updateDoc(userRef, updatedData);
+
+      console.log("Data successfully saved to Firestore.");
 
       toast.success(`Roster edit saved for ${editedRowData.name || "current row"}`);
       setEditingRowId(null);
@@ -402,58 +422,25 @@ const SASPRoster: React.FC = () => {
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-black bg-opacity-90 text-[#f3c700] font-semibold">
                 <tr>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}></th>{" "}
-                  {/* Blank column header */}
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
-                    CALLSIGN
-                  </th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
-                    BADGE #
-                  </th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
-                    RANK
-                  </th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
-                    NAME
-                  </th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
-                    DISCORD
-                  </th>
-                  <th
-                    className="p-2 border border-[#f3c700]"
-                    colSpan={divisionKeys.length}
-                  >
-                    Divisions
-                  </th>
-                  <th
-                    className="p-2 border border-[#f3c700]"
-                    colSpan={certificationKeys.length}
-                  >
-                    Certifications
-                  </th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
-                    JOIN
-                  </th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
-                    PROMO
-                  </th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
-                    ACTIVE
-                  </th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
-                    INACTIVE / LOA SINCE
-                  </th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}></th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>CALLSIGN</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>BADGE #</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>RANK</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>NAME</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>DISCORD</th>
+                  <th className="p-2 border border-[#f3c700]" colSpan={divisionKeys.length}>Divisions</th>
+                  <th className="p-2 border border-[#f3c700]" colSpan={certificationKeys.length}>Certifications</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>JOIN</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>PROMO</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>ACTIVE</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>INACTIVE / LOA SINCE</th>
                 </tr>
                 <tr>
                   {divisionKeys.map((divKey) => (
-                    <th key={divKey} className="p-2 border border-[#f3c700]">
-                      {divKey.toUpperCase()}
-                    </th>
+                    <th key={divKey} className="p-2 border border-[#f3c700]">{divKey.toUpperCase()}</th>
                   ))}
                   {certificationKeys.map((certKey) => (
-                    <th key={certKey} className="p-2 border border-[#f3c700]">
-                      {certKey.toUpperCase()}
-                    </th>
+                    <th key={certKey} className="p-2 border border-[#f3c700]">{certKey.toUpperCase()}</th>
                   ))}
                 </tr>
               </thead>
