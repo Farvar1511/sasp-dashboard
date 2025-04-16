@@ -88,7 +88,7 @@ export const certOptions: {
     label: "TRAIN",
     bgColor: "bg-orange-600",
     textColor: "text-white",
-  }
+  },
   {
     value: "CERT",
     label: "CERT",
