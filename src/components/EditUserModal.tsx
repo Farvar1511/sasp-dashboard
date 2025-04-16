@@ -17,6 +17,7 @@ import {
 import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { formatIssuedAt, formatDateToMMDDYY } from "../utils/timeHelpers";
+import { toast } from "react-toastify";
 
 interface EditUserModalProps {
   user: {
@@ -182,10 +183,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       };
 
       await updateDoc(userRef, updateData); // Update Firestore document
+      toast.success("Roster changes saved successfully!");
       onSave(); // Trigger the onSave callback
     } catch (error) {
       console.error("Error saving user roster info:", error);
-      alert("Failed to save roster changes. Please try again.");
+      toast.error("Failed to save roster changes. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -199,42 +201,53 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         certifications: formData.certifications,
       };
       await updateDoc(userRef, updateData);
+      toast.success("Certifications saved successfully!");
       onSave();
     } catch (error) {
       console.error("Error saving certifications:", error);
+      toast.error("Failed to save certifications.");
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleAssignNewTask = async () => {
-    if (!formData.newTaskDesc.trim() || !currentUser?.email) return;
-    if (formData.newTaskType === "goal" && formData.newTaskGoal <= 0) {
-      alert("Goal must be greater than 0 for goal tasks.");
+    console.log("Assigning Task to User ID:", user.id);
+    console.log("Task Description:", formData.newTaskDesc);
+
+    if (!formData.newTaskDesc.trim()) {
+      toast.error("Task description cannot be empty.");
       return;
     }
 
-    const now = new Date();
-    const taskData: Omit<UserTask, "id"> = {
-      task: formData.newTaskDesc.trim(),
-      type: formData.newTaskType,
-      ...(formData.newTaskType === "goal" && formData.newTaskGoal > 0
-        ? { goal: formData.newTaskGoal }
-        : {}),
-      progress: 0,
-      completed: false,
-      issuedby: currentUser.name || currentUser.email,
-      issueddate: now.toLocaleDateString(),
-      issuedtime: now.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
+    if (formData.newTaskType === "goal" && formData.newTaskGoal <= 0) {
+      toast.error("Goal must be greater than 0 for goal tasks.");
+      return;
+    }
 
     try {
+      const { date: issueddate, time: issuedtime } = getCurrentDateTimeStrings();
+
+      const newTaskData: UserTask = {
+        id: Date.now().toString(),
+        task: formData.newTaskDesc.trim(),
+        type: formData.newTaskType,
+        issuedby: currentUser?.name || "System",
+        issueddate,
+        issuedtime,
+        completed: false,
+        progress: 0,
+        ...(formData.newTaskType === "goal" ? { goal: formData.newTaskGoal } : {}),
+      };
+
+      console.log("New Task Data:", newTaskData);
+
+      // Update Firestore
       const tasksColRef = collection(dbFirestore, "users", user.id, "tasks");
-      const newTaskDoc = await addDoc(tasksColRef, taskData);
-      setTasks((prev) => [...prev, { ...taskData, id: newTaskDoc.id }]);
+      await addDoc(tasksColRef, newTaskData);
+
+      // Update local state
+      setTasks((prev) => [...prev, newTaskData]);
       setFormData((prev) => ({
         ...prev,
         newTaskDesc: "",
@@ -242,10 +255,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         newTaskGoal: 0,
         showAssignTask: false,
       }));
-      alert("Task assigned successfully!");
+
+      toast.success("Task assigned successfully!");
     } catch (error) {
       console.error("Error assigning task:", error);
-      alert("Failed to assign task.");
+      toast.error("Failed to assign task.");
     }
   };
 
@@ -258,9 +272,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           const taskRef = doc(dbFirestore, "users", user.id, "tasks", taskId);
           await deleteDoc(taskRef);
           setTasks((prev) => prev.filter((t) => t.id !== taskId));
+          toast.success("Task deleted successfully!");
         } catch (error) {
           console.error("Error deleting task:", error);
-          alert("Failed to delete task.");
+          toast.error("Failed to delete task.");
         } finally {
           setConfirmationModal(null);
         }
@@ -271,7 +286,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const handleEditTask = async (task: UserTask) => {
     const updatedTaskDesc = prompt("Edit Task Description:", task.task);
     if (!updatedTaskDesc || !updatedTaskDesc.trim()) {
-      alert("Task description cannot be empty.");
+      toast.error("Task description cannot be empty.");
       return;
     }
 
@@ -297,10 +312,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       setTasks((prev) =>
         prev.map((t) => (t.id === task.id ? { ...t, ...updatedTaskData } : t))
       );
-      alert("Task updated successfully!");
+      toast.success("Task updated successfully!");
     } catch (error) {
       console.error("Error updating task:", error);
-      alert("Failed to update task.");
+      toast.error("Failed to update task.");
     }
   };
 
@@ -316,7 +331,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       entry.disciplinenotes;
 
     if (!updatedType || !updatedNotes.trim()) {
-      alert("Discipline type and notes cannot be empty.");
+      toast.error("Discipline type and notes cannot be empty.");
       return;
     }
 
@@ -346,10 +361,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           d.id === entry.id ? { ...d, ...updatedDisciplineData } : d
         )
       );
-      alert("Discipline entry updated successfully!");
+      toast.success("Discipline entry updated successfully!");
     } catch (error) {
       console.error("Error updating discipline entry:", error);
-      alert("Failed to update discipline entry.");
+      toast.error("Failed to update discipline entry.");
     }
   };
 
@@ -404,6 +419,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
       setFormData((prev) => ({
         ...prev,
+        showAddDiscipline: false, // Collapse the discipline input box
         statusMessage: {
           type: "success",
           message: "Discipline entry added successfully!",
@@ -411,6 +427,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       }));
       setDisciplineType("");
       setDisciplineNotes("");
+      toast.success("Discipline entry added successfully!");
     } catch (error) {
       console.error("Error adding discipline entry:", error);
       setFormData((prev) => ({
@@ -420,6 +437,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           message: "Failed to add discipline entry.",
         },
       }));
+      toast.error("Failed to add discipline entry.");
     } finally {
       setIsSubmitting(false);
     }
@@ -434,9 +452,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           const noteRef = doc(dbFirestore, "users", user.id, "notes", noteId);
           await deleteDoc(noteRef);
           setNotes((prev) => prev.filter((note) => note.id !== noteId));
+          toast.success("Note deleted successfully!");
         } catch (error) {
           console.error("Error deleting note:", error);
-          alert("Failed to delete note.");
+          toast.error("Failed to delete note.");
         } finally {
           setConfirmationModal(null);
         }
@@ -461,9 +480,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           setDiscipline((prev) =>
             prev.filter((discipline) => discipline.id !== disciplineId)
           );
+          toast.success("Discipline entry deleted successfully!");
         } catch (error) {
           console.error("Error deleting discipline entry:", error);
-          alert("Failed to delete discipline entry.");
+          toast.error("Failed to delete discipline entry.");
         } finally {
           setConfirmationModal(null);
         }
@@ -477,6 +497,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         ...prev,
         statusMessage: { type: "error", message: "Note cannot be empty." },
       }));
+      toast.error("Note cannot be empty.");
       return;
     }
 
@@ -515,15 +536,18 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
       setFormData((prev) => ({
         ...prev,
+        showAddNote: false, // Collapse the note input box
         statusMessage: { type: "success", message: "Note added successfully!" },
       }));
       setNewNote("");
+      toast.success("Note added successfully!");
     } catch (error) {
       console.error("Error adding note:", error);
       setFormData((prev) => ({
         ...prev,
         statusMessage: { type: "error", message: "Failed to add note." },
       }));
+      toast.error("Failed to add note.");
     } finally {
       setIsSubmitting(false);
     }
@@ -532,7 +556,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const handleEditNote = async (note: NoteEntry) => {
     const updatedNote = prompt("Edit Note:", note.note);
     if (!updatedNote || !updatedNote.trim()) {
-      alert("Note cannot be empty.");
+      toast.error("Note cannot be empty.");
       return;
     }
 
@@ -544,10 +568,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       setNotes((prev) =>
         prev.map((n) => (n.id === note.id ? { ...n, ...updatedNoteData } : n))
       );
-      alert("Note updated successfully!");
+      toast.success("Note updated successfully!");
     } catch (error) {
       console.error("Error updating note:", error);
-      alert("Failed to update note.");
+      toast.error("Failed to update note.");
     }
   };
 
@@ -1174,3 +1198,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 };
 
 export default EditUserModal;
+function getCurrentDateTimeStrings(): { date: string; time: string } {
+  const now = new Date();
+  const date = now.toLocaleDateString("en-US"); // Format: MM/DD/YYYY
+  const time = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true, // 12-hour format with AM/PM
+  });
+  return { date, time };
+}
+

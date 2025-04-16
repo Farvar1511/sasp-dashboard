@@ -203,7 +203,6 @@
     @apply w-full max-w-[1600px] mx-auto px-10 pt-6;
   }
 
-  /* Roster Table */
   .roster-table {
     @apply min-w-full bg-gray-900/50 border border-gray-700 text-sm;
   }
@@ -228,26 +227,20 @@
     @apply p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300;
   }
 
-  /* Documents Page Styles */
   .documents-category-container {
     @apply bg-black/90 border border-[#f3c700] rounded-lg shadow-lg p-6;
-    /* Ensures background is black with 90% opacity */
   }
 
   .documents-category-container h2 {
     @apply text-xl font-semibold text-[#f3c700] border-b border-[#f3c700]/50 pb-2 mb-4;
-    /* Header text color yellow, border semi-transparent yellow */
   }
 
   .document-link {
     @apply block w-full p-3 bg-black border border-transparent rounded hover:border-[#f3c700] hover:bg-black transition duration-150 ease-in-out text-white hover:text-[#f3c700];
-    /* Link background black, text white, hover border/text yellow */
   }
 }
 
-/* === Utility Styles === */
 @layer utilities {
-  /* Scrollbar */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -256,7 +249,6 @@
     scrollbar-width: none;
   }
 
-  /* Custom Scrollbar */
   .custom-scrollbar::-webkit-scrollbar {
     @apply w-2;
   }
@@ -264,14 +256,11 @@
     @apply bg-gray-700 rounded-full;
   }
 
-  /* Glow Animation */
   @keyframes glow {
     from {
-      /* Reduced glow effect */
       text-shadow: 0 0 2px #f3c700, 0 0 4px #f3c700;
     }
     to {
-      /* Reduced glow effect */
       text-shadow: 0 0 5px #f3c700, 0 0 8px #f3c700;
     }
   }
@@ -294,6 +283,29 @@
   .font-inter {
     font-family: "Inter", sans-serif;
   }
+
+.ProseMirror {
+  min-height: 300px;
+  padding: 1rem;
+  outline: none;
+  caret-color: #f3c700;
+  font-family: 'Inter', sans-serif;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background-color: rgba(0, 0, 0, 0.95);
+  color: white;
+  border-radius: 0.5rem;
+  border: 1px solid #4b5563;
+}
+
+.ProseMirror:empty::before {
+  content: attr(data-placeholder);
+  color: #888;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
 }
 
 /* === Admin Menu (from AdminMenu.css) === */
@@ -423,4 +435,8 @@
   .sidebar .flex {
     @apply gap-2;
   }
+}
+
+.btn {
+  @apply px-3 py-1.5 text-sm rounded-md font-semibold bg-[#f3c700] text-black border border-[#f3c700] hover:bg-yellow-300 transition-colors duration-200;
 }

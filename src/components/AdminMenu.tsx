@@ -18,9 +18,11 @@ import { formatIssuedAt } from "../utils/timeHelpers";
 import { getRandomBackgroundImage } from "../utils/backgroundImage";
 import { FaEdit, FaTrash } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
-import { RosterUser, DisciplineEntry, NoteEntry } from "../types/User"; // Added NoteEntry import
+import { RosterUser, DisciplineEntry, NoteEntry } from "../types/User";
 import EditUserModal from "./EditUserModal";
 import { UserTask } from "../types/User";
+import { toast } from "react-toastify";
+import ConfirmationModal from "./ConfirmationModal";
 
 // NEW HELPER to combine issueddate and issuedtime:
 const getAssignedAt = (task: UserTask): string => {
@@ -51,7 +53,7 @@ const convertToString = (
 
 interface FirestoreUserWithDetails extends RosterUser {
   tasks: UserTask[];
-  disciplineEntries: DisciplineEntry[]; // Ensure DisciplineEntry is imported or defined
+  disciplineEntries: DisciplineEntry[];
   generalNotes: NoteEntry[];
 }
 
@@ -91,10 +93,6 @@ export default function AdminMenu(): JSX.Element {
   const [bulkTaskType, setBulkTaskType] = useState<"goal" | "normal">("normal");
   const [bulkTaskGoal, setBulkTaskGoal] = useState<number>(0);
   const [isAssigning, setIsAssigning] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
   const [backgroundImage, setBackgroundImage] = useState<string>("");
   const [selectedUsersByName, setSelectedUsersByName] = useState<
     { value: string; label: string }[]
@@ -109,6 +107,17 @@ export default function AdminMenu(): JSX.Element {
   const [isAssignTaskOpen, setIsAssignTaskOpen] = useState(false);
   const [selectedRank, setSelectedRank] = useState<string | null>(null);
   const [taskDescription, setTaskDescription] = useState("");
+  const [editingTask, setEditingTask] = useState<{
+    userId: string;
+    task: UserTask;
+  } | null>(null);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<{
+    userId: string;
+    taskId: string;
+  } | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [newTask, setNewTask] = useState<string>("");
 
   const handleRankSelection = (rank: string) => {
     setSelectedRank(rank);
@@ -120,42 +129,83 @@ export default function AdminMenu(): JSX.Element {
     );
   };
 
-  const handleUserToggle = (userEmail: string) => {
+  const handleUserToggle = (userId: string) => {
     setSelectedUsers((prev) =>
-      prev.includes(userEmail)
-        ? prev.filter((email) => email !== userEmail)
-        : [...prev, userEmail]
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    );
+
+    // Ensure selectedUserId is set to the first selected user
+    setSelectedUserId((prev) =>
+      selectedUsers.includes(userId) ? null : userId
     );
   };
 
   const handleAssignTask = async () => {
-    if (!taskDescription.trim()) {
-      alert("Task description cannot be empty.");
+    console.log("Selected Users:", selectedUsers);
+    console.log("Task Description (newTask):", newTask);
+
+    if (selectedUsers.length === 0) {
+      toast.error("Please select at least one user.");
       return;
     }
-    if (selectedUsers.length === 0) {
-      alert("No users selected.");
+
+    if (!newTask || newTask.trim() === "") {
+      console.error("Task description is empty or whitespace.");
+      toast.error("Task description cannot be empty.");
       return;
     }
 
     try {
+      const { date, time } = getCurrentDateTimeStrings();
+
+      const newTaskData: Omit<UserTask, "id"> = {
+        task: newTask.trim(),
+        type: bulkTaskType,
+        issuedby: currentUser?.name || "System",
+        issueddate: date,
+        issuedtime: time,
+        completed: false,
+        progress: 0,
+        ...(bulkTaskType === "goal" ? { goal: bulkTaskGoal } : {}),
+      };
+
       const batch = writeBatch(dbFirestore);
-      selectedUsers.forEach((userEmail) => {
-        const taskRef = collection(dbFirestore, "users", userEmail, "tasks");
-        batch.set(doc(taskRef), {
-          description: taskDescription.trim(),
-          createdAt: new Date(),
-        });
+
+      selectedUsers.forEach((userId) => {
+        const userTasksRef = collection(dbFirestore, "users", userId, "tasks");
+        const newTaskRef = doc(userTasksRef);
+        batch.set(newTaskRef, newTaskData);
       });
+
       await batch.commit();
-      alert("Task assigned successfully!");
-      setIsAssignTaskOpen(false);
-      setSelectedRank(null);
-      setSelectedUsers([]);
-      setTaskDescription("");
+
+      // Update local state
+      setUsersData((prevUsers) =>
+        prevUsers.map((user) =>
+          selectedUsers.includes(user.id)
+            ? {
+                ...user,
+                tasks: [
+                  ...user.tasks,
+                  {
+                    ...newTaskData,
+                    id: Date.now().toString(), // Generate a unique ID for local state
+                  },
+                ],
+              }
+            : user
+        )
+      );
+
+      toast.success(`Task assigned to ${selectedUsers.length} user(s).`);
+      setNewTask(""); // Clear the task input field
+      setBulkTaskGoal(0); // Reset goal input
+      setBulkTaskType("normal"); // Reset task type
     } catch (error) {
       console.error("Error assigning task:", error);
-      alert("Failed to assign task.");
+      toast.error("Failed to assign task.");
     }
   };
 
@@ -170,30 +220,18 @@ export default function AdminMenu(): JSX.Element {
     setBackgroundImage(getRandomBackgroundImage());
   }, []);
 
-  const showStatus = (
-    type: "success" | "error",
-    message: string,
-    duration = 4000
-  ) => {
-    setStatusMessage({ type, message });
-    setTimeout(() => setStatusMessage(null), duration);
-  };
-
   const fetchAdminData = useCallback(async () => {
     setUsersLoading(true);
     setUsersError(null);
     try {
       const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
       const usersPromises = usersSnapshot.docs.map(async (userDoc) => {
-        const userData = userDoc.data() as Partial<RosterUser>; // Explicitly type as Partial<RosterUser>
+        const userData = userDoc.data() as Partial<RosterUser>;
         const userEmail = userDoc.id;
-
         if (!userEmail) {
           console.error("User email missing");
           return null;
         }
-
-        // Ensure `name` is a string
         const name =
           typeof userData.name === "string" ? userData.name : "Unknown";
 
@@ -290,7 +328,7 @@ export default function AdminMenu(): JSX.Element {
         return {
           id: userEmail,
           email: userEmail,
-          name: name, // Use the validated `name`
+          name: name,
           rank: userData.rank || "Unranked",
           badge: userData.badge || "N/A",
           callsign: userData.callsign || "",
@@ -315,7 +353,7 @@ export default function AdminMenu(): JSX.Element {
               .slice(availableRanks.indexOf("Lieutenant"))
               .map((r) => r.toLowerCase())
               .includes(userData.rank?.toLowerCase() || ""),
-          displayName: name, // Set displayName to the person's name
+          displayName: name,
         } as FirestoreUserWithDetails;
       });
 
@@ -342,15 +380,12 @@ export default function AdminMenu(): JSX.Element {
   ) => {
     const rank = event.target.value;
     const isChecked = event.target.checked;
-
     setSelectedRoles((prev) =>
       isChecked ? [...prev, rank] : prev.filter((r) => r !== rank)
     );
-
     const userEmailsInRank = usersData
-      .filter((u) => u.rank === rank && u.email) // Ensure email is defined
-      .map((u) => u.email!); // Use non-null assertion since we filtered undefined
-
+      .filter((u) => u.rank === rank && u.email)
+      .map((u) => u.email!);
     setSelectedUsers((prev) => {
       const currentSet = new Set(prev);
       if (isChecked) {
@@ -369,7 +404,6 @@ export default function AdminMenu(): JSX.Element {
       ? selectedOptions.map((o) => o.value)
       : [];
     setSelectedUsersByName(selectedOptions ? [...selectedOptions] : []);
-
     setSelectedUsers((prev) => {
       const currentSet = new Set(prev);
       selectedEmails.forEach((email) => currentSet.add(email));
@@ -394,25 +428,22 @@ export default function AdminMenu(): JSX.Element {
 
   const handleBulkAssignTask = async () => {
     if (selectedUsers.length === 0) {
-      showStatus("error", "Please select at least one user or role.");
+      toast.error("Please select at least one user or role.");
       return;
     }
     if (!bulkTaskDescription.trim()) {
-      showStatus("error", "Task description cannot be empty.");
+      toast.error("Task description cannot be empty.");
       return;
     }
     if (bulkTaskType === "goal" && bulkTaskGoal <= 0) {
-      showStatus("error", "Goal must be greater than 0 for goal tasks.");
+      toast.error("Goal must be greater than 0 for goal tasks.");
       return;
     }
-
     if (!currentUser?.email) {
-      showStatus("error", "User email missing.");
+      toast.error("User email missing.");
       return;
     }
-
     setIsAssigning(true);
-    setStatusMessage(null);
 
     try {
       const batch = writeBatch(dbFirestore);
@@ -421,10 +452,10 @@ export default function AdminMenu(): JSX.Element {
       const taskData: Omit<UserTask, "id"> = {
         task: bulkTaskDescription.trim(),
         type: bulkTaskType,
-        ...(bulkTaskType === "goal" && { goal: bulkTaskGoal }), // Include goal only if type is "goal"
+        ...(bulkTaskType === "goal" && { goal: bulkTaskGoal }),
         progress: 0,
         completed: false,
-        issuedby: currentUser!.name || currentUser!.email, // using ! because we checked above
+        issuedby: currentUser!.name || currentUser!.email,
         issueddate: date,
         issuedtime: time,
       };
@@ -445,10 +476,7 @@ export default function AdminMenu(): JSX.Element {
       });
 
       await batch.commit();
-      showStatus(
-        "success",
-        `Task assigned to ${selectedUsers.length} user(s).`
-      );
+      toast.success(`Task assigned to ${selectedUsers.length} user(s).`);
       fetchAdminData();
       clearUserSelection();
       setBulkTaskDescription("");
@@ -456,7 +484,7 @@ export default function AdminMenu(): JSX.Element {
       setBulkTaskGoal(0);
     } catch (error) {
       console.error("Error assigning task:", error);
-      showStatus("error", "Failed to assign task.");
+      toast.error("Failed to assign task.");
     } finally {
       setIsAssigning(false);
     }
@@ -468,36 +496,68 @@ export default function AdminMenu(): JSX.Element {
   ) => {
     if (!userEmail) {
       console.error("User email is missing.");
+      toast.error("User email is missing.");
       return;
     }
+    setTaskToDelete({ userId: userEmail, taskId });
+    setIsConfirmModalOpen(true);
+  };
 
-    setConfirmationModal({
-      show: true,
-      message: "Are you sure you want to delete this task?",
-      onConfirm: async () => {
-        try {
-          const taskRef = doc(dbFirestore, "users", userEmail, "tasks", taskId);
-          await deleteDoc(taskRef);
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete) return;
 
-          setUsersData((prev) =>
-            prev.map((user) =>
-              user.id === userEmail
-                ? {
-                    ...user,
-                    tasks: user.tasks.filter((task) => task.id !== taskId),
-                  }
-                : user
-            )
-          );
-          showStatus("success", "Task deleted successfully.");
-        } catch (error) {
-          console.error("Error deleting task:", error);
-          showStatus("error", "Failed to delete task.");
-        } finally {
-          setConfirmationModal(null);
-        }
-      },
-    });
+    try {
+      const taskRef = doc(
+        dbFirestore,
+        "users",
+        taskToDelete.userId,
+        "tasks",
+        taskToDelete.taskId
+      );
+      await deleteDoc(taskRef);
+      setUsersData((prev) =>
+        prev.map((user) =>
+          user.id === taskToDelete.userId
+            ? {
+                ...user,
+                tasks: user.tasks.filter(
+                  (task) => task.id !== taskToDelete.taskId
+                ),
+              }
+            : user
+        )
+      );
+      toast.success("Task deleted successfully.");
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      toast.error("Failed to delete task.");
+    } finally {
+      setTaskToDelete(null);
+      setIsConfirmModalOpen(false);
+    }
+  };
+
+  const handleEditTask = () => {
+    if (!editingTask || !editingTask.task.task.trim()) {
+      toast.error("Task description cannot be empty.");
+      return;
+    }
+    setUsersData((prevUsers) =>
+      prevUsers.map((user) =>
+        user.id === editingTask.userId
+          ? {
+              ...user,
+              tasks: user.tasks.map((task) =>
+                task.id === editingTask.task.id
+                  ? { ...task, task: editingTask.task.task }
+                  : task
+              ),
+            }
+          : user
+      )
+    );
+    toast.success("Task updated successfully!");
+    setEditingTask(null);
   };
 
   const userOptions = useMemo(() => {
@@ -571,7 +631,7 @@ export default function AdminMenu(): JSX.Element {
               Admin Menu
             </NavLink>
             <NavLink
-              to="/bulletins" // Must match the route defined in App.tsx
+              to="/bulletins"
               className={({ isActive }) =>
                 `px-4 py-2 text-sm font-medium ${
                   isActive
@@ -584,19 +644,6 @@ export default function AdminMenu(): JSX.Element {
             </NavLink>
           </div>
         </div>
-
-        {statusMessage && (
-          <div
-            className={`fixed top-20 right-6 px-4 py-2 rounded shadow-lg z-50 text-sm font-medium ${
-              statusMessage.type === "success"
-                ? "bg-green-600 text-white"
-                : "bg-red-600 text-white"
-            }`}
-          >
-            {statusMessage.message}
-          </div>
-        )}
-
         {/* Assign Task Button */}
         <button
           className="px-4 py-2 bg-[#f3c700] text-black font-bold rounded hover:bg-yellow-300"
@@ -604,19 +651,19 @@ export default function AdminMenu(): JSX.Element {
         >
           {isAssignTaskOpen ? "Close Assign Task" : "Assign Task"}
         </button>
-
         {isAssignTaskOpen && (
           <div className="bg-black/70 text-[#f3c700] font-inter p-4 rounded-lg shadow-lg space-y-4">
             <h2 className="text-xl font-bold">Assign Task</h2>
-
             {/* Task Description */}
             <textarea
               className="w-full p-2 bg-black/80 text-white rounded border border-[#f3c700] text-sm"
               placeholder="Enter task description..."
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
+              value={newTask}
+              onChange={(e) => {
+                console.log("Task Input Changed:", e.target.value);
+                setNewTask(e.target.value);
+              }}
             />
-
             {/* Task Type Selection */}
             <div>
               <label className="block text-sm font-medium text-[#f3c700] mb-2">
@@ -633,47 +680,38 @@ export default function AdminMenu(): JSX.Element {
                 <option value="goal">Goal Task</option>
               </select>
             </div>
-
-            {/* Rank Selection */}
-            <div>
-              <label className="block text-sm font-medium text-[#f3c700] mb-2">
-                Select Rank:
-              </label>
-              <select
-                className="w-full p-2 bg-black/80 text-white rounded border border-[#f3c700] text-sm"
-                value={selectedRank || ""}
-                onChange={(e) => handleRankSelection(e.target.value)}
-              >
-                <option value="" disabled>
-                  Select a rank
-                </option>
-                {availableRanks.map((rank) => (
-                  <option key={rank} value={rank}>
-                    {rank}
-                  </option>
-                ))}
-              </select>
-            </div>
-
+            {/* Goal Input (conditionally displayed) */}
+            {bulkTaskType === "goal" && (
+              <div>
+                <label className="block text-sm font-medium text-[#f3c700] mb-2">
+                  Goal Value:
+                </label>
+                <input
+                  type="number"
+                  className="w-full p-2 bg-black/80 text-white rounded border border-[#f3c700] text-sm"
+                  placeholder="Enter goal value"
+                  value={bulkTaskGoal}
+                  onChange={(e) => setBulkTaskGoal(Number(e.target.value))}
+                />
+              </div>
+            )}
             {/* Selected Users */}
             <div>
               <h3 className="text-lg font-semibold mb-2">Selected Users:</h3>
               <div className="grid grid-cols-2 gap-2 bg-black/80 p-3 rounded border border-[#f3c700]">
                 {usersData.map((user) => (
                   <label
-                    key={user.email}
+                    key={user.id}
                     className={`flex items-center space-x-2 p-2 rounded border ${
-                      selectedUsers.includes(user.email ?? "")
+                      selectedUsers.includes(user.id)
                         ? "bg-[#f3c700] text-black"
                         : "bg-black/90 text-white"
                     }`}
                   >
                     <input
                       type="checkbox"
-                      checked={selectedUsers.includes(user.email ?? "")}
-                      onChange={() =>
-                        user.email && handleUserToggle(user.email)
-                      }
+                      checked={selectedUsers.includes(user.id)}
+                      onChange={() => handleUserToggle(user.id)}
                       className="h-4 w-4 text-[#f3c700] border-[#f3c700] rounded focus:ring-[#f3c700] bg-black"
                     />
                     <span className="text-sm">{user.name}</span>
@@ -681,7 +719,6 @@ export default function AdminMenu(): JSX.Element {
                 ))}
               </div>
             </div>
-
             {/* Action Buttons */}
             <div className="flex justify-between items-center">
               <button
@@ -699,7 +736,6 @@ export default function AdminMenu(): JSX.Element {
             </div>
           </div>
         )}
-
         {/* Users Overview */}
         <div className="admin-section p-6 bg-black bg-opacity-85 rounded-lg shadow-lg border border-[#f3c700]">
           <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700]">
@@ -736,10 +772,27 @@ export default function AdminMenu(): JSX.Element {
                           className="p-1.5 rounded border border-[#f3c700] bg-black bg-opacity-90 relative group"
                         >
                           <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                            <FaEdit
-                              className="text-[#f3c700] hover:text-yellow-300 cursor-pointer h-3 w-3"
-                              title="Edit Task"
-                            />
+                            {editingTask &&
+                            editingTask.userId === userData.id &&
+                            editingTask.task.id === task.id ? (
+                              <button
+                                onClick={handleEditTask}
+                                className="button-primary"
+                              >
+                                Saved
+                              </button>
+                            ) : (
+                              <FaEdit
+                                className="text-[#f3c700] hover:text-yellow-300 cursor-pointer h-3 w-3"
+                                title="Edit Task"
+                                onClick={() =>
+                                  setEditingTask({
+                                    userId: userData.id,
+                                    task,
+                                  })
+                                }
+                              />
+                            )}
                             <FaTrash
                               className="text-red-500 hover:text-red-400 cursor-pointer h-3 w-3"
                               title="Delete Task"
@@ -748,15 +801,34 @@ export default function AdminMenu(): JSX.Element {
                               }
                             />
                           </div>
-                          <p
-                            className={`inline text-xs ${
-                              task.completed
-                                ? "line-through text-gray-500"
-                                : "text-gray-300"
-                            }`}
-                          >
-                            {task.task}
-                          </p>
+                          {editingTask &&
+                          editingTask.userId === userData.id &&
+                          editingTask.task.id === task.id ? (
+                            <input
+                              type="text"
+                              value={editingTask.task.task}
+                              onChange={(e) =>
+                                setEditingTask({
+                                  userId: userData.id,
+                                  task: {
+                                    ...editingTask.task,
+                                    task: e.target.value,
+                                  },
+                                })
+                              }
+                              className="input"
+                            />
+                          ) : (
+                            <p
+                              className={`inline text-xs ${
+                                task.completed
+                                  ? "line-through text-gray-500"
+                                  : "text-gray-300"
+                              }`}
+                            >
+                              {task.task}
+                            </p>
+                          )}
                           <small className="text-gray-400 block mt-1 text-[10px]">
                             Type: {task.type}
                             {task.type === "goal" &&
@@ -848,7 +920,6 @@ export default function AdminMenu(): JSX.Element {
             </div>
           )}
         </div>
-
         {editingUser && (
           <EditUserModal
             user={{
@@ -882,6 +953,13 @@ export default function AdminMenu(): JSX.Element {
             }}
           />
         )}
+        <ConfirmationModal
+          isOpen={isConfirmModalOpen}
+          onClose={() => setIsConfirmModalOpen(false)}
+          onConfirm={confirmDeleteTask}
+          title="Delete Task"
+          message="Are you sure you want to delete this task? This action cannot be undone."
+        />
       </div>
     </Layout>
   );

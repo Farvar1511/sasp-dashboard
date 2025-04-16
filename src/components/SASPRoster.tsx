@@ -22,6 +22,8 @@ import {
 import { backgroundImages } from "../data/images";
 import { computeIsAdmin } from "../utils/isadmin";
 import { formatDateToMMDDYY } from "../utils/timeHelpers";
+import { toast } from "react-toastify"; // Import toastify
+import "react-toastify/dist/ReactToastify.css"; // Import toastify styles
 
 const rankCategories: { [key: string]: string[] } = {
   "High Command": [
@@ -280,34 +282,17 @@ const SASPRoster: React.FC = () => {
     try {
       if (!editedRowData.id || editedRowData.id.trim() === "") {
         console.error("The row does not have a valid Firestore document ID.");
-        alert(
-          "Cannot save rows without a valid Firestore document ID. Please ensure the row has a valid ID."
-        );
+        toast.error("Cannot save rows without a valid Firestore document ID.");
         return;
       }
 
       if (!editedRowData.name || !editedRowData.callsign) {
         console.error("The row does not have a valid name and callsign.");
-        alert(
-          "Cannot save rows without a valid name and callsign. Please provide both."
-        );
+        toast.error("Cannot save rows without a valid name and callsign.");
         return;
       }
 
-      const userRef = doc(dbFirestore, "users", editedRowData.id);
-
-      const userDoc = await getDocs(collection(dbFirestore, "users"));
-      const userExists = userDoc.docs.some(
-        (doc) => doc.id === editedRowData.id
-      );
-
-      if (!userExists) {
-        console.error("No document found in Firestore for the given ID.");
-        alert(
-          "Cannot save data for a row that does not exist in Firestore. Please check the ID."
-        );
-        return;
-      }
+      const userRef = doc(dbFirestore, "users", editedRowData.id); // Use the correct document ID
 
       const updatedData = {
         ...editedRowData,
@@ -315,30 +300,30 @@ const SASPRoster: React.FC = () => {
         lastPromotionDate: formatDateToMMDDYY(editedRowData.lastPromotionDate),
         loaStartDate: formatDateToMMDDYY(editedRowData.loaStartDate),
         loaEndDate: formatDateToMMDDYY(editedRowData.loaEndDate),
-        certifications: editedRowData.certifications || {},
+        certifications: Object.fromEntries(
+          certificationKeys.map((key) => [
+            key.toUpperCase(),
+            editedRowData.certifications?.[key.toUpperCase()] || "",
+          ])
+        ), // Ensure all certifications are strings
       };
 
-      await updateDoc(userRef, updatedData);
+      await updateDoc(userRef, updatedData); // Write the updated data to Firestore
 
-      alert("User data saved successfully!");
+      toast.success(`Roster edit saved for ${editedRowData.name || "current row"}`);
       setEditingRowId(null);
       setEditedRowData({});
-      fetchAndMergeRoster();
+      fetchAndMergeRoster(); // Refresh the roster data
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error saving user data:", error.message);
-      } else {
-        console.error("Error saving user data:", error);
-      }
-      alert(
-        "Failed to save user data. Please check the console for more details."
-      );
+      console.error("Error saving user data:", error);
+      toast.error("Failed to save user data. Please try again.");
     }
   };
 
   const handleCancelClick = () => {
     setEditingRowId(null);
     setEditedRowData({});
+    toast.info("Edit cancelled."); // Toastify notification for cancel
   };
 
   const handleInputChange = (
@@ -350,6 +335,15 @@ const SASPRoster: React.FC = () => {
       ...prev,
       [name]: value,
     }));
+  };
+
+  // Helper function to determine allowed certification options
+  const getCertificationOptions = (key: string) => {
+    const restrictedKeys = ["HEAT", "MBU", "ACU"];
+    if (restrictedKeys.includes(key.toUpperCase())) {
+      return ["", "CERT"]; // Only allow None (blank) or CERT
+    }
+    return ["", "LEAD", "SUPER", "CERT", "TRAIN"]; // Default options
   };
 
   return (
@@ -601,11 +595,13 @@ const SASPRoster: React.FC = () => {
                                     }
                                     className="input w-full bg-gray-700 border-gray-600 text-white"
                                   >
-                                    <option value="">-</option>
-                                    <option value="LEAD">LEAD</option>
-                                    <option value="SUPER">SUPER</option>
-                                    <option value="CERT">CERT</option>
-                                    <option value="TRAIN">TRAIN</option>
+                                    {getCertificationOptions(divKey).map(
+                                      (option) => (
+                                        <option key={option} value={option}>
+                                          {option || "-"}
+                                        </option>
+                                      )
+                                    )}
                                   </select>
                                 ) : (
                                   <span
@@ -629,8 +625,9 @@ const SASPRoster: React.FC = () => {
                                         : "bg-gray-700 text-gray-400"
                                     }`}
                                   >
-                                    {u.certifications?.[divKey.toUpperCase()] ||
-                                      "-"}
+                                    {u.certifications?.[
+                                      divKey.toUpperCase()
+                                    ] || "-"}
                                   </span>
                                 )}
                               </td>
@@ -660,11 +657,13 @@ const SASPRoster: React.FC = () => {
                                     }
                                     className="input w-full bg-gray-700 border-gray-600 text-white"
                                   >
-                                    <option value="">-</option>
-                                    <option value="LEAD">LEAD</option>
-                                    <option value="SUPER">SUPER</option>
-                                    <option value="CERT">CERT</option>
-                                    <option value="TRAIN">TRAIN</option>
+                                    {getCertificationOptions(certKey).map(
+                                      (option) => (
+                                        <option key={option} value={option}>
+                                          {option || "-"}
+                                        </option>
+                                      )
+                                    )}
                                   </select>
                                 ) : (
                                   <span

@@ -14,6 +14,7 @@ import { db as dbFirestore } from "../firebase"; // Removed Timestamp
 import { useAuth } from "../context/AuthContext";
 import Layout from "../components/Layout";
 import Modal from "../components/Modal"; // Import a modal component
+import Bulletins from "../components/Bulletins"; // Import Bulletins component
 import {
   RosterUser,
   FleetVehicle as Vehicle,
@@ -41,6 +42,12 @@ const rankOrder: { [key: string]: number } = {
   Trooper: 12,
   Cadet: 13,
   Unknown: 99,
+};
+
+const stripHtmlTags = (html: string): string => {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || div.innerText || "";
 };
 
 const MyDashboard: React.FC = () => {
@@ -315,21 +322,22 @@ const MyDashboard: React.FC = () => {
         const bulletinsQuery = query(
           bulletinsCollectionRef,
           orderBy("createdAt", "desc"),
-          limit(5) // Fetch only the most recent 5 bulletins
+          limit(2) // Fetch only the most recent 2 bulletins
         );
         const bulletinsSnapshot = await getDocs(bulletinsQuery);
         setBulletins(
           bulletinsSnapshot.docs.map((doc) => {
             const data = doc.data();
+            const contentLines = (data.content || "").split("\n");
             return {
               id: doc.id,
               title: data.title || "Untitled",
               content: data.content || "No content available.",
+              contentPreview: contentLines[0] || "No content available.",
+              contentFull: data.content || "No content available.",
               postedByName: data.postedByName || "Unknown",
               postedByRank: data.postedByRank || "Unknown",
               createdAt: data.createdAt, // Firestore timestamp
-              issueddate: data.issueddate || null,
-              issuedtime: data.issuedtime || null,
             };
           }) as BulletinEntry[]
         );
@@ -562,10 +570,10 @@ const MyDashboard: React.FC = () => {
                     <h3 className="text-sm font-bold text-[#f3c700] mb-1">
                       {b.title}
                     </h3>
-                    <p className="text-xs text-white line-clamp-2">
-                      {b.content}
+                    <p className="text-xs text-white line-clamp-1">
+                      {stripHtmlTags(b.content).slice(0, 100)}...
                     </p>
-                    <p className="text-[10px] text-white mt-1">
+                    <p className="text-[10px] text-gray-400 mt-1">
                       Posted by {b.postedByName} ({b.postedByRank}) –{" "}
                       {formatCreatedAt(b.createdAt)}
                     </p>
@@ -587,16 +595,18 @@ const MyDashboard: React.FC = () => {
         {/* Modal for Full Bulletin */}
         {selectedBulletin && (
           <Modal onClose={() => setSelectedBulletin(null)}>
-            <div className="p-6 bg-black bg-opacity-90 rounded-lg shadow-lg">
-              <h2 className="text-2xl font-bold text-[#f3c700] mb-4">
-                {selectedBulletin.title}
-              </h2>
-              <p className="text-white mb-4">{selectedBulletin.content}</p>
-              <p className="text-sm text-white">
-                Posted by {selectedBulletin.postedByName} (
-                {selectedBulletin.postedByRank}) on{" "}
-                {formatCreatedAt(selectedBulletin.createdAt)}
-              </p>
+            <div className="p-6 bg-black bg-opacity-90 rounded-lg shadow-lg max-w-7xl w-full max-h-[80vh] overflow-y-auto mx-auto">
+              {selectedBulletin ? (
+                <Bulletins
+                  selectedBulletin={
+                    selectedBulletin
+                      ? { ...selectedBulletin, createdAt: selectedBulletin.createdAt.toDate() }
+                      : undefined
+                  }
+                />
+              ) : (
+                <p className="text-white text-center">Loading bulletin...</p>
+              )}
             </div>
           </Modal>
         )}

@@ -14,6 +14,8 @@ import { db as dbFirestore } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import { FaPlus } from "react-icons/fa"; // Modified
 import { computeIsAdmin } from "../utils/isadmin";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 interface FleetVehicle {
   id: string;
@@ -68,8 +70,7 @@ const Fleet: React.FC = () => {
           ({
             id: doc.id,
             ...doc.data(),
-            division:
-              doc.data().division === "MOTO" ? "MBU" : doc.data().division, // Treat MOTO as MBU
+            division: doc.data().division === "MOTO" ? "MBU" : doc.data().division, // Treat MOTO as MBU
           } as FleetVehicle)
       );
       setFleetData(vehicles);
@@ -110,12 +111,20 @@ const Fleet: React.FC = () => {
     try {
       await updateDoc(vehicleRef, updateData);
       setEditingVehicle(null);
+      toast.success("Vehicle data saved successfully!", {
+        position: "top-right",
+        style: { backgroundColor: "black", color: "#f3c700" },
+      });
       // Refresh fleet data after update
       fetchFleetData();
     } catch (error) {
       console.error("Error saving vehicle:", error);
-      alert(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      toast.error(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        {
+          position: "top-right",
+          style: { backgroundColor: "black", color: "#f3c700" },
+        }
       );
     }
   };
@@ -126,12 +135,20 @@ const Fleet: React.FC = () => {
       const vehicleRef = collection(dbFirestore, "fleet");
       await addDoc(vehicleRef, newVehicle);
       setNewVehicle(null);
+      toast.success("Vehicle added successfully!", {
+        position: "top-right",
+        style: { backgroundColor: "black", color: "#f3c700" },
+      });
       // Refresh fleet data after adding
       fetchFleetData();
     } catch (error) {
       console.error("Error adding vehicle:", error);
-      alert(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      toast.error(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        {
+          position: "top-right",
+          style: { backgroundColor: "black", color: "#f3c700" },
+        }
       );
     }
   };
@@ -142,12 +159,20 @@ const Fleet: React.FC = () => {
     try {
       const vehicleRef = doc(dbFirestore, "fleet", vehicleId);
       await deleteDoc(vehicleRef);
+      toast.success("Vehicle deleted successfully!", {
+        position: "top-right",
+        style: { backgroundColor: "black", color: "#f3c700" },
+      });
       // Refresh fleet data after deletion
       fetchFleetData();
     } catch (error) {
       console.error("Error deleting vehicle:", error);
-      alert(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      toast.error(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        {
+          position: "top-right",
+          style: { backgroundColor: "black", color: "#f3c700" },
+        }
       );
     }
   };

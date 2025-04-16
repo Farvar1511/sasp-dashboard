@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   collection,
   query,
@@ -12,6 +12,10 @@ import {
 import { db as dbFirestore } from "../firebase";
 import Layout from "./Layout";
 import { useAuth } from "../context/AuthContext";
+import TiptapEditor from "../components/TipTapEditor";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import ConfirmationModal from "./ConfirmationModal";
 
 interface Bulletin {
   id: string;
@@ -22,12 +26,38 @@ interface Bulletin {
   createdAt: Date;
 }
 
-const Bulletins: React.FC = () => {
+interface BulletinsProps {
+  selectedBulletin?: Bulletin;
+}
+
+const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
+  if (selectedBulletin) {
+    return (
+      <>
+        <h2 className="text-3xl font-bold text-[#f3c700] mb-6 text-center">
+          {selectedBulletin.title}
+        </h2>
+        <div
+          className="prose prose-lg prose-invert max-w-full md:max-w-4xl xl:max-w-5xl mx-auto bg-black/95 p-4 rounded"
+          dangerouslySetInnerHTML={{ __html: selectedBulletin.content }}
+        />
+        <p className="text-sm text-gray-400 text-center mt-4">
+          Posted by {selectedBulletin.postedByName} (
+          {selectedBulletin.postedByRank}) on{" "}
+          {selectedBulletin.createdAt.toLocaleDateString()} at{" "}
+          {selectedBulletin.createdAt.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+      </>
+    );
+  }
+
   const { user: currentUser } = useAuth();
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [editingBulletinId, setEditingBulletinId] = useState<string | null>(
     null
   );
@@ -38,7 +68,13 @@ const Bulletins: React.FC = () => {
     type: "success" | "error";
     message: string;
   } | null>(null);
-  const editContentRef = useRef<HTMLTextAreaElement>(null);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [bulletinToDeleteId, setBulletinToDeleteId] = useState<string | null>(
+    null
+  );
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
 
   const canManageBulletins = useMemo(() => {
     if (!currentUser?.role || !currentUser?.rank) return false;
@@ -76,7 +112,7 @@ const Bulletins: React.FC = () => {
           content: data.content || "No content available.",
           postedByName: data.postedByName || "Unknown",
           postedByRank: data.postedByRank || "Unknown",
-          createdAt: data.createdAt?.toDate() || new Date(), // Convert Firestore timestamp
+          createdAt: data.createdAt?.toDate() || new Date(),
         };
       });
       setBulletins(fetchedBulletins);
@@ -134,33 +170,28 @@ const Bulletins: React.FC = () => {
     }
   };
 
-  const handleDeleteBulletin = async (id: string) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this bulletin? This action cannot be undone."
-      )
-    )
-      return;
-
-    try {
-      await deleteDoc(doc(dbFirestore, "bulletins", id));
-      showStatus("success", "Bulletin deleted successfully!");
-      await fetchBulletins();
-    } catch (error) {
-      console.error("Error deleting bulletin:", error);
-      showStatus(
-        "error",
-        `Failed to delete bulletin: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-    }
+  const handleDeleteClick = (id: string) => {
+    setBulletinToDeleteId(id);
+    setIsConfirmModalOpen(true);
   };
 
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newContent, setNewContent] = useState("");
-  const addContentRef = useRef<HTMLTextAreaElement>(null);
+  const confirmDelete = () => {
+    if (!bulletinToDeleteId) return;
+
+    deleteDoc(doc(dbFirestore, "bulletins", bulletinToDeleteId))
+      .then(() => {
+        toast.success("Bulletin deleted successfully!");
+        fetchBulletins();
+        setBulletinToDeleteId(null);
+        setIsConfirmModalOpen(false); // Ensure the modal closes
+      })
+      .catch((error) => {
+        console.error("Error deleting bulletin:", error);
+        toast.error("Failed to delete bulletin.");
+        setBulletinToDeleteId(null);
+        setIsConfirmModalOpen(false); // Ensure the modal closes even on error
+      });
+  };
 
   const handleAddBulletin = async () => {
     if (!currentUser || !currentUser.name) {
@@ -175,7 +206,6 @@ const Bulletins: React.FC = () => {
     setIsSubmitting(true);
     try {
       const now = new Date();
-
       await addDoc(collection(dbFirestore, "bulletins"), {
         title: newTitle.trim(),
         content: newContent.trim(),
@@ -183,7 +213,6 @@ const Bulletins: React.FC = () => {
         postedByRank: currentUser.rank || "Unknown",
         createdAt: now,
       });
-
       showStatus("success", "Bulletin added successfully!");
       setNewTitle("");
       setNewContent("");
@@ -232,7 +261,7 @@ const Bulletins: React.FC = () => {
           </div>
 
           {canManageBulletins && showAddForm && (
-            <div className="mb-6 p-4 border border-gray-700 rounded bg-gray-800/50">
+            <div className="mb-6 p-4 border border-gray-700 rounded bg-black/95">
               <h2 className="text-xl font-semibold text-yellow-300 mb-3">
                 Add New Bulletin
               </h2>
@@ -241,16 +270,15 @@ const Bulletins: React.FC = () => {
                 placeholder="Title"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                className="input w-full mb-2 bg-gray-700 border-gray-600 text-white"
+                className="input w-full mb-2 bg-black/95 border-gray-600 text-white"
               />
-              <textarea
-                ref={addContentRef}
-                placeholder="Content (supports basic HTML like <b>, <i>, <br>, <span> with style)"
-                value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                rows={5}
-                className="input w-full mb-3 bg-gray-700 border-gray-600 text-white"
-              />
+              <div className="min-h-[20rem] mb-2 bg-black/95 p-2 rounded">
+                <TiptapEditor
+                  content={newContent}
+                  onChange={setNewContent}
+                  editorClassName="bg-black/95 text-white"
+                />
+              </div>
               <button
                 onClick={handleAddBulletin}
                 className="button-primary"
@@ -272,12 +300,15 @@ const Bulletins: React.FC = () => {
               {bulletins.map((bulletin) => (
                 <div
                   key={bulletin.id}
-                  className="group bulletin-container p-4 rounded border shadow-md bg-gray-800 border-gray-700 relative"
+                  className="group bulletin-container p-4 rounded border border-[#f3c700] shadow-md bg-gray-900 relative"
                 >
                   <h2 className="text-lg font-bold text-yellow-300 mb-1">
                     {bulletin.title}
                   </h2>
-                  <p className="text-sm text-gray-300">{bulletin.content}</p>
+                  <div
+                    className="text-sm text-gray-300 prose prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: bulletin.content }}
+                  ></div>
                   <p className="text-xs text-gray-400 mt-2">
                     Posted by {bulletin.postedByName} ({bulletin.postedByRank})
                     on {bulletin.createdAt.toLocaleDateString()} at{" "}
@@ -291,14 +322,14 @@ const Bulletins: React.FC = () => {
                       <>
                         <button
                           onClick={() => handleStartEdit(bulletin)}
-                          className="text-blue-500 hover:text-blue-400"
+                          className="p-1 rounded text-blue-400 hover:bg-blue-600 hover:text-white transition-colors"
                           title="Edit"
                         >
                           ✏️
                         </button>
                         <button
-                          onClick={() => handleDeleteBulletin(bulletin.id)}
-                          className="text-red-500 hover:text-red-400"
+                          onClick={() => handleDeleteClick(bulletin.id)}
+                          className="p-1 rounded text-red-400 hover:bg-red-600 hover:text-white transition-colors"
                           title="Delete"
                         >
                           🗑️
@@ -307,9 +338,8 @@ const Bulletins: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Edit Form */}
                   {editingBulletinId === bulletin.id && (
-                    <div className="mt-4 p-4 border border-gray-700 rounded bg-gray-800/50">
+                    <div className="mt-4 p-4 border border-gray-700 rounded bg-black/95">
                       <h2 className="text-lg font-semibold text-yellow-300 mb-3">
                         Edit Bulletin
                       </h2>
@@ -317,17 +347,16 @@ const Bulletins: React.FC = () => {
                         type="text"
                         value={editedTitle}
                         onChange={(e) => setEditedTitle(e.target.value)}
-                        className="input w-full mb-2 bg-gray-700 border-gray-600 text-white"
+                        className="input w-full mb-2 bg-black/95 border-gray-600 text-white"
                         placeholder="Title"
                       />
-                      <textarea
-                        ref={editContentRef}
-                        value={editedContent}
-                        onChange={(e) => setEditedContent(e.target.value)}
-                        rows={5}
-                        className="input w-full mb-3 bg-gray-700 border-gray-600 text-white"
-                        placeholder="Content"
-                      />
+                      <div className="min-h-[20rem] mb-2 bg-black/95 p-2 rounded">
+                        <TiptapEditor
+                          content={editedContent}
+                          onChange={setEditedContent}
+                          editorClassName="bg-black/95 text-white"
+                        />
+                      </div>
                       <div className="flex gap-2">
                         <button
                           onClick={handleEditBulletin}
@@ -351,8 +380,20 @@ const Bulletins: React.FC = () => {
           )}
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => {
+          setIsConfirmModalOpen(false);
+          setBulletinToDeleteId(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Bulletin"
+        message="Are you sure you want to delete this bulletin? This action cannot be undone."
+      />
     </Layout>
   );
 };
 
 export default Bulletins;
+
