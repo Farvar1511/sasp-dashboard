@@ -374,7 +374,7 @@ const MyDashboard: React.FC = () => {
         const hasCertAccess = (requiredCertKey: string | null): boolean => {
           if (!requiredCertKey) return true;
           const status = userCerts[requiredCertKey.toUpperCase()];
-          return ["CERT", "SUPER", "LEAD"].includes(
+          return ["CERT", "SUPER", "LEAD", "TRAIN"].includes(
             (status || "").toUpperCase()
           );
         };
@@ -633,6 +633,8 @@ const MyDashboard: React.FC = () => {
                               ? "bg-orange-500"
                               : status === "CERT"
                               ? "bg-green-600"
+                              : status === "TRAIN"
+                              ? "bg-orange-600" 
                               : "bg-gray-800 text-gray-400"
                           } text-white`}
                         >
@@ -670,6 +672,8 @@ const MyDashboard: React.FC = () => {
                               ? "bg-orange-500"
                               : status === "CERT"
                               ? "bg-green-600"
+                              : status === "TRAIN"
+                              ? "bg-orange-600"
                               : "bg-gray-800 text-gray-400"
                           } text-white`}
                         >
@@ -904,6 +908,8 @@ const getCertStyle = (status: CertStatus | null) => {
       return { bgColor: "bg-orange-500", textColor: "text-white" };
     case "CERT":
       return { bgColor: "bg-green-600", textColor: "text-white" };
+    case "TRAIN":
+      return { bgCOlor: "bg-orange-600", textColor: "text-white"};
     default:
       return { bgColor: "bg-gray-800", textColor: "text-gray-400" };
   }

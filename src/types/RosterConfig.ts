@@ -22,6 +22,8 @@ export const getCertStyle = (status: CertStatus | null) => {
       return { bgColor: "bg-orange-600", textColor: "text-white" };
     case "CERT":
       return { bgColor: "bg-green-600", textColor: "text-white" };
+    case "TRAIN":
+      return { bgColor: "bg-orange-600", textColor: "text-white" };
     default:
       return { bgColor: "bg-gray-600", textColor: "text-gray-300" };
   }

@@ -125,7 +125,7 @@ const SASPRoster: React.FC = () => {
           ? Object.entries(data.certifications).reduce((acc, [key, value]) => {
               const upperValue =
                 typeof value === "string" ? value.toUpperCase() : null;
-              const validStatus = ["LEAD", "SUPER", "CERT"].includes(
+              const validStatus = ["TRAIN", "LEAD", "SUPER", "CERT"].includes(
                 upperValue || ""
               )
                 ? (upperValue as CertStatus)
@@ -188,7 +188,7 @@ const SASPRoster: React.FC = () => {
             const templateCerts = Object.entries(
               normalizedTemplateEntry.certifications
             ).reduce((acc, [key, value]) => {
-              const validStatus = ["LEAD", "SUPER", "CERT"].includes(
+              const validStatus = ["TRAIN", "LEAD", "SUPER", "CERT"].includes(
                 value?.toUpperCase() || ""
               )
                 ? typeof value === "string"
@@ -605,6 +605,7 @@ const SASPRoster: React.FC = () => {
                                     <option value="LEAD">LEAD</option>
                                     <option value="SUPER">SUPER</option>
                                     <option value="CERT">CERT</option>
+                                    <option value="TRAIN">TRAIN</option>
                                   </select>
                                 ) : (
                                   <span
@@ -616,11 +617,15 @@ const SASPRoster: React.FC = () => {
                                         : u.certifications?.[
                                             divKey.toUpperCase()
                                           ] === "SUPER"
-                                        ? "bg-orange-500 text-white"
+                                        ? "bg-yellow-600 text-white"
                                         : u.certifications?.[
                                             divKey.toUpperCase()
                                           ] === "CERT"
                                         ? "bg-green-600 text-white"
+                                        : u.certifications?.[
+                                          divKey.toUpperCase()
+                                        ] === "TRAIN"
+                                        ? "bg-orange-600"
                                         : "bg-gray-700 text-gray-400"
                                     }`}
                                   >
@@ -659,6 +664,7 @@ const SASPRoster: React.FC = () => {
                                     <option value="LEAD">LEAD</option>
                                     <option value="SUPER">SUPER</option>
                                     <option value="CERT">CERT</option>
+                                    <option value="TRAIN">TRAIN</option>
                                   </select>
                                 ) : (
                                   <span
@@ -675,6 +681,10 @@ const SASPRoster: React.FC = () => {
                                             certKey.toUpperCase()
                                           ] === "CERT"
                                         ? "bg-green-600 text-white"
+                                        : u.certifications?.[
+                                          certKey.toUpperCase()
+                                        ] === "TRAIN"
+                                        ? "bg-orange-600"
                                         : "bg-gray-700 text-gray-400"
                                     }`}
                                   >

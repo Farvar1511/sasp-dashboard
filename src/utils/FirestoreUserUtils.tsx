@@ -10,7 +10,7 @@ import {
 import { db as dbFirestore } from "../firebase";
 
 /** Certification Status for each key in "certifications" map */
-export type CertStatus = "CERT" | "LEAD" | "SUPER" | null;
+export type CertStatus = "CERT" | "LEAD" | "SUPER" | "TRAIN" | null;
 
 /** A single user task document stored in /users/:email/tasks */
 export interface UserTask {
