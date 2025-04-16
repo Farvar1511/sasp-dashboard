@@ -11,6 +11,7 @@ import Documents from "./components/Documents"; // Documents page
 import Fleet from "./components/Fleet"; // Fleet page
 import SASPRoster from "./components/SASPRoster"; // SASP Roster page
 import AdminMenu from "./components/AdminMenu"; // Admin Menu page
+import Bulletins from "./components/Bulletins"; // Bulletins page
 
 function App() {
   return (
@@ -23,6 +24,8 @@ function App() {
           <Route path="/fleet" element={<Fleet />} />
           <Route path="/sasp-roster" element={<SASPRoster />} />
           <Route path="/admin" element={<AdminMenu />} />
+          <Route path="/bulletins" element={<Bulletins />} />{" "}
+          {/* Added Bulletins route */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </AuthProvider>

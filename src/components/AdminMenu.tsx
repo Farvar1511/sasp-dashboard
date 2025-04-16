@@ -552,7 +552,7 @@ export default function AdminMenu(): JSX.Element {
               Admin Menu
             </NavLink>
             <NavLink
-              to="/bulletins"
+              to="/bulletins" // Must match the route defined in App.tsx
               className={({ isActive }) =>
                 `px-4 py-2 text-sm font-medium ${
                   isActive
