@@ -74,6 +74,13 @@ const FTOPage: React.FC = () => {
     return ["LEAD", "SUPER", "TRAIN", "CERT"].includes(ftoStatus || "");
   }, [authUser, authLoading]);
 
+  const canManageAnnouncements = useMemo(() => {
+    if (authLoading || !authUser || !authUser.certifications) return false;
+    const ftoStatus = authUser.certifications.FTO?.toUpperCase();
+    const isHighCommand = authUser.rank === "High Command";
+    return isAdmin || isHighCommand || ["LEAD", "SUPER"].includes(ftoStatus || "");
+  }, [authUser, authLoading, isAdmin]);
+
   const [allUsers, setAllUsers] = useState<RosterUser[]>([]);
   const [logs, setLogs] = useState<CadetLog[]>([]);
   const [ftoAnnouncements, setFtoAnnouncements] = useState<FTOAnnouncement[]>([]);
@@ -107,7 +114,9 @@ const FTOPage: React.FC = () => {
   const [notesForSelectedCadet, setNotesForSelectedCadet] = useState<FTOCadetNote[]>([]);
   const [loadingSelectedCadetNotes, setLoadingSelectedCadetNotes] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'log' | 'note' } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'log' | 'note' | 'announcement' } | null>(null);
+  const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<FTOAnnouncement | null>(null);
 
   const cadets = useMemo(() => allUsers.filter((u) => u.rank === "Cadet"), [allUsers]);
   const ftoPersonnel = useMemo(() => {
@@ -198,28 +207,37 @@ const FTOPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (newLog.date && newLog.timeStarted && newLog.timeEnded) {
-      try {
-        const startDateTime = new Date(`${newLog.date}T${newLog.timeStarted}`);
-        let endDateTime = new Date(`${newLog.date}T${newLog.timeEnded}`);
+    // Reset session hours if inputs are incomplete
+    if (!newLog.date || !newLog.timeStarted || !newLog.timeEnded) {
+      setNewLog((prev) => ({ ...prev, sessionHours: 0 }));
+      return;
+    }
 
-        // Handle overnight case: If end time is earlier than start time, add one day to end date
-        if (endDateTime <= startDateTime) {
-          endDateTime.setDate(endDateTime.getDate() + 1);
-        }
+    try {
+      const startDateTime = new Date(`${newLog.date}T${newLog.timeStarted}`);
+      let endDateTime = new Date(`${newLog.date}T${newLog.timeEnded}`);
 
-        const diffMilliseconds = endDateTime.getTime() - startDateTime.getTime();
-        // Ensure diff is non-negative; could happen if dates/times are invalid despite checks
-        const diffHours = Math.max(0, diffMilliseconds / (1000 * 60 * 60));
-
-        setNewLog((prev) => ({ ...prev, sessionHours: diffHours }));
-
-      } catch (e) {
-        console.error("Error calculating time difference:", e);
+      // Check if dates are valid before proceeding
+      if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+        console.error("Invalid date or time input.");
         setNewLog((prev) => ({ ...prev, sessionHours: 0 }));
+        return;
       }
-    } else {
-      // Reset hours if date/times are incomplete
+
+      // Handle overnight case: If end time is earlier than start time, add one day to end date
+      if (endDateTime <= startDateTime) {
+        endDateTime.setDate(endDateTime.getDate() + 1);
+      }
+
+      const diffMilliseconds = endDateTime.getTime() - startDateTime.getTime();
+      // Ensure diff is non-negative
+      const diffHours = Math.max(0, diffMilliseconds / (1000 * 60 * 60));
+
+      // Update sessionHours, rounding to 1 decimal place for consistency
+      setNewLog((prev) => ({ ...prev, sessionHours: parseFloat(diffHours.toFixed(1)) }));
+
+    } catch (e) {
+      console.error("Error calculating time difference:", e);
       setNewLog((prev) => ({ ...prev, sessionHours: 0 }));
     }
   }, [newLog.date, newLog.timeStarted, newLog.timeEnded]);
@@ -305,12 +323,15 @@ const FTOPage: React.FC = () => {
   }, [selectedCadetForLogs, isCadet]);
 
   const handleAddLog = async () => {
+    // Ensure sessionHours is a positive number before proceeding
+    const calculatedSessionHours = newLog.sessionHours > 0 ? newLog.sessionHours : 0;
+
     if (
       !newLog.cadetName ||
       !newLog.date ||
       !newLog.timeStarted ||
       !newLog.timeEnded ||
-      newLog.sessionHours <= 0
+      calculatedSessionHours <= 0 // Check the calculated value
     ) {
       toast.error(
         "Please select cadet, enter date, valid start/end times (resulting in positive hours)."
@@ -328,10 +349,12 @@ const FTOPage: React.FC = () => {
         );
 
       const lastSessionLog = cadetSessionLogs[0];
-      const cumulativeHours = (lastSessionLog?.cumulativeHours || 0) + newLog.sessionHours;
+      // Use the validated calculatedSessionHours for cumulative calculation
+      const cumulativeHours = parseFloat(((lastSessionLog?.cumulativeHours || 0) + calculatedSessionHours).toFixed(1));
 
       const logData: Omit<CadetLog, "id"> = {
         ...newLog,
+        sessionHours: calculatedSessionHours, // Save the validated hours
         cumulativeHours,
         ftoName: authUser?.name || "Unknown FTO",
         createdAt: Timestamp.now(),
@@ -341,8 +364,10 @@ const FTOPage: React.FC = () => {
 
       const docRef = await addDoc(collection(dbFirestore, "cadetLogs"), logData);
 
+      // Add the log with the correct sessionHours to the local state
       setLogs((prevLogs) => [{ ...logData, id: docRef.id }, ...prevLogs]);
 
+      // Reset the form
       setNewLog({
         cadetName: "",
         date: "",
@@ -407,60 +432,91 @@ const FTOPage: React.FC = () => {
   };
 
   const handleUpdateLog = async () => {
-    if (!editingLog || !editingLog.id) {
-      toast.error("No log selected for editing.");
+    if (!editingLog || !editingLog.id || !editingLog.createdAt) { // Ensure createdAt exists
+      toast.error("No log selected for editing or missing creation date.");
       return;
     }
 
-    let sessionHours = editingLog.sessionHours; // Keep existing if calculation fails
+    let calculatedSessionHours = editingLog.sessionHours;
+
+    // Recalculate session hours based on potentially edited date/time
     if (editingLog.date && editingLog.timeStarted && editingLog.timeEnded) {
       try {
         const startDateTime = new Date(`${editingLog.date}T${editingLog.timeStarted}`);
         let endDateTime = new Date(`${editingLog.date}T${editingLog.timeEnded}`);
 
-        // Handle overnight case: If end time is earlier than start time, add one day to end date
+        if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+          throw new Error("Invalid date or time input during update.");
+        }
         if (endDateTime <= startDateTime) {
           endDateTime.setDate(endDateTime.getDate() + 1);
         }
-
         const diffMilliseconds = endDateTime.getTime() - startDateTime.getTime();
-        // Ensure diff is non-negative
-        sessionHours = Math.max(0, diffMilliseconds / (1000 * 60 * 60));
-
+        calculatedSessionHours = parseFloat(Math.max(0, diffMilliseconds / (1000 * 60 * 60)).toFixed(1));
       } catch (e) {
         console.error("Error recalculating time difference during update:", e);
-        // Optionally keep the old sessionHours or set to 0, depending on desired behavior
-        // sessionHours = 0; // Or keep existing: sessionHours = editingLog.sessionHours;
-        toast.warn("Could not recalculate session hours due to invalid date/time format.");
+        toast.warn("Could not recalculate session hours due to invalid date/time format. Original hours kept if possible.");
+        calculatedSessionHours = editingLog.sessionHours > 0 ? editingLog.sessionHours : 0;
       }
     } else {
-      // If date/times are cleared during edit, set hours to 0
-      sessionHours = 0;
+      calculatedSessionHours = 0;
     }
 
-    const logRef = doc(dbFirestore, "cadetLogs", editingLog.id);
+    // Recalculate cumulative hours for the edited log
+    let recalculatedCumulativeHours = calculatedSessionHours; // Default if it's the first log
     try {
-      // Exclude id and createdAt from the update payload
-      const { id, createdAt, ...updateData } = editingLog;
+      // Find the log immediately preceding the one being edited
+      const previousLogsQuery = query(
+        collection(dbFirestore, "cadetLogs"),
+        where("cadetName", "==", editingLog.cadetName),
+        where("type", "==", "session"), // Only consider session logs for cumulative calculation
+        where("createdAt", "<", editingLog.createdAt), // Logs created before the edited one
+        orderBy("createdAt", "desc"), // Get the latest one first
+        limit(1) // We only need the immediately preceding one
+      );
+      const previousLogsSnapshot = await getDocs(previousLogsQuery);
+
+      if (!previousLogsSnapshot.empty) {
+        const previousLog = previousLogsSnapshot.docs[0].data() as CadetLog;
+        recalculatedCumulativeHours = parseFloat(((previousLog.cumulativeHours || 0) + calculatedSessionHours).toFixed(1));
+      } else {
+        // If no previous log, the cumulative hours are just the session hours
+        recalculatedCumulativeHours = calculatedSessionHours;
+      }
+
+      // --- Firestore Update ---
+      const logRef = doc(dbFirestore, "cadetLogs", editingLog.id);
+      const { id, createdAt, ...updateData } = editingLog; // Exclude id and createdAt
+
       await updateDoc(logRef, {
         ...updateData,
-        sessionHours: sessionHours, // Use the recalculated sessionHours
+        sessionHours: calculatedSessionHours,
+        cumulativeHours: recalculatedCumulativeHours, // Save the recalculated cumulative hours
       });
 
-      // Update local state
+      // --- Local State Update ---
       setLogs((prevLogs) =>
         prevLogs.map((log) =>
           log.id === editingLog.id
-            ? { ...editingLog, sessionHours: sessionHours } // Update with new hours
+            ? {
+                ...editingLog,
+                sessionHours: calculatedSessionHours,
+                cumulativeHours: recalculatedCumulativeHours, // Update local state as well
+              }
             : log
         )
       );
 
-      toast.success("Log updated successfully!");
+      // --- Success ---
+      toast.success("Log updated successfully! Cumulative hours recalculated for this entry.");
+      // Note: This simple recalculation doesn't update subsequent logs' cumulative hours.
+      // A full recalculation would require updating all logs after this one for the cadet.
+
       setIsEditLogModalOpen(false);
       setEditingLog(null);
+
     } catch (error) {
-      console.error("Error updating log:", error);
+      console.error("Error updating log or recalculating cumulative hours:", error);
       toast.error("Failed to update log.");
     }
   };
@@ -479,11 +535,16 @@ const FTOPage: React.FC = () => {
     setIsConfirmModalOpen(true);
   };
 
+  const requestDeleteAnnouncement = (announcementId: string) => {
+    setItemToDelete({ id: announcementId, type: 'announcement' });
+    setIsConfirmModalOpen(true);
+  };
+
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
 
     const { id, type } = itemToDelete;
-    const collectionName = type === 'log' ? 'cadetLogs' : 'ftoCadetNotes';
+    const collectionName = type === 'log' ? 'cadetLogs' : type === 'note' ? 'ftoCadetNotes' : 'ftoAnnouncements';
     const ref = doc(dbFirestore, collectionName, id);
 
     try {
@@ -491,10 +552,13 @@ const FTOPage: React.FC = () => {
       if (type === 'log') {
         setLogs((prevLogs) => prevLogs.filter((log) => log.id !== id));
         toast.success("Log deleted successfully!");
-      } else {
+      } else if (type === 'note') {
         setNotesForSelectedCadet((prevNotes) => prevNotes.filter((note) => note.id !== id));
         setAllFtoCadetNotes((prevNotes) => prevNotes.filter((note) => note.id !== id));
         toast.success("Note deleted successfully!");
+      } else if (type === 'announcement') {
+        setFtoAnnouncements((prevAnnouncements) => prevAnnouncements.filter((ann) => ann.id !== id));
+        toast.success("Announcement deleted successfully!");
       }
     } catch (error) {
       console.error(`Error deleting ${type}:`, error);
@@ -502,6 +566,43 @@ const FTOPage: React.FC = () => {
     } finally {
       setIsConfirmModalOpen(false);
       setItemToDelete(null);
+    }
+  };
+
+  const handleEditAnnouncementClick = (announcement: FTOAnnouncement) => {
+    setEditingAnnouncement(announcement);
+    setIsEditingAnnouncement(true);
+    setIsAddingAnnouncement(false);
+  };
+
+  const handleCancelEditAnnouncement = () => {
+    setEditingAnnouncement(null);
+    setIsEditingAnnouncement(false);
+  };
+
+  const handleSaveEditAnnouncement = async () => {
+    if (!editingAnnouncement || !editingAnnouncement.id) {
+      toast.error("No announcement selected for editing.");
+      return;
+    }
+
+    const announcementRef = doc(dbFirestore, "ftoAnnouncements", editingAnnouncement.id);
+    try {
+      const { id, createdAt, ...updateData } = editingAnnouncement;
+      await updateDoc(announcementRef, updateData);
+
+      setFtoAnnouncements((prevAnnouncements) =>
+        prevAnnouncements.map((ann) =>
+          ann.id === editingAnnouncement.id ? editingAnnouncement : ann
+        )
+      );
+
+      toast.success("Announcement updated successfully!");
+      setEditingAnnouncement(null);
+      setIsEditingAnnouncement(false);
+    } catch (error) {
+      console.error("Error updating announcement:", error);
+      toast.error("Failed to update announcement.");
     }
   };
 
@@ -593,7 +694,7 @@ const FTOPage: React.FC = () => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoTimestamp = Timestamp.fromDate(thirtyDaysAgo);
 
-    return logs
+    const totalHours = logs
       .filter(
         (log) =>
           log.ftoName === ftoName &&
@@ -601,7 +702,11 @@ const FTOPage: React.FC = () => {
           log.createdAt &&
           log.createdAt >= thirtyDaysAgoTimestamp
       )
-      .reduce((sum, log) => sum + log.sessionHours, 0);
+      // Ensure sessionHours is treated as a number, default to 0 if invalid
+      .reduce((sum, log) => sum + (Number(log.sessionHours) || 0), 0);
+
+    // Return rounded to 1 decimal place
+    return parseFloat(totalHours.toFixed(1));
   };
 
   const getFTOLastLog = (ftoName: string): CadetLog | null => {
@@ -1151,7 +1256,7 @@ const FTOPage: React.FC = () => {
                   className="input w-full bg-black/40 border-white/20 text-white" rows={3}
                 />
               </div>
-            </div>
+            </div> {/* This closes the inner div for textareas */}
             <div className="mt-6 flex justify-end space-x-3 border-t border-white/10 pt-4">
               <button
                 onClick={() => { setIsEditLogModalOpen(false); setEditingLog(null); }}
@@ -1166,7 +1271,7 @@ const FTOPage: React.FC = () => {
                 Save Changes
               </button>
             </div>
-          </div>
+          </div> {/* This closes the main div inside Modal */}
         </Modal>
       )}
 
@@ -1289,8 +1394,9 @@ const FTOPage: React.FC = () => {
   const renderFtoDetails = (fto: RosterUser) => {
     const ftoLogs = getLogsForFTO(fto.name);
     const ftoNotesWritten = getNotesByFTO(fto.id);
-    const totalHours = ftoLogs.reduce((sum, log) => sum + log.sessionHours, 0);
-    const hoursLast30 = getFTOHoursLast30Days(fto.name);
+    // Calculate total hours robustly, ensuring sessionHours is a number
+    const totalHours = ftoLogs.reduce((sum, log) => sum + (Number(log.sessionHours) || 0), 0);
+    const hoursLast30 = getFTOHoursLast30Days(fto.name); // Already returns a number rounded to 1 decimal
     const certification = fto.certifications?.FTO || "N/A";
 
     return (
@@ -1318,10 +1424,12 @@ const FTOPage: React.FC = () => {
           </div>
           <div className="bg-black/40 p-3 rounded border border-white/10">
             <p className="font-semibold text-[#f3c700]">Total Hours Logged</p>
+            {/* Display totalHours rounded to 1 decimal place */}
             <p className="text-lg font-bold">{totalHours.toFixed(1)}</p>
           </div>
           <div className="bg-black/40 p-3 rounded border border-white/10">
             <p className="font-semibold text-[#f3c700]">Hours (Last 30d)</p>
+            {/* Display hoursLast30 (already rounded) */}
             <p className="text-lg font-bold">{hoursLast30.toFixed(1)}</p>
           </div>
         </div>
@@ -1333,7 +1441,8 @@ const FTOPage: React.FC = () => {
               ftoLogs.map(log => (
                 <div key={log.id} className="p-2 bg-black/30 rounded border border-white/10 text-xs">
                   <p><span className="font-semibold">Cadet:</span> {log.cadetName}</p>
-                  <p><span className="font-semibold">Date:</span> {formatDateToMMDDYY(log.date)} | <span className="font-semibold">Hours:</span> {log.sessionHours.toFixed(1)}</p>
+                  {/* Ensure sessionHours is displayed correctly */}
+                  <p><span className="font-semibold">Date:</span> {formatDateToMMDDYY(log.date)} | <span className="font-semibold">Hours:</span> {(Number(log.sessionHours) || 0).toFixed(1)}</p>
                   <p className="mt-1 italic truncate" title={log.summary}>Summary: {log.summary || "N/A"}</p>
                 </div>
               ))
@@ -1383,9 +1492,9 @@ const FTOPage: React.FC = () => {
                     <th className="px-4 py-2">Name</th>
                     <th className="px-4 py-2">Badge</th>
                     <th className="px-4 py-2">Certification</th>
-                    <th className="px-4 py-2">Hours (Last 30d)</th>
-                    <th className="px-4 py-2">Last Session Date</th>
-                    <th className="px-4 py-2">Last Cadet Trained</th>
+                    {!isCadet && <th className="px-4 py-2">Hours (Last 30d)</th>}
+                    {!isCadet && <th className="px-4 py-2">Last Session Date</th>}
+                    {!isCadet && <th className="px-4 py-2">Last Cadet Trained</th>}
                   </tr>
                 </thead>
                 <tbody className="text-white/80">
@@ -1407,17 +1516,21 @@ const FTOPage: React.FC = () => {
                         </td>
                         <td className="px-4 py-2">{fto.badge || "N/A"}</td>
                         <td className="px-4 py-2">{certification}</td>
-                        <td className="px-4 py-2">{hoursLast30.toFixed(1)}</td>
-                        <td className="px-4 py-2">
-                          {formatDateToMMDDYY(lastLog?.date) || (
-                            <span className="italic text-white/50">None</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2">
-                          {lastLog?.cadetName || (
-                            <span className="italic text-white/50">None</span>
-                          )}
-                        </td>
+                        {!isCadet && <td className="px-4 py-2">{hoursLast30.toFixed(1)}</td>}
+                        {!isCadet && (
+                          <td className="px-4 py-2">
+                            {formatDateToMMDDYY(lastLog?.date) || (
+                              <span className="italic text-white/50">None</span>
+                            )}
+                          </td>
+                        )}
+                        {!isCadet && (
+                          <td className="px-4 py-2">
+                            {lastLog?.cadetName || (
+                              <span className="italic text-white/50">None</span>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -1467,9 +1580,9 @@ const FTOPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center border-b border-white/20 pb-2">
         <h2 className="text-xl font-semibold text-[#f3c700]">FTO Announcements</h2>
-        {isAdmin && !isAddingAnnouncement && (
+        {canManageAnnouncements && !isAddingAnnouncement && !isEditingAnnouncement && (
           <button
-            onClick={() => setIsAddingAnnouncement(true)}
+            onClick={() => { setIsAddingAnnouncement(true); setIsEditingAnnouncement(false); setEditingAnnouncement(null); }}
             className="button-secondary text-sm"
           >
             Add Announcement
@@ -1477,7 +1590,7 @@ const FTOPage: React.FC = () => {
         )}
       </div>
 
-      {isAdmin && isAddingAnnouncement && (
+      {isAddingAnnouncement && canManageAnnouncements && (
         <div className="p-4 bg-black/60 rounded-lg border border-white/20 space-y-4">
           <h3 className="text-lg font-semibold text-[#f3c700]">New Announcement</h3>
           <input
@@ -1506,30 +1619,79 @@ const FTOPage: React.FC = () => {
         </div>
       )}
 
+      {isEditingAnnouncement && editingAnnouncement && canManageAnnouncements && (
+        <div className="p-4 bg-black/60 rounded-lg border border-[#f3c700] space-y-4">
+          <h3 className="text-lg font-semibold text-[#f3c700]">Edit Announcement</h3>
+          <input
+            type="text"
+            placeholder="Announcement Title"
+            value={editingAnnouncement.title}
+            onChange={(e) => setEditingAnnouncement(prev => prev ? { ...prev, title: e.target.value } : null)}
+            className="input w-full bg-black/40 border-white/20 text-white"
+          />
+          <TipTapEditor
+            content={editingAnnouncement.content}
+            onChange={(newContent) => setEditingAnnouncement(prev => prev ? { ...prev, content: newContent } : null)}
+            editorClassName="bg-black/40 border border-white/20 rounded p-2 text-white min-h-[150px]"
+          />
+          <div className="flex justify-end gap-3 mt-3">
+            <button
+              onClick={handleCancelEditAnnouncement}
+              className="button-secondary"
+            >
+              Cancel
+            </button>
+            <button onClick={handleSaveEditAnnouncement} className="button-primary">
+              Save Changes
+            </button>
+          </div>
+        </div>
+      )}
+
       {loadingAnnouncements && (
         <p className="text-[#f3c700]">Loading announcements...</p>
       )}
       {errorAnnouncements && <p className="text-red-500">{errorAnnouncements}</p>}
-      {!loadingAnnouncements && ftoAnnouncements.length === 0 && (
+      {!loadingAnnouncements && ftoAnnouncements.length === 0 && !isAddingAnnouncement && !isEditingAnnouncement && (
         <p className="text-white/60 italic">No announcements posted yet.</p>
       )}
       {!loadingAnnouncements && ftoAnnouncements.length > 0 && (
         <div className="space-y-4">
           {ftoAnnouncements.map((ann) => (
-            <div
-              key={ann.id}
-              className="p-4 bg-black/60 rounded-lg border border-white/20"
-            >
-              <h3 className="text-lg font-bold text-[#f3c700]">{ann.title}</h3>
-              <p className="text-xs text-white/60 mb-2">
-                Posted by {ann.authorRank} {ann.authorName} on{" "}
-                {formatTimestampForUserDisplay(ann.createdAt)}
-              </p>
+            isEditingAnnouncement && editingAnnouncement?.id === ann.id ? null : (
               <div
-                className="prose prose-sm prose-invert max-w-none text-white/80"
-                dangerouslySetInnerHTML={{ __html: ann.content }}
-              />
-            </div>
+                key={ann.id}
+                className="p-4 bg-black/60 rounded-lg border border-white/20 relative group"
+              >
+                {canManageAnnouncements && !isAddingAnnouncement && !isEditingAnnouncement && (
+                  <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                    <button
+                      onClick={() => handleEditAnnouncementClick(ann)}
+                      className="text-xs text-yellow-400 hover:text-yellow-300 p-1 bg-black/50 rounded"
+                      title="Edit Announcement"
+                    >
+                      <FaPencilAlt />
+                    </button>
+                    <button
+                      onClick={() => requestDeleteAnnouncement(ann.id)}
+                      className="text-xs text-red-500 hover:text-red-400 p-1 bg-black/50 rounded"
+                      title="Delete Announcement"
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                )}
+                <h3 className="text-lg font-bold text-[#f3c700] pr-16 mb-2">{ann.title}</h3>
+                <div
+                  className="prose prose-sm prose-invert max-w-none text-white/80"
+                  dangerouslySetInnerHTML={{ __html: ann.content }}
+                />
+                <p className="text-xs text-white/60 mt-3 pt-2 border-t border-white/10">
+                  Posted by {ann.authorRank} {ann.authorName} on{" "}
+                  {formatTimestampForUserDisplay(ann.createdAt)}
+                </p>
+              </div>
+            )
           ))}
         </div>
       )}
@@ -1625,3 +1787,4 @@ const FTOPage: React.FC = () => {
 };
 
 export default FTOPage;
+

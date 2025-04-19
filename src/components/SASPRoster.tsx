@@ -47,6 +47,12 @@ const categoryOrder = [
   "Cadets",
 ];
 
+// Define ranks that have edit permissions
+const editPermissionRanks = [
+  ...rankCategories["High Command"],
+  ...rankCategories["Command"],
+];
+
 const processRosterData = (
   usersData: RosterUser[]
 ): {
@@ -110,6 +116,13 @@ const SASPRoster: React.FC = () => {
   const [backgroundImage, setBackgroundImage] = useState<string>("");
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editedRowData, setEditedRowData] = useState<Partial<RosterUser>>({});
+
+  // Check if the current user has permission to edit the roster
+  const canEditRoster = useMemo(() => {
+    if (isAdmin) return true;
+    if (!currentUser || !currentUser.rank) return false;
+    return editPermissionRanks.includes(currentUser.rank);
+  }, [currentUser, isAdmin]);
 
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * backgroundImages.length);
@@ -274,11 +287,20 @@ const SASPRoster: React.FC = () => {
   const totalColSpan = 5 + divisionKeys.length + certificationKeys.length + 4;
 
   const handleEditClick = (user: RosterUser) => {
+    if (!canEditRoster) {
+      toast.error("You do not have permission to edit the roster.");
+      return;
+    }
     setEditingRowId(user.id);
     setEditedRowData(user);
   };
 
   const handleSaveClick = async () => {
+    // Add permission check at the beginning of save handler
+    if (!canEditRoster) {
+      toast.error("You do not have permission to save roster edits.");
+      return;
+    }
     try {
       if (!editedRowData.id || editedRowData.id.trim() === "") {
         console.error("The row does not have a valid Firestore document ID.");
@@ -434,6 +456,7 @@ const SASPRoster: React.FC = () => {
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>PROMO</th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>ACTIVE</th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>INACTIVE / LOA SINCE</th>
+                  {canEditRoster && <th className="p-2 border border-[#f3c700]" rowSpan={2}>EDIT</th>}
                 </tr>
                 <tr>
                   {divisionKeys.map((divKey) => (
@@ -452,7 +475,7 @@ const SASPRoster: React.FC = () => {
                       <tbody>
                         <tr>
                           <td
-                            colSpan={totalColSpan + (isAdmin ? 1 : 0)}
+                            colSpan={totalColSpan + (canEditRoster ? 1 : 0)}
                             className="h-6"
                           ></td>
                         </tr>
@@ -798,31 +821,35 @@ const SASPRoster: React.FC = () => {
                                 formatDateForRoster(u.loaEndDate) || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700] text-center">
-                              {isEditing ? (
-                                <div className="flex gap-2 justify-center">
+                            {canEditRoster && (
+                              <td className="p-2 border border-[#f3c700] text-center">
+                                {isEditing ? (
+                                  <div className="flex gap-2 justify-center">
+                                    <button
+                                      onClick={handleSaveClick}
+                                      className="bg-green-600 hover:bg-green-500 text-white text-xs py-1 px-2 rounded"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={handleCancelClick}
+                                      className="bg-red-600 hover:bg-red-500 text-white text-xs py-1 px-2 rounded"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
                                   <button
-                                    onClick={handleSaveClick}
-                                    className="bg-green-600 hover:bg-green-500 text-white text-xs py-1 px-2 rounded"
+                                    onClick={() => handleEditClick(u)}
+                                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
+                                    disabled={u.isPlaceholder}
+                                    title={u.isPlaceholder ? "Cannot edit placeholder rows" : "Edit Roster Entry"}
                                   >
-                                    Save
+                                    Edit
                                   </button>
-                                  <button
-                                    onClick={handleCancelClick}
-                                    className="bg-red-600 hover:bg-red-500 text-white text-xs py-1 px-2 rounded"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => handleEditClick(u)}
-                                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
-                                >
-                                  Edit
-                                </button>
-                              )}
-                            </td>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -835,7 +862,7 @@ const SASPRoster: React.FC = () => {
                   <tbody>
                     <tr>
                       <td
-                        colSpan={totalColSpan + (isAdmin ? 1 : 0)}
+                        colSpan={totalColSpan + (canEditRoster ? 1 : 0)}
                         className="text-center p-4 text-white italic"
                       >
                         No users found matching the criteria.
