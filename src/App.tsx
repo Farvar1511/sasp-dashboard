@@ -16,6 +16,7 @@ import Fleet from "./components/Fleet"; // Fleet page
 import SASPRoster from "./components/SASPRoster"; // SASP Roster page
 import AdminMenu from "./components/AdminMenu"; // Admin Menu page
 import Bulletins from "./components/Bulletins"; // Bulletins page
+import FTOPage from "./pages/FTO";
 
 const App: React.FC = () => {
   return (
@@ -31,7 +32,7 @@ const App: React.FC = () => {
               <Route path="/sasp-roster" element={<SASPRoster />} />
               <Route path="/admin" element={<AdminMenu />} />
               <Route path="/bulletins" element={<Bulletins />} />{" "}
-              {/* Added Bulletins route */}
+              <Route path="/fto" element={<FTOPage />} /> {/* Add FTO route */}
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </AuthProvider>

@@ -765,7 +765,7 @@ export default function AdminMenu(): JSX.Element {
                     <p className="text-xs text-gray-500 italic mb-2">
                       {userData.tasks?.length || 0} task(s) assigned.
                     </p>
-                    <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                    <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2">
                       {userData.tasks.map((task) => (
                         <div
                           key={task.id}
@@ -857,7 +857,7 @@ export default function AdminMenu(): JSX.Element {
                     <h5 className="text-xs text-gray-500 italic mb-1 mt-2 border-t border-[#f3c700] pt-1">
                       Discipline ({userData.disciplineEntries?.length || 0}):
                     </h5>
-                    <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 text-xs">
+                    <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
                       {userData.disciplineEntries &&
                       userData.disciplineEntries.length > 0 ? (
                         userData.disciplineEntries.map((entry) => (
@@ -887,7 +887,7 @@ export default function AdminMenu(): JSX.Element {
                     <h5 className="text-xs text-gray-500 italic mb-1 mt-2 border-t border-[#f3c700] pt-1">
                       Notes ({userData.generalNotes?.length || 0}):
                     </h5>
-                    <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 text-xs">
+                    <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
                       {userData.generalNotes &&
                       userData.generalNotes.length > 0 ? (
                         userData.generalNotes.map((note) => (

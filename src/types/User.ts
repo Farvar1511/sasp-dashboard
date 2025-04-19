@@ -56,6 +56,18 @@ export interface BulletinEntry {
 }
 
 // -----------------------------
+// 📢 FTO Announcement Interface (Collection: /ftoAnnouncements)
+// -----------------------------
+export interface FTOAnnouncement {
+  id: string; // Firestore document ID
+  title: string;
+  content: string; // HTML content from TipTap
+  authorName: string;
+  authorRank: string;
+  createdAt: Timestamp;
+}
+
+// -----------------------------
 // 🧑‍✈️ Full Firestore User Document (Collection: /users)
 // -----------------------------
 export interface RosterUser {
@@ -130,4 +142,18 @@ export interface FleetVehicle {
   notes?: string;
   lastChecked?: Timestamp | null;
   lastCheckedBy?: string;
+}
+
+// -----------------------------
+// 📝 FTO Cadet Note Interface (Collection: /ftoCadetNotes)
+// -----------------------------
+export interface FTOCadetNote {
+  id: string;
+  cadetId: string;      // ID of the cadet the note is for
+  cadetName: string;    // Name of the cadet
+  ftoId: string;        // ID of the FTO writing the note
+  ftoName: string;      // Name of the FTO
+  ftoRank: string;      // Rank of the FTO
+  note: string;         // The content of the note
+  createdAt: Timestamp; // When the note was created
 }

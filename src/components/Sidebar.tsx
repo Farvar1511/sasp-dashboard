@@ -13,6 +13,8 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaFileAlt,
+  FaClipboardList,
+  FaUserGraduate, // Added for Cadet FTO icon
 } from "react-icons/fa";
 
 const saspLogo = "/SASPLOGO2.png";
@@ -46,6 +48,9 @@ const ClockDisplay = React.memo(() => {
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
   const { user, logout } = useAuth();
   const isAdmin = computeIsAdmin(user);
+  const ftoCertStatus = user?.certifications?.FTO;
+  const hasFTOCert = ftoCertStatus === "CERT" || ftoCertStatus === "LEAD" || ftoCertStatus === "SUPER";
+  const isCadet = user?.rank === "Cadet"; // Check if user is a Cadet
 
   const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
     `flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out border border-transparent ${
@@ -135,6 +140,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
             icon={FaTools}
             label="Admin Menu"
             title="Admin Menu"
+          />
+        )}
+        {/* FTO Link for FTO Personnel */}
+        {hasFTOCert && !isCadet && ( // Ensure Cadets don't see this if they somehow get FTO cert
+          <NavItem
+            to="/fto"
+            icon={FaClipboardList} // Keep original icon for FTO personnel
+            label="FTO Management" // Changed label for clarity
+            title="FTO Management Page"
+          />
+        )}
+        {/* FTO Link for Cadets */}
+        {isCadet && (
+          <NavItem
+            to="/fto"
+            icon={FaUserGraduate} // Use a different icon for cadets
+            label="SASP Training Progress" // Cadet-specific label
+            title="SASP Training Progress"
           />
         )}
       </nav>

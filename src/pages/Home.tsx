@@ -388,41 +388,45 @@ const MyDashboard: React.FC = () => {
             (status || "").toUpperCase()
           );
         };
-        const allowed = allVehicles.filter((v) => {
-          if (
-            v.assignee &&
-            v.assignee !== "COMMUNAL" &&
-            v.id !== assigned?.id
-          ) {
-            return false;
-          }
-          if (!v.inService) {
-            return false;
-          }
-          const restrictions = (v.restrictions || "").toLowerCase();
-          // Calculate canonical division: treat MOTO as MBU
-          let division = (v.division || "").toUpperCase();
-          if (division === "MOTO") {
-            division = "MBU"; // Connect MOTO division to MBU cert logic
-          }
-          let requiredRankLevel = Infinity;
-          if (restrictions.includes("high command"))
-            requiredRankLevel = rankOrder.Commander;
-          else if (restrictions.includes("command"))
-            requiredRankLevel = rankOrder.Lieutenant;
-          else if (restrictions.includes("supervisor"))
-            requiredRankLevel = rankOrder.Sergeant;
-          if (rankValue > requiredRankLevel) {
-            return false;
-          }
-          let requiredCertKey: string | null = null;
-          if (displayDivisionKeys.includes(division)) {
-            requiredCertKey = division;
-          } else if (displayCertificationKeys.includes(division)) {
-            requiredCertKey = division;
-          }
-          return hasCertAccess(requiredCertKey);
-        });
+
+        let allowed: Vehicle[] = [];
+        if (parsedUser.rank !== "Cadet") { // Prevent cadets from seeing allowed vehicles
+          allowed = allVehicles.filter((v) => {
+            if (
+              v.assignee &&
+              v.assignee !== "COMMUNAL" &&
+              v.id !== assigned?.id
+            ) {
+              return false;
+            }
+            if (!v.inService) {
+              return false;
+            }
+            const restrictions = (v.restrictions || "").toLowerCase();
+            // Calculate canonical division: treat MOTO as MBU
+            let division = (v.division || "").toUpperCase();
+            if (division === "MOTO") {
+              division = "MBU"; // Connect MOTO division to MBU cert logic
+            }
+            let requiredRankLevel = Infinity;
+            if (restrictions.includes("high command"))
+              requiredRankLevel = rankOrder.Commander;
+            else if (restrictions.includes("command"))
+              requiredRankLevel = rankOrder.Lieutenant;
+            else if (restrictions.includes("supervisor"))
+              requiredRankLevel = rankOrder.Sergeant;
+            if (rankValue > requiredRankLevel) {
+              return false;
+            }
+            let requiredCertKey: string | null = null;
+            if (displayDivisionKeys.includes(division)) {
+              requiredCertKey = division;
+            } else if (displayCertificationKeys.includes(division)) {
+              requiredCertKey = division;
+            }
+            return hasCertAccess(requiredCertKey);
+          });
+        }
         setAllowedVehicles(allowed);
       } catch (err) {
         console.error("Error loading dashboard data:", err);
