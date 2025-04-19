@@ -24,9 +24,8 @@ import { UserTask } from "../types/User";
 import { toast } from "react-toastify";
 import ConfirmationModal from "./ConfirmationModal";
 
-// Define Rank Categories
+// Define Rank Categories (Keep for category logic)
 const rankCategories = {
-  ALL: "All Ranks",
   CADET: "Cadets",
   TROOPER: "State Troopers", // Trooper, TFC, Cpl
   SUPERVISOR: "Supervisors", // Sgt, SSgt
@@ -34,6 +33,7 @@ const rankCategories = {
   HIGH_COMMAND: "High Command", // AC, DC, Comm
 };
 
+// Function to get category remains the same
 const getRankCategory = (rank: string): keyof typeof rankCategories | null => {
   const lowerRank = rank.toLowerCase();
   if (lowerRank === "cadet") return "CADET";
@@ -97,6 +97,13 @@ const availableRanks = [
   "Commissioner",
 ];
 
+// Create combined filter options for the dropdown
+const filterOptions = {
+  ALL: "All Ranks",
+  ...rankCategories, // Spread the existing categories
+  ...Object.fromEntries(availableRanks.map((rank) => [rank, rank])),
+};
+
 const getCurrentDateTimeStrings = () => {
   const now = new Date();
   const date = now.toLocaleDateString();
@@ -144,9 +151,8 @@ export default function AdminMenu(): JSX.Element {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [newTask, setNewTask] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [selectedCategory, setSelectedCategory] = useState<
-    keyof typeof rankCategories
-  >("ALL");
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<"rank" | "name">("rank");
 
   const handleRankSelection = (rank: string) => {
     setSelectedRank(rank);
@@ -610,23 +616,30 @@ export default function AdminMenu(): JSX.Element {
 
   const sortedUsersData = useMemo(() => {
     return [...usersData].sort((a, b) => {
-      const aOrder = rankOrder[a.rank] || Infinity;
-      const bOrder = rankOrder[b.rank] || Infinity;
-      return aOrder - bOrder;
+      if (sortBy === "rank") {
+        const aOrder = rankOrder[a.rank] || Infinity;
+        const bOrder = rankOrder[b.rank] || Infinity;
+        if (aOrder !== bOrder) {
+          return aOrder - bOrder;
+        }
+      }
+      return a.name.localeCompare(b.name);
     });
-  }, [usersData]);
+  }, [usersData, sortBy]);
 
   const filteredUsersData = useMemo(() => {
     let filtered = sortedUsersData;
 
-    // Filter by category
     if (selectedCategory !== "ALL") {
-      filtered = filtered.filter(
-        (user) => getRankCategory(user.rank) === selectedCategory
-      );
+      if (Object.keys(rankCategories).includes(selectedCategory)) {
+        filtered = filtered.filter(
+          (user) => getRankCategory(user.rank) === selectedCategory
+        );
+      } else {
+        filtered = filtered.filter((user) => user.rank === selectedCategory);
+      }
     }
 
-    // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter((user) =>
         user.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -785,13 +798,19 @@ export default function AdminMenu(): JSX.Element {
             </h2>
             <div className="flex gap-4 flex-wrap sm:flex-nowrap justify-end w-full sm:w-auto">
               <select
-                value={selectedCategory}
-                onChange={(e) =>
-                  setSelectedCategory(e.target.value as keyof typeof rankCategories)
-                }
-                className={`${inputStyle} max-w-xs sm:max-w-[150px]`}
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "rank" | "name")}
+                className={`${inputStyle} max-w-xs sm:max-w-[120px]`}
               >
-                {Object.entries(rankCategories).map(([key, value]) => (
+                <option value="rank">Sort: Rank</option>
+                <option value="name">Sort: Name</option>
+              </select>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className={`${inputStyle} max-w-xs sm:max-w-[180px]`}
+              >
+                {Object.entries(filterOptions).map(([key, value]) => (
                   <option key={key} value={key}>
                     {value}
                   </option>
