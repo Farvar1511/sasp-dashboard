@@ -1,35 +1,66 @@
-import React, { useState, useEffect } from "react"; // Added useEffect
+import React, { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
-import { backgroundImages } from "../data/images"; // Import the image array
+import { backgroundImages } from "../data/images";
+import { FaChalkboardTeacher } from "react-icons/fa";
+import { useAuth } from "../context/AuthContext";
+import { computeIsAdmin } from "../utils/isadmin";
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const { user, loading } = useAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentBgImage, setCurrentBgImage] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isFTOQualified, setIsFTOQualified] = useState(false);
 
-  // Select a random background image on component mount
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * backgroundImages.length);
     setCurrentBgImage(backgroundImages[randomIndex]);
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      const adminStatus = computeIsAdmin(user);
+      setIsAdmin(adminStatus);
+
+      const ftoCert = user.certifications?.FTO;
+      const qualified =
+        adminStatus ||
+        ftoCert === "CERT" ||
+        ftoCert === "LEAD" ||
+        ftoCert === "SUPER" ||
+        ftoCert === "TRAIN";
+      setIsFTOQualified(qualified);
+    } else {
+      setIsAdmin(false);
+      setIsFTOQualified(false);
+    }
+  }, [user]);
+
+  const navItems = [
+    {
+      name: "FTO Management",
+      href: "/fto",
+      icon: FaChalkboardTeacher,
+      show: !loading && isFTOQualified,
+    },
+  ];
 
   return (
     <div className="relative min-h-screen">
-      {/* Background Image Container */}
       <div
         className="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: `url(${currentBgImage})`,
-          backgroundSize: "cover", // Ensure the image covers the entire screen
-          backgroundPosition: "center", // Center the image
-          backgroundRepeat: "no-repeat", // Prevent tiling
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
         }}
       ></div>
 
-      {/* Main Flex Container */}
       <div className="flex h-screen relative z-10">
         <Sidebar
           isCollapsed={isSidebarCollapsed}

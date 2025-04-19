@@ -1056,7 +1056,8 @@ const FTOPage: React.FC = () => {
       </h2>
 
       {/* Conditionally render details or table */}
-      {selectedFtoForDetails ? (
+      {/* Only allow non-cadets to see FTO details */}
+      {selectedFtoForDetails && !isCadet ? (
         renderFtoDetails(selectedFtoForDetails)
       ) : (
         <>
@@ -1080,14 +1081,18 @@ const FTOPage: React.FC = () => {
                     const hoursLast30 = getFTOHoursLast30Days(fto.name);
                     const lastLog = getFTOLastLog(fto.name);
                     const certification = fto.certifications?.FTO || "N/A";
+                    // Determine if the row should be clickable
+                    const isClickable = !isCadet;
                     return (
                       <tr
                         key={fto.id}
-                        className="border-b border-white/20 hover:bg-white/10 cursor-pointer" // Add cursor-pointer
-                        onClick={() => setSelectedFtoForDetails(fto)} // Set selected FTO on click
+                        className={`border-b border-white/20 ${
+                          isClickable ? 'hover:bg-white/10 cursor-pointer' : '' // Conditionally apply hover/cursor
+                        }`}
+                        // Conditionally apply onClick
+                        onClick={isClickable ? () => setSelectedFtoForDetails(fto) : undefined}
                       >
-                        {/* Make name clickable */}
-                        <td className="px-4 py-2 font-medium text-white hover:text-[#f3c700]">
+                        <td className={`px-4 py-2 font-medium text-white ${isClickable ? 'hover:text-[#f3c700]' : ''}`}>
                            {fto.name}
                         </td>
                         <td className="px-4 py-2">{fto.badge || "N/A"}</td>
