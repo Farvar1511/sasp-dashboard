@@ -15,7 +15,7 @@ import {
   onSnapshot,
   deleteDoc,
   deleteField,
-  FieldPath, // Import FieldPath
+  FieldPath,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { useAuth } from "../context/AuthContext";
@@ -56,8 +56,8 @@ type PromotionVote = 'promote' | 'deny' | 'needs_time';
 
 interface PromotionVoteData {
   votes: { [voterEmail: string]: PromotionVote };
-  hideUntil?: Timestamp | null; // Keep for legacy data compatibility
-  isManuallyHidden?: boolean; // New field for manual hide state
+  hideUntil?: Timestamp | null;
+  isManuallyHidden?: boolean;
 }
 
 interface PromotionComment {
@@ -74,6 +74,7 @@ interface EligibleUserPromotionData extends RosterUser {
 }
 
 export default function PromotionsTab(): JSX.Element {
+  console.log("PromotionsTab component mounted/rendered.");
   const { user: currentUser, isAdmin } = useAuth();
   const [allUsers, setAllUsers] = useState<RosterUser[]>([]);
   const [promotionData, setPromotionData] = useState<{ [userId: string]: EligibleUserPromotionData }>({});
@@ -85,12 +86,14 @@ export default function PromotionsTab(): JSX.Element {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [showHiddenByVotes, setShowHiddenByVotes] = useState<boolean>(false);
   const [highlightedUserId, setHighlightedUserId] = useState<string | null>(null);
+  const [forceShowUserId, setForceShowUserId] = useState<string | null>(null);
 
   const location = useLocation();
   const navigate = useNavigate();
   const userCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
+    console.log("PromotionsTab: Background effect running.");
     setBackgroundImage(getRandomBackgroundImage());
   }, []);
 
@@ -132,11 +135,14 @@ export default function PromotionsTab(): JSX.Element {
   }, [currentUser, isAdmin]);
 
   useEffect(() => {
+    console.log("PromotionsTab: Main data listener effect running.");
     if (!eligibleUsers.length || !currentUser) {
+      console.log("PromotionsTab: Skipping listeners - no eligible users or current user.");
       setLoading(false);
       return;
     }
 
+    console.log(`PromotionsTab: Setting up listeners for ${eligibleUsers.length} eligible users.`);
     setLoading(true);
     const unsubscribes: (() => void)[] = [];
     const initialData: { [userId: string]: EligibleUserPromotionData } = {};
@@ -214,6 +220,7 @@ export default function PromotionsTab(): JSX.Element {
     };
 
     Promise.all(eligibleUsers.map(setupListenersForUser)).then(() => {
+      console.log("PromotionsTab: All listeners set up, setting initial data.");
       setPromotionData(initialData);
       setLoading(false);
     }).catch(err => {
@@ -223,14 +230,21 @@ export default function PromotionsTab(): JSX.Element {
     });
 
     return () => {
+      console.log("PromotionsTab: Cleaning up listeners.");
       unsubscribes.forEach(unsub => unsub());
     };
 
   }, [eligibleUsers, currentUser, adminVoters]);
 
   useEffect(() => {
+    console.log("PromotionsTab: Fetching all users effect running.");
     fetchAllUsers();
   }, [fetchAllUsers]);
+
+  useEffect(() => {
+    console.log("PromotionsTab: Focus user effect running. Search:", location.search);
+    setForceShowUserId(null);
+  }, [location.search, navigate, promotionData]);
 
   const filteredPromotionData = useMemo(() => {
     let data = Object.values(promotionData);
@@ -242,36 +256,13 @@ export default function PromotionsTab(): JSX.Element {
     }
 
     if (!showHiddenByVotes) {
-      data = data.filter(userPromoData => {
-        return !userPromoData.voteData?.isManuallyHidden;
-      });
+      data = data.filter(userPromoData => !userPromoData.voteData?.isManuallyHidden);
     }
 
     data.sort((a, b) => a.name.localeCompare(b.name));
 
     return data;
   }, [promotionData, searchTerm, showHiddenByVotes]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const focusUserId = params.get('focusUser');
-
-    if (focusUserId && filteredPromotionData.length > 0) {
-      setTimeout(() => {
-        const targetElement = userCardRefs.current[focusUserId];
-        if (targetElement) {
-          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setHighlightedUserId(focusUserId);
-          const timer = setTimeout(() => setHighlightedUserId(null), 2500);
-
-          navigate(location.pathname, { replace: true });
-          return () => clearTimeout(timer);
-        } else {
-          navigate(location.pathname, { replace: true });
-        }
-      }, 100);
-    }
-  }, [location.search, navigate, filteredPromotionData]);
 
   const handleVote = async (userId: string, vote: PromotionVote) => {
     if (!currentUser?.email || !userId) {
@@ -439,6 +430,7 @@ export default function PromotionsTab(): JSX.Element {
     }
   };
 
+  console.log("PromotionsTab rendering JSX. Loading:", loading, "Error:", error);
   return (
     <Layout>
       <div

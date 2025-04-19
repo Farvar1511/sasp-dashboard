@@ -645,7 +645,7 @@ export default function AdminMenu(): JSX.Element {
                               )}
                               {eligibleForPromotion && !(isHiddenByRule && showHiddenCards) && (
                                 <Link
-                                  to={`/admin/promotions?focusUser=${userData.id}`}
+                                  to={`/promotions?focusUser=${userData.id}`}
                                   className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 px-1.5 py-0.5 rounded border border-green-600 hover:bg-green-800/50 transition-colors duration-150"
                                   title={`Eligible for Promotion (Last: ${formatDateForDisplay(userData.lastPromotionDate)}) - Click to view in Promotions`}
                                 >
