@@ -26,7 +26,6 @@ import {
 import { CertStatus } from "../types/User";
 import { formatIssuedAt, convertFirestoreDate } from "../utils/timeHelpers";
 import { toast } from "react-toastify"; // Add toast import
-import { QueryConstraint, where as firestoreWhere, WhereFilterOp } from "firebase/firestore";
 
 // Define rank ordering
 const rankOrder: { [key: string]: number } = {
@@ -90,7 +89,7 @@ const MyDashboard: React.FC = () => {
   // Task Handlers
   const handleToggleCompleteTask = async (
     taskId: string,
-    currentCompletedStatus: boolean
+    currentCompletedStatus: boolean | undefined // Allow undefined
   ) => {
     if (!authUser?.email) {
       console.error("User email is missing.");
@@ -98,21 +97,25 @@ const MyDashboard: React.FC = () => {
       return;
     }
     try {
-      console.debug(`Searching for task with ID: ${taskId}`);
-      const tasksCollectionRef = collection(dbFirestore, "users", authUser.email, "tasks");
-      const taskQuery = query(tasksCollectionRef, where("id", "==", taskId)); // Use Firestore's where function
-      const taskSnapshot = await getDocs(taskQuery);
+      console.debug(`Attempting to update task with ID: ${taskId}`);
+      // Directly reference the document by its ID
+      const taskDocRef = doc(dbFirestore, "users", authUser.email, "tasks", taskId);
+      const taskDocSnap = await getDoc(taskDocRef); // Check if it exists
 
-      if (taskSnapshot.empty) {
+      if (!taskDocSnap.exists()) {
         console.warn(`Task with ID ${taskId} does not exist.`);
-        toast.error("Task does not exist or was already deleted.");
+        // Attempt to refetch tasks in case the local state is stale
+        // (Consider adding a specific refetch function if needed)
+        toast.error("Task not found. It might have been deleted.");
+        setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId)); // Remove from local state
         return;
       }
 
-      const taskDoc = taskSnapshot.docs[0]; // Get the first matching document
-      const newCompletedStatus = !currentCompletedStatus;
-      console.debug(`Updating task ${taskDoc.id} completed status to: ${newCompletedStatus}`);
-      await updateDoc(taskDoc.ref, { completed: newCompletedStatus });
+      // Determine the new status, defaulting current to false if undefined
+      const newCompletedStatus = !(currentCompletedStatus ?? false);
+      console.debug(`Updating task ${taskDocRef.id} completed status to: ${newCompletedStatus}`);
+      // Ensure the 'completed' field is set or updated
+      await updateDoc(taskDocRef, { completed: newCompletedStatus });
 
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
@@ -137,23 +140,23 @@ const MyDashboard: React.FC = () => {
       return;
     }
     try {
-      console.debug(`Searching for task with ID: ${taskId}`);
-      const tasksCollectionRef = collection(dbFirestore, "users", authUser.email, "tasks");
-      const taskQuery = query(tasksCollectionRef, where("id", "==", taskId));
-      const taskSnapshot = await getDocs(taskQuery);
+      console.debug(`Attempting to adjust progress for task with ID: ${taskId}`);
+      // Directly reference the document by its ID
+      const taskDocRef = doc(dbFirestore, "users", authUser.email, "tasks", taskId);
+      const taskDocSnap = await getDoc(taskDocRef); // Check if it exists
 
-      if (taskSnapshot.empty) {
+      if (!taskDocSnap.exists()) {
         console.warn(`Task with ID ${taskId} does not exist.`);
-        toast.error("Task does not exist or was already deleted.");
+        toast.error("Task not found. It might have been deleted.");
+        setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId)); // Remove from local state
         return;
       }
 
-      const taskDoc = taskSnapshot.docs[0]; // Get the first matching document
-      const taskData = taskDoc.data() as UserTask;
+      const taskData = taskDocSnap.data() as UserTask;
 
       if (taskData.type !== "goal" || taskData.goal == null) {
         console.warn(`Cannot adjust progress for task ID: ${taskId}`);
-        toast.error("Cannot adjust progress for this task.");
+        toast.error("Cannot adjust progress for this task type.");
         return;
       }
 
@@ -162,8 +165,8 @@ const MyDashboard: React.FC = () => {
         taskData.goal,
         Math.max(0, currentProgress + adjustment)
       );
-      console.debug(`Adjusting progress for task ${taskDoc.id}: ${currentProgress} -> ${newProgress}`);
-      await updateDoc(taskDoc.ref, { progress: newProgress });
+      console.debug(`Adjusting progress for task ${taskDocRef.id}: ${currentProgress} -> ${newProgress}`);
+      await updateDoc(taskDocRef, { progress: newProgress }); // Update using the direct reference
 
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
@@ -235,7 +238,7 @@ const MyDashboard: React.FC = () => {
         } as RosterUser;
         setUserData(parsedUser);
 
-        // Tasks
+        // Tasks - Modified Fetching Logic
         const tasksCollectionRef = collection(
           dbFirestore,
           "users",
@@ -244,26 +247,35 @@ const MyDashboard: React.FC = () => {
         );
         const tasksQuery = query(
           tasksCollectionRef,
-          orderBy("issueddate", "desc")
+          orderBy("issueddate", "desc") // Keep ordering if desired
         );
         const tasksSnapshot = await getDocs(tasksQuery);
         setTasks(
           tasksSnapshot.docs
             .map((doc) => {
               const data = doc.data();
+              // Basic validation for essential fields
               if (
                 typeof data.task === "string" &&
                 (data.type === "goal" || data.type === "normal") &&
                 typeof data.issuedby === "string" &&
                 typeof data.issueddate === "string" &&
-                typeof data.issuedtime === "string" &&
-                typeof data.completed === "boolean" &&
-                (data.type === "goal"
-                  ? typeof data.progress === "number"
-                  : true)
+                typeof data.issuedtime === "string"
               ) {
-                return { id: doc.id, ...data } as UserTask;
+                return {
+                  id: doc.id, // Use the Firestore document ID
+                  task: data.task,
+                  type: data.type,
+                  issuedby: data.issuedby,
+                  issueddate: data.issueddate,
+                  issuedtime: data.issuedtime,
+                  // Default 'completed' to false if it's missing or not a boolean
+                  completed: typeof data.completed === "boolean" ? data.completed : false,
+                  progress: data.type === "goal" ? (typeof data.progress === "number" ? data.progress : 0) : undefined,
+                  goal: data.type === "goal" ? (typeof data.goal === "number" ? data.goal : undefined) : undefined,
+                } as UserTask;
               }
+              console.warn("Skipping invalid task data:", doc.id, data); // Log skipped tasks
               return null;
             })
             .filter((task): task is UserTask => task !== null)
@@ -757,13 +769,14 @@ const MyDashboard: React.FC = () => {
               <div className="flex-grow overflow-y-auto custom-scrollbar space-y-3 pr-2 max-h-[calc(100vh-300px)] w-full">
                 {tasks.map((task) => (
                   <div
-                    key={task.id}
+                    key={task.id} // Ensure key is the unique Firestore doc ID
                     className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg shadow-sm text-left"
                   >
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                       <div className="flex-grow">
                         <p
                           className={`text-sm font-medium ${
+                            // Use the potentially defaulted 'completed' status
                             task.completed
                               ? "line-through text-gray-500"
                               : "text-white"
@@ -805,6 +818,7 @@ const MyDashboard: React.FC = () => {
                         )}
                         <button
                           onClick={() =>
+                            // Pass the potentially defaulted 'completed' status
                             handleToggleCompleteTask(task.id, task.completed)
                           }
                           className={`px-2.5 py-1 ${
@@ -936,7 +950,4 @@ const getCertStyle = (status: CertStatus | null) => {
 };
 
 export default MyDashboard;
-function where(fieldPath: string, opStr: WhereFilterOp, value: unknown): QueryConstraint {
-  return firestoreWhere(fieldPath, opStr, value);
-}
 
