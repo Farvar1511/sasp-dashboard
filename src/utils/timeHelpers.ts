@@ -298,3 +298,74 @@ export const formatDateForRoster = (
     return ""; // Return empty string on any error
   }
 };
+
+/**
+ * Checks if a given date value is older than a specified number of days from now.
+ * Handles Timestamps, Date objects, and common date strings (YYYY-MM-DD, M/D/YY, MM/DD/YYYY).
+ * @param dateValue The date to check (Timestamp, Date, string, null, undefined).
+ * @param days The number of days threshold.
+ * @returns True if the date is older than the specified number of days, false otherwise or if invalid.
+ */
+export const isOlderThanDays = (
+  dateValue: string | Timestamp | Date | null | undefined,
+  days: number
+): boolean => {
+  if (!dateValue) return false;
+
+  let promotionDate: Date | null = null;
+
+  try {
+    if (dateValue instanceof Timestamp) {
+      promotionDate = dateValue.toDate();
+    } else if (dateValue instanceof Date) {
+      promotionDate = dateValue;
+    } else if (typeof dateValue === "string") {
+      const cleanedString = dateValue.trim();
+      let parsedDate: Date | null = null;
+
+      // Try YYYY-MM-DD (treat as UTC)
+      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(cleanedString)) {
+        parsedDate = new Date(cleanedString + 'T00:00:00Z');
+      }
+      // Try M/D/YY or MM/DD/YYYY (construct as UTC)
+      else if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(cleanedString)) {
+        const parts = cleanedString.split('/');
+        if (parts.length === 3) {
+          const month = parseInt(parts[0], 10) - 1;
+          const day = parseInt(parts[1], 10);
+          let year = parseInt(parts[2], 10);
+          if (year < 100) year += 2000; // Assume 21st century for YY
+          if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+            parsedDate = new Date(Date.UTC(year, month, day));
+          }
+        }
+      }
+      // Fallback parsing attempt (treat as UTC)
+      else {
+         parsedDate = new Date(cleanedString + 'T00:00:00Z');
+      }
+
+      if (parsedDate && !isNaN(parsedDate.getTime())) {
+        promotionDate = parsedDate;
+      }
+    }
+
+    if (!promotionDate || isNaN(promotionDate.getTime())) {
+      // console.warn("Could not parse date for promotion check:", dateValue);
+      return false;
+    }
+
+    const now = new Date();
+    // Calculate the threshold date by subtracting days from the current date
+    const thresholdDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    // Compare the promotion date with the threshold date
+    // Ensure comparison happens at the date level (ignore time part if needed, though UTC helps)
+    // We check if the promotion date is *before or on* the threshold date
+    return promotionDate.getTime() <= thresholdDate.getTime();
+
+  } catch (error) {
+    console.error("Error checking date age:", error, "Input:", dateValue);
+    return false;
+  }
+};

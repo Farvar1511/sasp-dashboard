@@ -245,16 +245,14 @@ const Fleet: React.FC = () => {
             <table className="min-w-full border-collapse text-sm text-center bg-black bg-opacity-80">
               <thead className="bg-black text-[#f3c700]">
                 <tr>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Plate</th>
-                  <th className="p-3">Vehicle</th>
-                  <th className="p-3">Division</th>
-                  <th className="p-3">Assignee</th>
-                  <th className="p-3">Restrictions</th>
+                  <th className="p-3 border-r border-gray-700 text-base">Status</th>
+                  <th className="p-3 border-r border-gray-700 text-base">Plate</th>
+                  <th className="p-3 border-r border-gray-700 text-base">Vehicle</th>
+                  <th className="p-3 border-r border-gray-700 text-base">Division</th>
+                  <th className="p-3 border-r border-gray-700 text-base">Assignee</th>
+                  <th className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-base`}>Restrictions</th>
                   {isAdmin && (
-                    <th className="p-2 border border-gray-800 text-center font-semibold">
-                      Actions
-                    </th>
+                    <th className="p-3 text-base">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -265,7 +263,7 @@ const Fleet: React.FC = () => {
                       key={vehicle.id}
                       className="border-t border-gray-800 hover:bg-gray-900/90"
                     >
-                      <td className="p-3 align-middle">
+                      <td className="p-3 border-r border-gray-700 text-center align-middle">
                         <span
                           className={`inline-block w-3 h-3 rounded-full ${
                             vehicle.inService ? "bg-green-500" : "bg-red-500"
@@ -275,13 +273,13 @@ const Fleet: React.FC = () => {
                           }
                         ></span>
                       </td>
-                      <td className="p-3 font-mono">{vehicle.plate}</td>
-                      <td className="p-3">{vehicle.vehicle}</td>
-                      <td className="p-3">{vehicle.division}</td>
-                      <td className="p-3">{vehicle.assignee}</td>
-                      <td className="p-3">{vehicle.restrictions || "-"}</td>
+                      <td className="p-3 border-r border-gray-700 text-center align-middle font-mono">{vehicle.plate}</td>
+                      <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.vehicle}</td>
+                      <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.division}</td>
+                      <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.assignee}</td>
+                      <td className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-center align-middle`}>{vehicle.restrictions || "-"}</td>
                       {isAdmin && (
-                        <td className="p-2 border border-gray-800 text-center">
+                        <td className="p-2 text-center align-middle">
                           <button
                             onClick={() => setEditingVehicle(vehicle)}
                             className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"

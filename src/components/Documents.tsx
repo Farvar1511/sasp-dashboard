@@ -43,7 +43,7 @@ const Documents: React.FC = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-black p-6 lg:p-12 text-white">
+      <div className="min-h-screen p-6 lg:p-12 text-white">
         <h1 className="text-4xl lg:text-5xl font-extrabold text-center text-[#f3c700] mb-8">
           Documents & Resources
         </h1>
@@ -96,28 +96,28 @@ const Documents: React.FC = () => {
               <h3 className="text-xl font-semibold text-[#f3c700]">
                 Document Viewer
               </h3>
-              <button
-                onClick={() => setModalLink(null)}
-                className="px-3 py-1.5 bg-white text-black rounded hover:bg-white/90 transition"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-4">
+                <a
+                  href={modalLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-[#f3c700] text-black font-semibold rounded hover:bg-yellow-400 transition text-sm"
+                >
+                  Open in New Tab
+                </a>
+                <button
+                  onClick={() => setModalLink(null)}
+                  className="px-3 py-1.5 bg-white text-black rounded hover:bg-white/90 transition text-sm"
+                >
+                  Close
+                </button>
+              </div>
             </div>
             <iframe
               src={modalLink}
               className="flex-1 w-full border-none"
               title="Document Viewer"
             />
-            <div className="flex justify-end px-6 py-4 border-t border-[#f3c700]">
-              <a
-                href={modalLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-[#f3c700] text-black font-semibold rounded hover:bg-yellow-400 transition"
-              >
-                Open in New Tab
-              </a>
-            </div>
           </div>
         )}
 

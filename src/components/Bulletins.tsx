@@ -261,7 +261,7 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
           </div>
 
           {canManageBulletins && showAddForm && (
-            <div className="mb-6 p-4 border border-gray-700 rounded bg-black/95">
+            <div className="mb-6 p-4 border border-[#f3c700]/50 rounded bg-black/95">
               <h2 className="text-xl font-semibold text-yellow-300 mb-3">
                 Add New Bulletin
               </h2>
@@ -270,9 +270,9 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
                 placeholder="Title"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                className="input w-full mb-2 bg-black/95 border-gray-600 text-white"
+                className="input w-full mb-2 bg-black/95 border-[#f3c700]/50 text-white"
               />
-              <div className="min-h-[20rem] mb-2 bg-black/95 p-2 rounded">
+              <div className="min-h-[20rem] mb-2 bg-black/95 rounded">
                 <TiptapEditor
                   content={newContent}
                   onChange={setNewContent}
@@ -300,7 +300,7 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
               {bulletins.map((bulletin) => (
                 <div
                   key={bulletin.id}
-                  className="group bulletin-container p-4 rounded border border-[#f3c700] shadow-md bg-gray-900 relative"
+                  className="group bulletin-container p-4 rounded border border-[#f3c700] shadow-md bg-black/90 relative"
                 >
                   <h2 className="text-lg font-bold text-yellow-300 mb-1">
                     {bulletin.title}
@@ -339,7 +339,7 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
                   </div>
 
                   {editingBulletinId === bulletin.id && (
-                    <div className="mt-4 p-4 border border-gray-700 rounded bg-black/95">
+                    <div className="mt-4 p-4 border border-[#f3c700]/50 rounded bg-black/95">
                       <h2 className="text-lg font-semibold text-yellow-300 mb-3">
                         Edit Bulletin
                       </h2>
@@ -347,10 +347,10 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
                         type="text"
                         value={editedTitle}
                         onChange={(e) => setEditedTitle(e.target.value)}
-                        className="input w-full mb-2 bg-black/95 border-gray-600 text-white"
+                        className="input w-full mb-2 bg-black/95 border-[#f3c700]/50 text-white"
                         placeholder="Title"
                       />
-                      <div className="min-h-[20rem] mb-2 bg-black/95 p-2 rounded">
+                      <div className="min-h-[20rem] mb-2 bg-black/95 rounded">
                         <TiptapEditor
                           content={editedContent}
                           onChange={setEditedContent}

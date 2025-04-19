@@ -14,9 +14,9 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
-import { formatIssuedAt } from "../utils/timeHelpers";
+import { formatIssuedAt, isOlderThanDays } from "../utils/timeHelpers";
 import { getRandomBackgroundImage } from "../utils/backgroundImage";
-import { FaEdit, FaTrash } from "react-icons/fa";
+import { FaEdit, FaTrash, FaArrowUp } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { RosterUser, DisciplineEntry, NoteEntry } from "../types/User";
 import EditUserModal from "./EditUserModal";
@@ -32,6 +32,16 @@ const rankCategories = {
   COMMAND: "Command", // Lt, Cpt, Cmdr
   HIGH_COMMAND: "High Command", // AC, DC, Comm
 };
+
+// Ranks to exclude from promotion eligibility check
+const commandPlusRanks = [
+  "Lieutenant",
+  "Captain",
+  "Commander",
+  "Assistant Commissioner",
+  "Deputy Commissioner",
+  "Commissioner",
+].map(rank => rank.toLowerCase());
 
 // Function to get category remains the same
 const getRankCategory = (rank: string): keyof typeof rankCategories | null => {
@@ -899,192 +909,209 @@ export default function AdminMenu(): JSX.Element {
             <>
               {filteredUsersData.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredUsersData.map((userData) => (
-                    <div
-                      key={userData.id}
-                      className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md`}
-                    >
-                      <div className="flex-grow">
-                        <h4 className={`font-semibold ${textAccent}`}>
-                          {userData.name}
-                        </h4>
-                        <p className={`text-sm ${textSecondary}`}>
-                          {userData.rank} - Badge: {userData.badge}
-                        </p>
-                        <p className={`text-sm ${textSecondary} mb-2`}>
-                          Callsign: {userData.callsign || "N/A"}
-                        </p>
-                        <p className="text-xs text-white/50 italic mb-2">
-                          {userData.tasks?.length || 0} task(s) assigned.
-                        </p>
-                        <h5
-                          className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
-                        >
-                          Tasks ({userData.tasks?.length || 0}):
-                        </h5>
-                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 mb-3">
-                          {userData.tasks.map((task) => (
-                            <div
-                              key={task.id}
-                              className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50 relative group"
-                            >
-                              <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  {filteredUsersData.map((userData) => {
+                    // Check if rank is in the exclusion list
+                    const isCommandPlus = commandPlusRanks.includes(userData.rank.toLowerCase());
+                    // Check promotion readiness using the helper (14 days) AND exclude command+
+                    const eligibleForPromotion = !isCommandPlus && isOlderThanDays(userData.lastPromotionDate, 14);
+
+                    return (
+                      <div
+                        key={userData.id}
+                        className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md`}
+                      >
+                        <div className="flex-grow">
+                          <div className="flex justify-between items-start"> {/* Container for name and promotion indicator */}
+                            <h4 className={`font-semibold ${textAccent}`}>
+                              {userData.name}
+                            </h4>
+                            {/* Conditionally render promotion indicator */}
+                            {eligibleForPromotion && (
+                              // Changed text to "Eligible"
+                              <div className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 px-1.5 py-0.5 rounded border border-green-600" title={`Eligible for Promotion (Last: ${formatDateForDisplay(convertToString(userData.lastPromotionDate))})`}>
+                                <FaArrowUp size="0.65rem" />
+                                <span>Eligible</span>
+                              </div>
+                            )}
+                          </div>
+                          <p className={`text-sm ${textSecondary}`}>
+                            {userData.rank} - Badge: {userData.badge}
+                          </p>
+                          <p className={`text-sm ${textSecondary} mb-2`}>
+                            Callsign: {userData.callsign || "N/A"}
+                          </p>
+                          <p className="text-xs text-white/50 italic mb-2">
+                            {userData.tasks?.length || 0} task(s) assigned.
+                          </p>
+                          <h5
+                            className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
+                          >
+                            Tasks ({userData.tasks?.length || 0}):
+                          </h5>
+                          <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 mb-3">
+                            {userData.tasks.map((task) => (
+                              <div
+                                key={task.id}
+                                className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50 relative group"
+                              >
+                                <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                  {editingTask &&
+                                  editingTask.userId === userData.id &&
+                                  editingTask.task.id === task.id ? (
+                                    <button
+                                      onClick={handleEditTask}
+                                      className="px-2 py-0.5 text-xs bg-[#f3c700] text-black rounded hover:bg-yellow-300"
+                                    >
+                                      Save
+                                    </button>
+                                  ) : (
+                                    <FaEdit
+                                      className="text-[#f3c700] hover:text-yellow-300 cursor-pointer h-3.5 w-3.5 transition-colors duration-150"
+                                      title="Edit Task"
+                                      onClick={() =>
+                                        setEditingTask({
+                                          userId: userData.id,
+                                          task,
+                                        })
+                                      }
+                                    />
+                                  )}
+                                  <FaTrash
+                                    className="text-red-500 hover:text-red-400 cursor-pointer h-3.5 w-3.5 transition-colors duration-150"
+                                    title="Delete Task"
+                                    onClick={() =>
+                                      handleDeleteTask(userData.email, task.id)
+                                    }
+                                  />
+                                </div>
                                 {editingTask &&
                                 editingTask.userId === userData.id &&
                                 editingTask.task.id === task.id ? (
-                                  <button
-                                    onClick={handleEditTask}
-                                    className="px-2 py-0.5 text-xs bg-[#f3c700] text-black rounded hover:bg-yellow-300"
-                                  >
-                                    Save
-                                  </button>
-                                ) : (
-                                  <FaEdit
-                                    className="text-[#f3c700] hover:text-yellow-300 cursor-pointer h-3.5 w-3.5 transition-colors duration-150"
-                                    title="Edit Task"
-                                    onClick={() =>
+                                  <input
+                                    type="text"
+                                    value={editingTask.task.task}
+                                    onChange={(e) =>
                                       setEditingTask({
                                         userId: userData.id,
-                                        task,
+                                        task: {
+                                          ...editingTask.task,
+                                          task: e.target.value,
+                                        },
                                       })
                                     }
+                                    className="w-full p-1 bg-black/70 text-white rounded border border-[#f3c700]/50 text-xs focus:ring-[#f3c700] focus:border-[#f3c700]"
                                   />
-                                )}
-                                <FaTrash
-                                  className="text-red-500 hover:text-red-400 cursor-pointer h-3.5 w-3.5 transition-colors duration-150"
-                                  title="Delete Task"
-                                  onClick={() =>
-                                    handleDeleteTask(userData.email, task.id)
-                                  }
-                                />
-                              </div>
-                              {editingTask &&
-                              editingTask.userId === userData.id &&
-                              editingTask.task.id === task.id ? (
-                                <input
-                                  type="text"
-                                  value={editingTask.task.task}
-                                  onChange={(e) =>
-                                    setEditingTask({
-                                      userId: userData.id,
-                                      task: {
-                                        ...editingTask.task,
-                                        task: e.target.value,
-                                      },
-                                    })
-                                  }
-                                  className="w-full p-1 bg-black/70 text-white rounded border border-[#f3c700]/50 text-xs focus:ring-[#f3c700] focus:border-[#f3c700]"
-                                />
-                              ) : (
-                                <p
-                                  className={`inline text-xs pr-10 ${
-                                    task.completed
-                                      ? "line-through text-white/50"
-                                      : "text-white/90"
-                                  }`}
-                                >
-                                  {task.task}
-                                </p>
-                              )}
-                              <small className="text-white/60 block mt-1 text-[10px]">
-                                Type: {task.type}
-                                {task.type === "goal" &&
-                                  ` | Progress: ${task.progress ?? 0}/${
-                                    task.goal ?? "N/A"
-                                  }`}
-                                | Status:{" "}
-                                {task.completed ? (
-                                  <span className="text-green-400">
-                                    Completed
-                                  </span>
                                 ) : (
-                                  <span className={textAccent}>
-                                    In Progress
-                                  </span>
+                                  <p
+                                    className={`inline text-xs pr-10 ${
+                                      task.completed
+                                        ? "line-through text-white/50"
+                                        : "text-white/90"
+                                    }`}
+                                  >
+                                    {task.task}
+                                  </p>
                                 )}
-                                | Assigned: {getAssignedAt(task)} | By:{" "}
-                                {task.issuedby || "Unknown"}
-                              </small>
-                            </div>
-                          ))}
-                          {userData.tasks.length === 0 && (
-                            <p className="text-white/50 italic text-xs">
-                              No tasks assigned.
-                            </p>
-                          )}
-                        </div>
-                        <h5
-                          className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
-                        >
-                          Discipline ({userData.disciplineEntries?.length || 0}):
-                        </h5>
-                        <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs mb-3">
-                          {userData.disciplineEntries &&
-                          userData.disciplineEntries.length > 0 ? (
-                            userData.disciplineEntries.map((entry) => (
-                              <div
-                                key={entry.id}
-                                className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50"
-                              >
-                                <p className="text-white/90 font-medium uppercase text-[10px]">
-                                  {entry.type}
-                                </p>
-                                <p className="text-white/80 truncate">
-                                  {entry.disciplinenotes}
-                                </p>
-                                <small className="text-white/60 block mt-0.5 text-[10px]">
-                                  By: {entry.issuedby} on{" "}
-                                  {formatIssuedAt(
-                                    entry.issueddate,
-                                    entry.issuedtime
+                                <small className="text-white/60 block mt-1 text-[10px]">
+                                  Type: {task.type}
+                                  {task.type === "goal" &&
+                                    ` | Progress: ${task.progress ?? 0}/${
+                                      task.goal ?? "N/A"
+                                    }`}
+                                  | Status:{" "}
+                                  {task.completed ? (
+                                    <span className="text-green-400">
+                                      Completed
+                                    </span>
+                                  ) : (
+                                    <span className={textAccent}>
+                                      In Progress
+                                    </span>
                                   )}
+                                  | Assigned: {getAssignedAt(task)} | By:{" "}
+                                  {task.issuedby || "Unknown"}
                                 </small>
                               </div>
-                            ))
-                          ) : (
-                            <p className="text-white/50 italic">
-                              No discipline.
-                            </p>
-                          )}
+                            ))}
+                            {userData.tasks.length === 0 && (
+                              <p className="text-white/50 italic text-xs">
+                                No tasks assigned.
+                              </p>
+                            )}
+                          </div>
+                          <h5
+                            className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
+                          >
+                            Discipline ({userData.disciplineEntries?.length || 0}):
+                          </h5>
+                          <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs mb-3">
+                            {userData.disciplineEntries &&
+                            userData.disciplineEntries.length > 0 ? (
+                              userData.disciplineEntries.map((entry) => (
+                                <div
+                                  key={entry.id}
+                                  className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50"
+                                >
+                                  <p className="text-white/90 font-medium uppercase text-[10px]">
+                                    {entry.type}
+                                  </p>
+                                  <p className="text-white/80 truncate">
+                                    {entry.disciplinenotes}
+                                  </p>
+                                  <small className="text-white/60 block mt-0.5 text-[10px]">
+                                    By: {entry.issuedby} on{" "}
+                                    {formatIssuedAt(
+                                      entry.issueddate,
+                                      entry.issuedtime
+                                    )}
+                                  </small>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-white/50 italic">
+                                No discipline.
+                              </p>
+                            )}
+                          </div>
+                          <h5
+                            className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
+                          >
+                            Notes ({userData.generalNotes?.length || 0}):
+                          </h5>
+                          <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
+                            {userData.generalNotes &&
+                            userData.generalNotes.length > 0 ? (
+                              userData.generalNotes.map((note) => (
+                                <div
+                                  key={note.id}
+                                  className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50"
+                                >
+                                  <p className="text-white/90 font-medium text-[10px]">
+                                    {note.note}
+                                  </p>
+                                  <small className="text-white/60 block mt-0.5 text-[10px]">
+                                    By: {note.issuedby} on{" "}
+                                    {formatIssuedAt(
+                                      note.issueddate,
+                                      note.issuedtime
+                                    )}
+                                  </small>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-white/50 italic">No notes.</p>
+                            )}
+                          </div>
                         </div>
-                        <h5
-                          className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
+                        <button
+                          className={`${buttonSecondary} mt-3 self-end`}
+                          onClick={() => setEditingUser(userData)}
                         >
-                          Notes ({userData.generalNotes?.length || 0}):
-                        </h5>
-                        <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
-                          {userData.generalNotes &&
-                          userData.generalNotes.length > 0 ? (
-                            userData.generalNotes.map((note) => (
-                              <div
-                                key={note.id}
-                                className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50"
-                              >
-                                <p className="text-white/90 font-medium text-[10px]">
-                                  {note.note}
-                                </p>
-                                <small className="text-white/60 block mt-0.5 text-[10px]">
-                                  By: {note.issuedby} on{" "}
-                                  {formatIssuedAt(
-                                    note.issueddate,
-                                    note.issuedtime
-                                  )}
-                                </small>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-white/50 italic">No notes.</p>
-                          )}
-                        </div>
+                          Manage User
+                        </button>
                       </div>
-                      <button
-                        className={`${buttonSecondary} mt-3 self-end`}
-                        onClick={() => setEditingUser(userData)}
-                      >
-                        Manage User
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-white/60 italic text-center py-4">
