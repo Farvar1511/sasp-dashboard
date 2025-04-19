@@ -100,20 +100,62 @@ export const convertFirestoreDate = (dateString: string): string => {
 
 /**
  * Converts a date string or Timestamp to MM/DD/YY format.
- * @param value - The date string, Timestamp, or null/undefined.
- * @returns A string in MM/DD/YY format or "-" if the input is invalid or empty.
+ * Handles 'YYYY-MM-DD' strings or Firestore Timestamps.
+ * @param value - The date string ('YYYY-MM-DD'), Timestamp, or null/undefined.
+ * @returns A string in MM/DD/YY format or "N/A" if the input is invalid or empty.
  */
-export const formatDateToMMDDYY = (dateString: string | null | undefined): string => {
-  if (!dateString) return "N/A";
-  // Parse the date string. Append 'T00:00:00Z' to ensure it's treated as UTC midnight.
-  // Or split the string to avoid ambiguity.
-  const parts = dateString.split('-');
-  if (parts.length !== 3) return "Invalid Date";
+export const formatDateToMMDDYY = (
+  dateValue: string | Timestamp | null | undefined
+): string => {
+  let dateString: string | null = null;
 
-  // Create date using UTC values to avoid timezone shifts
+  if (!dateValue) return "N/A";
+
+  if (dateValue instanceof Timestamp) {
+    // Convert Timestamp to YYYY-MM-DD string
+    try {
+      dateString = dateValue.toDate().toISOString().split("T")[0];
+    } catch (e) {
+      console.error("Error converting Timestamp to Date:", e);
+      return "Invalid Date";
+    }
+  } else if (typeof dateValue === 'string') {
+    // Assume string is already in YYYY-MM-DD format or similar parseable format
+    dateString = dateValue;
+  } else {
+    return "N/A"; // Should not happen with TS, but good practice
+  }
+
+  // Now dateString is guaranteed to be a string or null (if conversion failed)
+  if (!dateString) return "Invalid Date";
+
+  // Existing logic to parse YYYY-MM-DD string
+  const parts = dateString.split('-');
+  if (parts.length !== 3) {
+    // Attempt to parse other potential string formats if needed, or return invalid
+    const parsedDate = new Date(dateString + 'T00:00:00Z'); // Treat as UTC
+     if (isNaN(parsedDate.getTime())) {
+        return "Invalid Date Format";
+     }
+     // If parseable, extract parts using UTC methods
+     const year = parsedDate.getUTCFullYear();
+     const month = parsedDate.getUTCMonth();
+     const day = parsedDate.getUTCDate();
+     const displayMonth = month + 1;
+     const displayDay = day;
+     const displayYear = year % 100;
+     return `${displayMonth}/${displayDay}/${displayYear < 10 ? '0' + displayYear : displayYear}`;
+  }
+
+  // Create date using UTC values to avoid timezone shifts from YYYY-MM-DD
   const year = parseInt(parts[0], 10);
   const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
   const day = parseInt(parts[2], 10);
+
+  // Validate parsed parts
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return "Invalid Date Parts";
+  }
 
   const date = new Date(Date.UTC(year, month, day));
 
