@@ -5,8 +5,8 @@ import React, {
   useState,
   useMemo,
 } from "react";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore"; // Re-import Timestamp
 import { auth, db } from "../firebase";
 import { User } from "../types/User";
 import { useNavigate } from "react-router-dom"; // Import useNavigate
@@ -104,20 +104,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const login = async (email: string, password: string) => {
     try {
-      const loggedInUser: User = {
-        uid: "exampleUid",
-        email,
-        displayName: "Example User",
-        rank: "exampleRank",
-        role: "exampleRole",
-        id: "exampleId",
-        isAdmin: false,
-      };
-      setUser(loggedInUser);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // Update Firestore with lastSignInTime using server timestamp
+      if (firebaseUser && firebaseUser.email) {
+        try {
+          const userDocRef = doc(db, "users", firebaseUser.email);
+          await updateDoc(userDocRef, {
+            lastSignInTime: Timestamp.now(), // Use server timestamp object
+          });
+          console.log("Successfully updated lastSignInTime for user:", firebaseUser.email);
+        } catch (firestoreError) {
+          console.error("Failed to update lastSignInTime in Firestore:", firestoreError);
+        }
+      }
+
       navigate("/home"); // Navigate to Home page
     } catch (error) {
       console.error("Login failed:", error);
-      throw error;
+      throw error; // Re-throw the error so the Login component can catch it
     }
   };
 

@@ -52,6 +52,73 @@ export function formatTimestampForDisplay(
   });
 }
 
+/**
+ * Formats a date value (Timestamp, Date, string, null, undefined) into MM/DD/YY format.
+ * Handles common date string formats like YYYY-MM-DD and MM/DD/YYYY.
+ * Returns "N/A" for invalid or null inputs.
+ * @param dateValue - The date value to format.
+ * @returns A formatted string "MM/DD/YY" or "N/A".
+ */
+export const formatDateForDisplay = (
+  dateValue: Timestamp | Date | string | null | undefined
+): string => {
+  if (!dateValue) {
+    return "N/A";
+  }
+
+  try {
+    let date: Date;
+
+    if (dateValue instanceof Timestamp) {
+      date = dateValue.toDate();
+    } else if (dateValue instanceof Date) {
+      date = dateValue;
+    } else if (typeof dateValue === "string") {
+      // Attempt to parse common string formats, treating as UTC to avoid timezone shifts
+      const cleanedString = dateValue.trim();
+      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(cleanedString)) { // YYYY-MM-DD
+        date = new Date(cleanedString + 'T00:00:00Z');
+      } else if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(cleanedString)) { // MM/DD/YY or MM/DD/YYYY
+         const parts = cleanedString.split('/');
+         if (parts.length === 3) {
+            const month = parseInt(parts[0], 10) - 1;
+            const day = parseInt(parts[1], 10);
+            let year = parseInt(parts[2], 10);
+            if (year < 100) { year += 2000; } // Handle YY format
+            if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+                 date = new Date(Date.UTC(year, month, day));
+            } else {
+                 return "N/A"; // Invalid parts
+            }
+         } else {
+             return "N/A"; // Invalid format
+         }
+      } else {
+         // Try direct parsing as a last resort (might be timezone-dependent)
+         date = new Date(cleanedString);
+      }
+    } else {
+      return "N/A"; // Unsupported type
+    }
+
+    // Check if date is valid after parsing attempts
+    if (!date || isNaN(date.getTime())) {
+      return "N/A";
+    }
+
+    // Format using UTC methods: MM/DD/YY (with padding for month/day)
+    const displayMonth = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+    const displayDay = date.getUTCDate().toString().padStart(2, '0');
+    const displayYear = (date.getUTCFullYear() % 100).toString().padStart(2, '0'); // Get last two digits
+
+    return `${displayMonth}/${displayDay}/${displayYear}`;
+
+  } catch (error) {
+    console.error("Error formatting date for display:", error, "Input:", dateValue);
+    return "N/A"; // Return N/A on any error
+  }
+};
+
 export const formatIssuedAt = (dateStr: string, timeStr: string): string => {
   if (!dateStr || !timeStr) return "Invalid Date/Time";
   return `${dateStr} at ${timeStr}`;
@@ -368,4 +435,46 @@ export const isOlderThanDays = (
     console.error("Error checking date age:", error, "Input:", dateValue);
     return false;
   }
+};
+
+/**
+ * Formats a Firestore Timestamp, Date object, or date string into MM/DD/YY, HH:MM AM/PM format.
+ * @param dateValue The date/time value to format.
+ * @returns Formatted date/time string or "N/A".
+ */
+export const formatTimestampDateTime = (
+  dateValue: Timestamp | Date | string | null | undefined
+): string => {
+  if (!dateValue) return "N/A";
+
+  let date: Date | null = null;
+
+  try {
+    if (dateValue instanceof Timestamp) {
+      date = dateValue.toDate();
+    } else if (dateValue instanceof Date) {
+      date = dateValue;
+    } else if (typeof dateValue === 'string') {
+      date = new Date(dateValue); // Attempt to parse string
+    }
+
+    if (date && !isNaN(date.getTime())) {
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const year = date.getFullYear() % 100; // Get last two digits of year
+
+      const options: Intl.DateTimeFormatOptions = {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      };
+      const timeString = date.toLocaleTimeString('en-US', options);
+
+      return `${month}/${day}/${year}, ${timeString}`;
+    }
+  } catch (error) {
+    console.error("Error formatting timestamp:", error, dateValue);
+  }
+
+  return "N/A"; // Return N/A if parsing or formatting fails
 };

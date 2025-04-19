@@ -7,16 +7,54 @@ import {
 } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { LinksProvider } from "./context/LinksContext";
-import Login from "./components/Login"; // Login page
-import Home from "./pages/Home"; // Home page
-import Documents from "./components/Documents"; // Documents page
-import Fleet from "./components/Fleet"; // Fleet page
-import SASPRoster from "./components/SASPRoster"; // SASP Roster page
-import AdminMenu from "./components/AdminMenu"; // Admin Menu page
-import Bulletins from "./components/Bulletins"; // Bulletins page
+import Login from "./components/Login";
+import Home from "./pages/Home";
+import Documents from "./components/Documents";
+import Fleet from "./components/Fleet";
+import SASPRoster from "./components/SASPRoster";
+import AdminMenu from "./components/AdminMenu";
+import Bulletins from "./components/Bulletins";
 import FTOPage from "./pages/FTO";
+import PromotionsTab from "./components/PromotionsTab";
+
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
+};
+
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading, isAdmin } = useAuth();
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  return user && isAdmin ? <>{children}</> : <Navigate to="/home" replace />;
+};
+
+const SgtPlusRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading } = useAuth();
+  const adminVoterRanks = [
+    "sergeant",
+    "staff sergeant",
+    "lieutenant",
+    "captain",
+    "commander",
+    "assistant commissioner",
+    "deputy commissioner",
+    "commissioner",
+  ];
+  const isSgtPlus =
+    user && adminVoterRanks.includes(user.rank?.toLowerCase() || "");
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  return user && isSgtPlus ? <>{children}</> : <Navigate to="/home" replace />;
+};
 
 const App: React.FC = () => {
   return (
@@ -26,13 +64,70 @@ const App: React.FC = () => {
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route path="/home" element={<Home />} />
-              <Route path="/documents" element={<Documents />} />
-              <Route path="/fleet" element={<Fleet />} />
-              <Route path="/sasp-roster" element={<SASPRoster />} />
-              <Route path="/admin" element={<AdminMenu />} />
-              <Route path="/bulletins" element={<Bulletins />} />{" "}
-              <Route path="/fto" element={<FTOPage />} /> {/* Add FTO route */}
+              <Route
+                path="/home"
+                element={
+                  <ProtectedRoute>
+                    <Home />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/documents"
+                element={
+                  <ProtectedRoute>
+                    <Documents />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/fleet"
+                element={
+                  <ProtectedRoute>
+                    <Fleet />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/sasp-roster"
+                element={
+                  <ProtectedRoute>
+                    <SASPRoster />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <AdminMenu />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/bulletins"
+                element={
+                  <ProtectedRoute>
+                    <Bulletins />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/fto"
+                element={
+                  <ProtectedRoute>
+                    <FTOPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/promotions"
+                element={
+                  <SgtPlusRoute>
+                    <PromotionsTab />
+                  </SgtPlusRoute>
+                }
+              />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </AuthProvider>

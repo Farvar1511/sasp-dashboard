@@ -14,7 +14,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
-import { formatIssuedAt, isOlderThanDays } from "../utils/timeHelpers";
+import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime } from "../utils/timeHelpers";
 import { getRandomBackgroundImage } from "../utils/backgroundImage";
 import { FaEdit, FaTrash, FaArrowUp } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
@@ -66,30 +66,25 @@ const getAssignedAt = (task: UserTask): string => {
   return isNaN(date.getTime()) ? combined : date.toLocaleString();
 };
 
-const formatDateForDisplay = (dateValue: string | null | undefined): string => {
-  if (!dateValue) return "N/A";
-  const parsedDate = new Date(dateValue);
-  if (!isNaN(parsedDate.getTime())) {
-    return `${parsedDate.getMonth() + 1}/${parsedDate.getDate()}/${
-      parsedDate.getFullYear() % 100
-    }`;
-  }
-  return dateValue;
-};
-
 const convertToString = (
-  value: string | Timestamp | null | undefined
+  value: string | Timestamp | Date | null | undefined
 ): string => {
   if (value instanceof Timestamp) {
+    // Convert Timestamp to YYYY-MM-DD string for date inputs
     return value.toDate().toISOString().split("T")[0];
+  } else if (value instanceof Date) {
+    // Convert Date to YYYY-MM-DD string
+    return value.toISOString().split("T")[0];
   }
-  return value || "N/A";
+  // Handle string, null, or undefined
+  return value || ""; // Return empty string for null/undefined to avoid "N/A" in inputs
 };
 
 interface FirestoreUserWithDetails extends RosterUser {
   tasks: UserTask[];
   disciplineEntries: DisciplineEntry[];
   generalNotes: NoteEntry[];
+  lastSignInTime?: Timestamp | string | null; // Add lastSignInTime
 }
 
 const availableRanks = [
@@ -305,7 +300,7 @@ export default function AdminMenu(): JSX.Element {
     try {
       const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
       const usersPromises = usersSnapshot.docs.map(async (userDoc) => {
-        const userData = userDoc.data() as Partial<RosterUser>;
+        const userData = userDoc.data() as Partial<RosterUser & { lastSignInTime?: Timestamp | string | null }>; // Include lastSignInTime here
         const userEmail = userDoc.id;
         if (!userEmail) {
           return null;
@@ -425,6 +420,7 @@ export default function AdminMenu(): JSX.Element {
           tasks: tasks,
           disciplineEntries: disciplineEntries,
           generalNotes: generalNotes,
+          lastSignInTime: userData.lastSignInTime || null, // Read lastSignInTime from Firestore data
           isAdmin:
             userData.role?.toLowerCase() === "admin" ||
             availableRanks
@@ -451,6 +447,13 @@ export default function AdminMenu(): JSX.Element {
   useEffect(() => {
     fetchAdminData();
   }, [fetchAdminData]);
+
+  useEffect(() => {
+    if (currentUser && !usersLoading) {
+      // Uncomment cautiously - might cause loops if currentUser object changes too often
+      // fetchAdminData();
+    }
+  }, [currentUser, usersLoading, fetchAdminData]);
 
   const handleRoleSelectionChange = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -740,6 +743,18 @@ export default function AdminMenu(): JSX.Element {
               Admin Menu
             </NavLink>
             <NavLink
+              to="/promotions"
+              className={({ isActive }) =>
+                `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
+                  isActive
+                    ? "text-[#f3c700] border-b-2 border-[#f3c700]"
+                    : "text-white/60 hover:text-[#f3c700]"
+                }`
+              }
+            >
+              Promotions
+            </NavLink>
+            <NavLink
               to="/bulletins"
               className={({ isActive }) =>
                 `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
@@ -915,6 +930,17 @@ export default function AdminMenu(): JSX.Element {
                     // Check promotion readiness using the helper (14 days) AND exclude command+
                     const eligibleForPromotion = !isCommandPlus && isOlderThanDays(userData.lastPromotionDate, 14);
 
+                    function formatDateForDisplay(dateString: string): string {
+                      const date = new Date(dateString);
+                      if (isNaN(date.getTime())) {
+                      return "Invalid Date";
+                      }
+                      return date.toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                      });
+                    }
                     return (
                       <div
                         key={userData.id}
@@ -927,7 +953,7 @@ export default function AdminMenu(): JSX.Element {
                             </h4>
                             {/* Conditionally render promotion indicator */}
                             {eligibleForPromotion && (
-                              // Changed text to "Eligible"
+                              // Use formatDateForDisplay instead of formatIssuedAt for the title
                               <div className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 px-1.5 py-0.5 rounded border border-green-600" title={`Eligible for Promotion (Last: ${formatDateForDisplay(convertToString(userData.lastPromotionDate))})`}>
                                 <FaArrowUp size="0.65rem" />
                                 <span>Eligible</span>
@@ -1103,8 +1129,14 @@ export default function AdminMenu(): JSX.Element {
                             )}
                           </div>
                         </div>
+                        {/* Use the new formatter */}
+                        <div className="mt-2 pt-2 border-t border-white/10 text-right">
+                          <span className="text-xs text-white/50 italic">
+                            Last Signed In: {formatTimestampDateTime(userData.lastSignInTime)}
+                          </span>
+                        </div>
                         <button
-                          className={`${buttonSecondary} mt-3 self-end`}
+                          className={`${buttonSecondary} mt-2 self-end`} // Adjusted margin-top
                           onClick={() => setEditingUser(userData)}
                         >
                           Manage User
@@ -1130,6 +1162,7 @@ export default function AdminMenu(): JSX.Element {
               discordId: editingUser.discordId || "-",
               certifications: editingUser.certifications || {},
               assignedVehicleId: editingUser.assignedVehicleId || undefined,
+              // Use convertToString for date inputs in the modal
               loaStartDate: convertToString(editingUser.loaStartDate),
               loaEndDate: convertToString(editingUser.loaEndDate),
               joinDate: convertToString(editingUser.joinDate),

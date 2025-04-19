@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import { getRandomBackgroundImage } from "../utils/backgroundImage";
 
@@ -10,7 +8,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>("");
 
   useEffect(() => {
@@ -31,7 +29,7 @@ const Login: React.FC = () => {
     }
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await login(email, password);
     } catch (err) {
       console.error("Login error:", err);
       if (err instanceof Error) {
@@ -56,12 +54,15 @@ const Login: React.FC = () => {
   };
 
   if (user) {
-    // Redirect to /home if already logged in
     return <Navigate to="/home" replace />;
   }
 
   if (!backgroundImageUrl) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        Loading...
+      </div>
+    );
   }
 
   return (
@@ -69,86 +70,66 @@ const Login: React.FC = () => {
       className="min-h-screen flex items-center justify-center bg-cover bg-center"
       style={{ backgroundImage: `url('${backgroundImageUrl}')` }}
     >
-      <div className="bg-black/75 p-8 rounded-lg shadow-xl w-full max-w-md space-y-6">
-        <div className="text-center">
-          <img
-            src="https://i.gyazo.com/1e84a251bf8ec475f4849db73766eea7.png"
-            alt="SASP Logo"
-            className="w-40 h-auto mx-auto mb-4"
-          />
-          <h2 className="text-2xl font-bold text-yellow-400">
-            SASP Portal Login
-          </h2>
-        </div>
-        <form onSubmit={handleLogin} className="space-y-4">
+      <div className="bg-black bg-opacity-80 p-10 rounded-lg shadow-xl max-w-md w-full border border-[#f3c700]">
+        <img
+          src="/SASPLOGO2.png"
+          alt="SASP Logo"
+          className="w-24 h-24 mx-auto mb-6"
+        />
+        <h2 className="text-3xl font-bold text-center text-[#f3c700] mb-8">
+          SASP Dashboard Login
+        </h2>
+        <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-300"
+              className="block text-sm font-medium text-white/80"
             >
               Email Address
             </label>
             <input
-              id="email"
-              name="email"
               type="email"
-              autoComplete="email"
-              required
+              id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="input mt-1 w-full"
-              placeholder="trooper@sasp.gov"
+              required
+              className="mt-1 block w-full px-3 py-2 bg-black/50 border border-[#f3c700] rounded-md text-white shadow-sm focus:outline-none focus:ring-[#f3c700] focus:border-[#f3c700] sm:text-sm"
+              placeholder="your.email@sasp.gov"
             />
           </div>
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-gray-300"
+              className="block text-sm font-medium text-white/80"
             >
               Password
             </label>
             <input
-              id="password"
-              name="password"
               type="password"
-              autoComplete="current-password"
-              required
+              id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="input mt-1 w-full"
+              required
+              className="mt-1 block w-full px-3 py-2 bg-black/50 border border-[#f3c700] rounded-md text-white shadow-sm focus:outline-none focus:ring-[#f3c700] focus:border-[#f3c700] sm:text-sm"
               placeholder="••••••••"
             />
           </div>
-
-          {error && <p className="text-sm text-red-500 text-center">{error}</p>}
-
+          {error && (
+            <p className="text-sm text-red-500 bg-red-900/50 border border-red-700 p-2 rounded">
+              {error}
+            </p>
+          )}
           <div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full button-primary disabled:opacity-50"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-[#f3c700] hover:bg-yellow-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f3c700] disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 ease-in-out"
             >
-              {loading ? "Logging In..." : "Log In"}
+              {loading ? "Signing In..." : "Sign In"}
             </button>
           </div>
         </form>
       </div>
-      <style>{`
-        .input {
-          background-color: #1f2937;
-          color: white;
-          border: 1px solid #4b5563;
-          border-radius: 0.375rem;
-          padding: 0.5rem 0.75rem;
-          font-size: 0.875rem;
-          line-height: 1.25rem;
-        }
-        .input:focus {
-          outline: none;
-          border-color: #f3c700;
-          box-shadow: 0 0 0 2px rgba(243, 199, 0, 0.5);
-        }
-      `}</style>
     </div>
   );
 };
