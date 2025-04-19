@@ -104,6 +104,14 @@ const filterOptions = {
   ...Object.fromEntries(availableRanks.map((rank) => [rank, rank])),
 };
 
+// Create options specifically for the Assign Task filter dropdown
+const assignTaskFilterOptions = {
+  SELECT: "-- Select by Rank/Category --", // Placeholder option
+  ALL: "All Users",
+  ...rankCategories,
+  ...Object.fromEntries(availableRanks.map((rank) => [rank, rank])),
+};
+
 const getCurrentDateTimeStrings = () => {
   const now = new Date();
   const date = now.toLocaleDateString();
@@ -153,6 +161,8 @@ export default function AdminMenu(): JSX.Element {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<"rank" | "name">("rank");
+  // Add state for the new assign task filter dropdown
+  const [selectedAssignFilter, setSelectedAssignFilter] = useState<string>("SELECT");
 
   const handleRankSelection = (rank: string) => {
     setSelectedRank(rank);
@@ -174,6 +184,33 @@ export default function AdminMenu(): JSX.Element {
     setSelectedUserId((prev) =>
       selectedUsers.includes(userId) ? null : userId
     );
+
+    // Reset the assign filter dropdown if a user is manually toggled
+    setSelectedAssignFilter("SELECT");
+  };
+
+  // Handler for the new Assign Task filter dropdown
+  const handleAssignFilterChange = (selectedValue: string) => {
+    setSelectedAssignFilter(selectedValue);
+
+    let usersToSelect: string[] = [];
+
+    if (selectedValue === "ALL") {
+      usersToSelect = usersData.map((user) => user.id).filter((id): id is string => !!id);
+    } else if (Object.keys(rankCategories).includes(selectedValue)) {
+      // It's a category
+      usersToSelect = usersData
+        .filter((user) => getRankCategory(user.rank) === selectedValue && user.id)
+        .map((user) => user.id!);
+    } else if (availableRanks.includes(selectedValue)) {
+      // It's an individual rank
+      usersToSelect = usersData
+        .filter((user) => user.rank === selectedValue && user.id)
+        .map((user) => user.id!);
+    }
+    // If 'SELECT' or other invalid value, usersToSelect remains empty
+
+    setSelectedUsers(usersToSelect);
   };
 
   const handleAssignTask = async () => {
@@ -232,6 +269,8 @@ export default function AdminMenu(): JSX.Element {
       setNewTask("");
       setBulkTaskGoal(0);
       setBulkTaskType("normal");
+      // Reset filter dropdown after assigning
+      setSelectedAssignFilter("SELECT");
     } catch (error) {
       toast.error("Failed to assign task.");
     }
@@ -242,6 +281,8 @@ export default function AdminMenu(): JSX.Element {
     setSelectedUsers([]);
     setTaskDescription("");
     setBulkTaskType("normal");
+    // Also reset the assign filter dropdown
+    setSelectedAssignFilter("SELECT");
   };
 
   useEffect(() => {
@@ -750,14 +791,34 @@ export default function AdminMenu(): JSX.Element {
                 />
               </div>
             )}
+            {/* Add the new filter dropdown here */}
             <div>
-              <h3 className="text-lg font-semibold mb-2 text-white">
-                Selected Users:
+              <label className={`block text-sm font-medium ${textAccent} mb-2`}>
+                Select Users by Rank/Category:
+              </label>
+              <select
+                className={inputStyle}
+                value={selectedAssignFilter}
+                onChange={(e) => handleAssignFilterChange(e.target.value)}
+              >
+                {Object.entries(assignTaskFilterOptions).map(([key, value]) => (
+                  <option key={key} value={key}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-white mt-4">
+                Selected Users ({selectedUsers.length}):
               </h3>
               <div
-                className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-black/80 p-3 rounded ${borderAccent}`}
+                className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-black/80 p-3 rounded ${borderAccent} max-h-60 overflow-y-auto custom-scrollbar`}
               >
-                {usersData.map((user) => (
+                {/* Sort users alphabetically for the checkbox list */}
+                {[...usersData]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((user) => (
                   <label
                     key={user.id}
                     className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors duration-200 ${
@@ -770,9 +831,14 @@ export default function AdminMenu(): JSX.Element {
                       type="checkbox"
                       checked={selectedUsers.includes(user.id)}
                       onChange={() => handleUserToggle(user.id)}
-                      className="h-4 w-4 text-[#f3c700] border-white/30 rounded focus:ring-[#f3c700] bg-black/50"
+                      className="h-4 w-4 text-[#f3c700] border-white/30 rounded focus:ring-[#f3c700] bg-black/50 flex-shrink-0"
                     />
-                    <span className="text-sm">{user.name}</span>
+                    <span className="text-xs leading-tight">
+                      {user.name} <br />
+                      <span className="text-[10px] opacity-80">
+                        {user.rank} - {user.badge || 'N/A'}
+                      </span>
+                    </span>
                   </label>
                 ))}
               </div>
