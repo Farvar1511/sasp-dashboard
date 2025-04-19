@@ -103,23 +103,30 @@ export const convertFirestoreDate = (dateString: string): string => {
  * @param value - The date string, Timestamp, or null/undefined.
  * @returns A string in MM/DD/YY format or "-" if the input is invalid or empty.
  */
-export const formatDateToMMDDYY = (
-  value: string | Timestamp | null | undefined
-): string => {
-  if (!value) return "-"; // Return "-" for null/undefined
-  let date: Date;
-  if (value instanceof Timestamp) {
-    date = value.toDate();
-  } else if (typeof value === "string") {
-    date = new Date(value);
-    if (isNaN(date.getTime())) return "-"; // Return "-" for invalid date strings
-  } else {
-    return "-";
+export const formatDateToMMDDYY = (dateString: string | null | undefined): string => {
+  if (!dateString) return "N/A";
+  // Parse the date string. Append 'T00:00:00Z' to ensure it's treated as UTC midnight.
+  // Or split the string to avoid ambiguity.
+  const parts = dateString.split('-');
+  if (parts.length !== 3) return "Invalid Date";
+
+  // Create date using UTC values to avoid timezone shifts
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+  const day = parseInt(parts[2], 10);
+
+  const date = new Date(Date.UTC(year, month, day));
+
+  if (isNaN(date.getTime())) {
+    return "Invalid Date";
   }
-  const month = date.getMonth() + 1; // Months are zero-based
-  const day = date.getDate();
-  const year = date.getFullYear().toString().slice(-2); // Get last two digits of the year
-  return `${month}/${day}/${year}`;
+
+  // Use UTC methods for formatting
+  const displayMonth = date.getUTCMonth() + 1;
+  const displayDay = date.getUTCDate();
+  const displayYear = date.getUTCFullYear() % 100;
+
+  return `${displayMonth}/${displayDay}/${displayYear < 10 ? '0' + displayYear : displayYear}`;
 };
 
 /**

@@ -201,23 +201,25 @@ const FTOPage: React.FC = () => {
     if (newLog.date && newLog.timeStarted && newLog.timeEnded) {
       try {
         const startDateTime = new Date(`${newLog.date}T${newLog.timeStarted}`);
-        const endDateTime = new Date(`${newLog.date}T${newLog.timeEnded}`);
+        let endDateTime = new Date(`${newLog.date}T${newLog.timeEnded}`);
 
-        if (endDateTime > startDateTime) {
-          const diffMilliseconds = endDateTime.getTime() - startDateTime.getTime();
-          const diffHours = diffMilliseconds / (1000 * 60 * 60);
-          setNewLog((prev) => ({ ...prev, sessionHours: diffHours }));
-        } else {
-          setNewLog((prev) => ({ ...prev, sessionHours: 0 }));
-          if (newLog.timeEnded) {
-            toast.warn("End time must be after start time.");
-          }
+        // Handle overnight case: If end time is earlier than start time, add one day to end date
+        if (endDateTime <= startDateTime) {
+          endDateTime.setDate(endDateTime.getDate() + 1);
         }
+
+        const diffMilliseconds = endDateTime.getTime() - startDateTime.getTime();
+        // Ensure diff is non-negative; could happen if dates/times are invalid despite checks
+        const diffHours = Math.max(0, diffMilliseconds / (1000 * 60 * 60));
+
+        setNewLog((prev) => ({ ...prev, sessionHours: diffHours }));
+
       } catch (e) {
         console.error("Error calculating time difference:", e);
         setNewLog((prev) => ({ ...prev, sessionHours: 0 }));
       }
     } else {
+      // Reset hours if date/times are incomplete
       setNewLog((prev) => ({ ...prev, sessionHours: 0 }));
     }
   }, [newLog.date, newLog.timeStarted, newLog.timeEnded]);
@@ -410,32 +412,49 @@ const FTOPage: React.FC = () => {
       return;
     }
 
-    let sessionHours = editingLog.sessionHours;
+    let sessionHours = editingLog.sessionHours; // Keep existing if calculation fails
     if (editingLog.date && editingLog.timeStarted && editingLog.timeEnded) {
       try {
         const startDateTime = new Date(`${editingLog.date}T${editingLog.timeStarted}`);
-        const endDateTime = new Date(`${editingLog.date}T${editingLog.timeEnded}`);
-        if (endDateTime > startDateTime) {
-          const diffMilliseconds = endDateTime.getTime() - startDateTime.getTime();
-          sessionHours = diffMilliseconds / (1000 * 60 * 60);
-        } else {
-          sessionHours = 0;
+        let endDateTime = new Date(`${editingLog.date}T${editingLog.timeEnded}`);
+
+        // Handle overnight case: If end time is earlier than start time, add one day to end date
+        if (endDateTime <= startDateTime) {
+          endDateTime.setDate(endDateTime.getDate() + 1);
         }
+
+        const diffMilliseconds = endDateTime.getTime() - startDateTime.getTime();
+        // Ensure diff is non-negative
+        sessionHours = Math.max(0, diffMilliseconds / (1000 * 60 * 60));
+
       } catch (e) {
         console.error("Error recalculating time difference during update:", e);
-        sessionHours = 0;
+        // Optionally keep the old sessionHours or set to 0, depending on desired behavior
+        // sessionHours = 0; // Or keep existing: sessionHours = editingLog.sessionHours;
+        toast.warn("Could not recalculate session hours due to invalid date/time format.");
       }
+    } else {
+      // If date/times are cleared during edit, set hours to 0
+      sessionHours = 0;
     }
 
     const logRef = doc(dbFirestore, "cadetLogs", editingLog.id);
     try {
+      // Exclude id and createdAt from the update payload
       const { id, createdAt, ...updateData } = editingLog;
       await updateDoc(logRef, {
         ...updateData,
-        sessionHours: sessionHours,
+        sessionHours: sessionHours, // Use the recalculated sessionHours
       });
 
-      setLogs((prevLogs) => prevLogs.map((log) => log.id === editingLog.id ? { ...editingLog, sessionHours: sessionHours } : log));
+      // Update local state
+      setLogs((prevLogs) =>
+        prevLogs.map((log) =>
+          log.id === editingLog.id
+            ? { ...editingLog, sessionHours: sessionHours } // Update with new hours
+            : log
+        )
+      );
 
       toast.success("Log updated successfully!");
       setIsEditLogModalOpen(false);
