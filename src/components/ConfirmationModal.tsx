@@ -1,4 +1,5 @@
 import React from "react";
+import Modal from "./Modal"; // Import the generic Modal
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -15,29 +16,26 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   title,
   message,
 }) => {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
-      <div className="bg-gray-800 text-yellow-400 rounded-lg p-6 shadow-lg w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">{title}</h2>
-        <p className="text-sm mb-6">{message}</p>
-        <div className="flex justify-end gap-4">
-          <button
-            onClick={onClose}
-            className="button-secondary px-4 py-2"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="button-primary px-4 py-2"
-          >
-            Confirm
-          </button>
-        </div>
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-md">
+      {/* Content now goes directly inside the generic Modal */}
+      <h2 className="text-xl font-semibold text-[#f3c700] mb-4">{title}</h2>
+      <p className="text-gray-300 mb-6">{message}</p>
+      <div className="flex justify-end space-x-4">
+        <button
+          onClick={onClose}
+          className="button-secondary px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          className="button-primary px-4 py-2 bg-red-600 hover:bg-red-500 text-white"
+        >
+          Confirm
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 };
 

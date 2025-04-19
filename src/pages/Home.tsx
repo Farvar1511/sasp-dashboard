@@ -475,14 +475,18 @@ const MyDashboard: React.FC = () => {
     <Layout>
       <div className="relative z-10 space-y-8 px-4 py-8 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col items-center text-center gap-3 mb-8 bg-black bg-opacity-85 p-6 rounded-lg shadow-lg">
-          <img src="/SASPLOGO2.png" alt="SASP" className="w-24 h-24" />
-          <h1 className="text-4xl font-extrabold text-[#f3c700] tracking-tight">
-            My Dashboard
-          </h1>
-          <p className="text-xl text-white">
-            Welcome back, {userData.rank} {userData.name}!
-          </p>
+        {/* Changed justify-start to justify-center */}
+        <div className="flex flex-row items-center justify-center gap-4 mb-6 bg-black bg-opacity-85 p-4 rounded-lg shadow-lg">
+          <img src="/SASPLOGO2.png" alt="SASP" className="w-16 h-16" /> {/* Reduced image size */}
+          {/* Added text-center to center the h1 and p elements */}
+          <div className="text-center"> 
+            <h1 className="text-3xl font-extrabold text-[#f3c700] tracking-tight"> {/* Reduced text size */}
+              My Dashboard
+            </h1>
+            <p className="text-lg text-white"> {/* Reduced text size */}
+              Welcome back, {userData.rank} {userData.name}!
+            </p>
+          </div>
         </div>
 
         {/* Trooper Information & Bulletins */}
@@ -783,19 +787,19 @@ const MyDashboard: React.FC = () => {
                         {task.type === "goal" && !task.completed && (
                           <>
                             <button
-                              onClick={() => handleAdjustProgress(task.id, 1)}
-                              className="px-1.5 py-0.5 bg-[#f3c700] text-black rounded hover:bg-yellow-300 text-xs font-bold"
-                              title="Increase Progress"
-                            >
-                              +
-                            </button>
-                            <button
                               onClick={() => handleAdjustProgress(task.id, -1)}
                               className="px-1.5 py-0.5 bg-[#f3c700] text-black rounded hover:bg-yellow-300 text-xs font-bold"
                               title="Decrease Progress"
                               disabled={(task.progress ?? 0) <= 0}
                             >
                               -
+                            </button>
+                            <button
+                              onClick={() => handleAdjustProgress(task.id, 1)}
+                              className="px-1.5 py-0.5 bg-[#f3c700] text-black rounded hover:bg-yellow-300 text-xs font-bold"
+                              title="Increase Progress"
+                            >
+                              +
                             </button>
                           </>
                         )}

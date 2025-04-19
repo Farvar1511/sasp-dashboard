@@ -62,9 +62,17 @@ type FtoTabKey = "home" | "announcements" | "add" | "logs" | "progress" | "perso
 type CadetTabKey = "home" | "progress" | "personnel";
 
 const FTOPage: React.FC = () => {
-  const { user } = useAuth();
-  const isAdmin = useMemo(() => computeIsAdmin(user), [user]);
-  const isCadet = useMemo(() => user?.rank === "Cadet", [user]);
+  const { user: authUser, loading: authLoading } = useAuth();
+  const [userData, setUserData] = useState<RosterUser | null>(null);
+
+  const isAdmin = useMemo(() => computeIsAdmin(authUser), [authUser]);
+  const isCadet = useMemo(() => authUser?.rank === "Cadet", [authUser]);
+
+  const hasFtoPermission = useMemo(() => {
+    if (authLoading || !authUser || !authUser.certifications) return false;
+    const ftoStatus = authUser.certifications.FTO?.toUpperCase();
+    return ["LEAD", "SUPER", "TRAIN", "CERT"].includes(ftoStatus || "");
+  }, [authUser, authLoading]);
 
   const [allUsers, setAllUsers] = useState<RosterUser[]>([]);
   const [logs, setLogs] = useState<CadetLog[]>([]);
@@ -78,7 +86,7 @@ const FTOPage: React.FC = () => {
     timeEnded: "",
     sessionHours: 0,
     cumulativeHours: 0,
-    ftoName: user?.name || "",
+    ftoName: authUser?.name || "",
     summary: "",
     additionalNotes: "",
     type: "session",
@@ -218,11 +226,11 @@ const FTOPage: React.FC = () => {
   }, [isCadet, activeTab]);
 
   useEffect(() => {
-    if (isCadet && user?.id) {
+    if (isCadet && authUser?.id) {
       const fetchCadetNotes = async () => {
         setLoading(true);
         try {
-          const userId = user.id;
+          const userId = authUser.id;
           if (!userId) {
             throw new Error("User ID is undefined, cannot fetch notes.");
           }
@@ -256,7 +264,7 @@ const FTOPage: React.FC = () => {
     } else {
       setFtoNotes([]);
     }
-  }, [isCadet, user?.id]);
+  }, [isCadet, authUser?.id]);
 
   useEffect(() => {
     if (selectedCadetForLogs?.id && !isCadet) {
@@ -320,7 +328,7 @@ const FTOPage: React.FC = () => {
       const logData: Omit<CadetLog, "id"> = {
         ...newLog,
         cumulativeHours,
-        ftoName: user?.name || "Unknown FTO",
+        ftoName: authUser?.name || "Unknown FTO",
         createdAt: Timestamp.now(),
         type: "session",
         progressSnapshot: undefined,
@@ -337,7 +345,7 @@ const FTOPage: React.FC = () => {
         timeEnded: "",
         sessionHours: 0,
         cumulativeHours: 0,
-        ftoName: user?.name || "",
+        ftoName: authUser?.name || "",
         summary: "",
         additionalNotes: "",
         type: "session",
@@ -358,7 +366,7 @@ const FTOPage: React.FC = () => {
       toast.error("Note cannot be empty.");
       return;
     }
-    if (!user?.id || !user?.name || !user?.rank) {
+    if (!authUser?.id || !authUser?.name || !authUser?.rank) {
       toast.error("Your user information is missing or incomplete.");
       return;
     }
@@ -367,9 +375,9 @@ const FTOPage: React.FC = () => {
       const noteData: Omit<FTOCadetNote, "id"> = {
         cadetId: selectedCadetForLogs.id,
         cadetName: selectedCadetForLogs.name,
-        ftoId: user.id,
-        ftoName: user.name,
-        ftoRank: user.rank,
+        ftoId: authUser.id,
+        ftoName: authUser.name,
+        ftoRank: authUser.rank,
         note: newNoteForSelectedCadet.trim(),
         createdAt: Timestamp.now(),
       };
@@ -503,7 +511,7 @@ const FTOPage: React.FC = () => {
     itemKey: ProgressItemKey,
     isChecked: boolean
   ) => {
-    if (!user?.name) {
+    if (!authUser?.name) {
       toast.error("Cannot update progress: FTO name not found.");
       return;
     }
@@ -516,7 +524,7 @@ const FTOPage: React.FC = () => {
 
     const progressLogEntry: Omit<CadetLog, "id"> = {
       cadetName: cadetName,
-      ftoName: user.name,
+      ftoName: authUser.name,
       createdAt: Timestamp.now(),
       type: "progress_update",
       progressSnapshot: newProgressState,
@@ -1405,7 +1413,7 @@ const FTOPage: React.FC = () => {
       toast.error("Title and content cannot be empty.");
       return;
     }
-    if (!user) {
+    if (!authUser) {
       toast.error("User not found.");
       return;
     }
@@ -1414,8 +1422,8 @@ const FTOPage: React.FC = () => {
       const announcementData: Omit<FTOAnnouncement, "id"> = {
         title: newAnnouncementTitle.trim(),
         content: newAnnouncementContent,
-        authorName: user.name || "Unknown",
-        authorRank: user.rank || "Unknown",
+        authorName: authUser.name || "Unknown",
+        authorRank: authUser.rank || "Unknown",
         createdAt: Timestamp.now(),
       };
       const docRef = await addDoc(collection(dbFirestore, "ftoAnnouncements"), announcementData);
@@ -1523,6 +1531,24 @@ const FTOPage: React.FC = () => {
 
   const tabsToRender = isCadet ? cadetTabs : ftoTabs;
 
+  if (authLoading || loading) {
+    return (
+      <Layout>
+        <div className="text-center text-[#f3c700] p-8">Loading FTO Data...</div>
+      </Layout>
+    );
+  }
+
+  if (!hasFtoPermission && !isCadet) {
+    return (
+      <Layout>
+        <div className="text-center text-red-500 p-8">
+          You do not have permission to access FTO Management.
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="p-6 space-y-6 text-white">
@@ -1554,8 +1580,8 @@ const FTOPage: React.FC = () => {
             <>
               {isCadet ? (
                 <>
-                  {activeTab === "home" && renderCadetOwnOverview(allUsers.find(u => u.id === user?.id))}
-                  {activeTab === "progress" && renderCadetOwnProgress(allUsers.find(u => u.id === user?.id))}
+                  {activeTab === "home" && renderCadetOwnOverview(allUsers.find(u => u.id === authUser?.id))}
+                  {activeTab === "progress" && renderCadetOwnProgress(allUsers.find(u => u.id === authUser?.id))}
                   {activeTab === "personnel" && renderFTOPersonnel()}
                 </>
               ) : (

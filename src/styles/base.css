@@ -41,5 +41,4 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     @apply bg-yellow-500;
   }
-  /* ... other custom utilities ... */
 }

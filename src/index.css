@@ -1,242 +1,32 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Orbitron:wght@400..900&display=swap");
 @import "tailwindcss";
-@import "tailwindcss/utilities";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --color-background: rgba(0, 0, 0, 0.8);
+  --color-foreground: #ffffff;
+  --color-brand: #f3c700;
+  --color-brand-light: rgba(243, 199, 0, 0.5);
+  --color-brand-dark: rgba(243, 199, 0, 0.8);
+  --color-neutral: #111827;
+  --color-neutral-light: #374151;
+  --color-neutral-dark: #1f2937;
+  --color-accent: #f3c700;
+  --color-accent-light: rgba(243, 199, 0, 0.5);
+  --color-accent-dark: rgba(243, 199, 0, 0.8);
+  --color-error: #ef4444;
+  --color-error-light: rgba(239, 68, 68, 0.5);
+  --color-error-dark: rgba(239, 68, 68, 0.8);
+  --color-success: #22c55e;
+  --color-success-light: rgba(34, 197, 94, 0.5);
+  --color-success-dark: rgba(34, 197, 94, 0.8);
+  --color-warning: #f59e0b;
+  --color-warning-light: rgba(245, 158, 11, 0.5);
+  --color-warning-dark: rgba(245, 158, 11, 0.8);
+}
 
 @layer base {
   body {
-    @apply font-sans bg-black text-white min-h-screen overflow-x-hidden;
-    background-size: cover;
-    background-repeat: no-repeat;
-    background-position: center;
-  }
-}
-
-/* === Component Styles === */
-@layer components {
-  /* Dashboard */
-  .dashboard {
-    @apply flex flex-row min-h-screen;
-  }
-
-  /* Page Content */
-  .page-content {
-    @apply min-h-screen p-6 overflow-y-auto text-yellow-400;
-    background-color: transparent;
-  }
-
-  /* Dashboard Background Fix */
-  .dashboard-background {
-    @apply absolute top-0 left-0 w-full h-full bg-cover bg-center opacity-40 -z-10;
-    background-repeat: no-repeat;
-    background-size: cover;
-    background-position: center;
-  }
-
-  /* Sidebar */
-  .sidebar {
-    @apply fixed top-0 left-0 h-full bg-black text-yellow-400 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out; /* Changed bg-gray-800 to bg-black */
-  }
-
-  .sidebar-button {
-    @apply px-4 py-2 rounded-md bg-[#f3c700] text-black font-semibold hover:bg-yellow-300 transition-colors;
-  }
-
-  /* Header */
-  .header {
-    @apply flex justify-between items-center w-full max-w-6xl mx-auto p-4 bg-gray-900 text-yellow-400;
-  }
-
-  /* Buttons */
-  .button-primary {
-    @apply px-4 py-3 bg-yellow-400 text-black font-semibold rounded-md shadow hover:bg-yellow-300 transition;
-  }
-  .button-secondary {
-    @apply px-4 py-2 rounded-md bg-white text-black font-semibold hover:bg-gray-200;
-  }
-
-  /* Cards */
-  .card {
-    @apply bg-black border border-[#f3c700] text-white rounded-lg p-4 shadow-lg;
-  }
-  .card-title {
-    @apply text-xl font-bold mb-2;
-  }
-  .card-content {
-    @apply text-sm;
-  }
-
-  /* Modal */
-  .modal {
-    @apply fixed inset-0 bg-black/90 z-50 flex flex-col justify-start items-center pt-12 px-4 backdrop-blur-sm;
-  }
-  .modal-content {
-    @apply bg-gray-800 text-yellow-400 rounded-lg p-6 shadow-lg;
-  }
-
-  /* Admin Menu */
-  .admin-menu {
-    @apply flex flex-col gap-4 mb-8 max-w-xl;
-  }
-  .admin-menu label {
-    @apply block mb-2;
-  }
-  .admin-menu input,
-  .admin-menu select,
-  .admin-menu textarea {
-    @apply w-full p-2 mb-4 rounded-md bg-gray-800 text-yellow-400 border border-yellow-400;
-  }
-  .admin-menu button {
-    @apply px-4 py-2 bg-yellow-400 text-black font-bold rounded-md hover:bg-yellow-300;
-  }
-
-  /* Admin Panel */
-  .admin-panel {
-    @apply max-w-6xl mx-auto px-6 py-12;
-  }
-  .admin-section {
-    @apply bg-black/90 border border-[#f3c700] p-6 rounded-lg shadow-lg space-y-4; /* Changed bg-black to bg-black/90 */
-  }
-  .admin-section h2 {
-    @apply text-2xl font-bold text-[#f3c700] border-b border-[#f3c700] pb-2;
-  }
-  .section-header {
-    @apply text-2xl font-bold text-[#f3c700] border-b border-[#f3c700] pb-2 mb-4;
-  }
-  .input {
-    @apply w-full px-4 py-3 rounded-md bg-black border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400;
-  }
-  .user-card {
-    @apply bg-black/95 p-4 rounded-lg border border-yellow-400 space-y-3; /* Changed bg-gray-900 to bg-black/95 */
-  }
-  .task-card {
-    @apply bg-gray-800 text-white rounded-md p-4 shadow-inner border border-gray-700 space-y-1;
-  }
-
-  /* Bulletins */
-  .bulletins {
-    @apply flex flex-col gap-4;
-  }
-  .bulletin-item {
-    @apply bg-gray-800 text-yellow-400 rounded-lg p-4 shadow-lg relative;
-  }
-  .bulletin-title {
-    @apply text-xl font-bold mb-2;
-  }
-  .bulletin-body {
-    @apply text-sm;
-  }
-  .bulletin-meta {
-    @apply text-xs text-yellow-300 italic;
-  }
-  .bulletin-actions {
-    @apply flex gap-2 absolute top-2 right-2 opacity-0 hover:opacity-100 transition-opacity;
-  }
-  .bulletin-edit-form {
-    @apply bg-gray-900 border border-yellow-400 p-4 rounded-md space-y-2;
-  }
-
-  .bulletin-container {
-    @apply relative;
-  }
-
-  .bulletin-actions {
-    @apply absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity;
-  }
-
-  /* Tasks */
-  .tasks-grid {
-    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4;
-  }
-  .task-card {
-    @apply bg-gray-800 text-yellow-400 rounded-lg p-4 shadow-lg flex flex-col gap-2;
-  }
-  .task-card h3 {
-    @apply text-lg font-bold;
-  }
-  .task-card button {
-    @apply px-4 py-2 rounded-md bg-yellow-400 text-black font-semibold shadow hover:bg-yellow-300;
-  }
-
-  /* Login */
-  .login-container {
-    @apply flex items-center justify-center min-h-screen bg-black text-white;
-  }
-  .login-form {
-    @apply bg-gray-800 text-yellow-400 rounded-lg p-8 shadow-lg w-full max-w-md;
-  }
-  .login-form h2 {
-    @apply text-[#f3c700] text-center text-3xl font-bold mb-6;
-  }
-  .login-form p {
-    @apply text-gray-400 text-center mb-4;
-  }
-  .login-form input {
-    @apply w-full p-3 rounded-md bg-gray-900 text-white placeholder-gray-400 border border-gray-700 focus:ring-2 focus:ring-[#f3c700] focus:outline-none;
-  }
-  .login-form button {
-    @apply w-full px-4 py-2 rounded-md bg-[#f3c700] text-black font-semibold shadow hover:bg-yellow-300 transition;
-  }
-  .login-form a {
-    @apply text-[#f3c700] hover:underline text-sm block text-center mt-4;
-  }
-
-  /* Badges */
-  .badge {
-    @apply inline-block px-2 py-1 rounded-full text-xs font-bold uppercase;
-  }
-  .badge-yellow {
-    @apply bg-[#f3c700] text-black;
-  }
-  .badge-white {
-    @apply bg-white text-black;
-  }
-  .badge-red {
-    @apply bg-red-600 text-white;
-  }
-
-  /* Dashboard Container */
-  .dashboard-container {
-    @apply w-full max-w-[1600px] mx-auto px-10 pt-6;
-  }
-
-  .roster-table {
-    @apply min-w-full bg-gray-900/50 border border-gray-700 text-sm;
-  }
-
-  .roster-table-header {
-    @apply bg-gray-800 text-yellow-400;
-  }
-
-  .roster-table-body {
-    @apply text-gray-300;
-  }
-
-  .roster-table-row {
-    @apply border-t border-gray-700 hover:bg-gray-800/50;
-  }
-
-  .roster-table-cell {
-    @apply p-2 border-r border-gray-600;
-  }
-
-  .roster-category-cell {
-    @apply p-2 border-r border-l border-gray-600 align-middle text-center font-semibold text-yellow-300;
-  }
-
-  .documents-category-container {
-    @apply bg-black/90 border border-[#f3c700] rounded-lg shadow-lg p-6;
-  }
-
-  .documents-category-container h2 {
-    @apply text-xl font-semibold text-[#f3c700] border-b border-[#f3c700]/50 pb-2 mb-4;
-  }
-
-  .document-link {
-    @apply block w-full p-3 bg-black border border-transparent rounded hover:border-[#f3c700] hover:bg-black transition duration-150 ease-in-out text-white hover:text-[#f3c700];
+    @apply font-sans bg-background text-foreground min-h-screen;
   }
 }
 
@@ -244,6 +34,7 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -252,191 +43,44 @@
   .custom-scrollbar::-webkit-scrollbar {
     @apply w-2;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-gray-700 rounded-full;
+    @apply bg-neutral-700 rounded-full;
   }
 
   @keyframes glow {
     from {
       text-shadow: 0 0 2px #f3c700, 0 0 4px #f3c700;
     }
+
     to {
       text-shadow: 0 0 5px #f3c700, 0 0 8px #f3c700;
     }
   }
+
   .glow {
     animation: glow 1.5s infinite alternate;
   }
 
   .page-background {
-    background-size: cover; /* Ensure the image covers the screen */
-    background-position: center; /* Center the image */
-    background-repeat: no-repeat; /* Prevent tiling */
-    position: fixed; /* Fix the background */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -1; /* Place it behind all content */
+    @apply fixed inset-0 bg-cover bg-center z-[-1];
   }
 
   .font-inter {
     font-family: "Inter", sans-serif;
   }
-
-.ProseMirror {
-  min-height: 300px;
-  padding: 1rem;
-  outline: none;
-  caret-color: #f3c700;
-  font-family: 'Inter', sans-serif;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background-color: rgba(0, 0, 0, 0.95);
-  color: white;
-  border-radius: 0.5rem;
-  border: 1px solid #4b5563;
 }
 
-.ProseMirror:empty::before {
-  content: attr(data-placeholder);
-  color: #888;
-  float: left;
-  height: 0;
-  pointer-events: none;
-}
-}
-
-/* === Admin Menu (from AdminMenu.css) === */
-.admin-menu-container {
-  @apply ml-48 p-8 bg-[#222] text-white min-h-screen box-border w-[calc(100%-12rem)];
-
-  @media (max-width: 768px) {
-    margin-left: 0;
-    width: 100%;
-  }
-}
-
-.admin-menu {
-  @apply flex flex-col gap-4 mb-8 max-w-xl;
-}
-
-.admin-menu label {
-  @apply block mb-2;
-}
-
-.admin-menu input,
-.admin-menu select,
-.admin-menu textarea {
-  @apply w-full p-2 mb-4 rounded-md bg-gray-800 text-yellow-400 border border-yellow-400;
-}
-
-.admin-menu button {
-  @apply px-4 py-2 bg-yellow-400 text-black font-bold rounded-md hover:bg-yellow-300;
-}
-
-.user-tasks {
-  @apply mt-8;
-}
-
-.user-grid {
-  @apply grid grid-cols-3 gap-4 mt-4;
-}
-
-.user-task-card {
-  @apply bg-gray-800 p-4 rounded-md border border-yellow-400 shadow-md flex flex-col justify-between text-center;
-}
-
-.user-task-card h4 {
-  @apply text-lg mb-2 text-yellow-400;
-}
-
-.user-task-card ul {
-  @apply list-none p-0 m-0;
-}
-
-.user-task-card li {
-  @apply bg-gray-700 text-white p-2 my-2 rounded-md;
-}
-
-.user-task-card li.completed {
-  @apply line-through text-gray-400;
-}
-
-.user-task-card button {
-  @apply mt-2 px-4 py-2 bg-yellow-400 text-black font-bold rounded-md hover:bg-yellow-300;
-}
-
-.user-task-card button.delete-button {
-  @apply mt-2 px-4 py-2 bg-red-600 text-white rounded-md flex items-center justify-center gap-2 hover:bg-red-500;
-}
-
-.user-task-card button.delete-button svg {
-  @apply w-4 h-4 fill-white;
-}
-
-.delete-button.small {
-  @apply px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-500;
-}
-
-.delete-icon {
-  @apply bg-transparent border-none cursor-pointer p-1 ml-2 flex items-center justify-center transition-transform;
-}
-
-.delete-icon:hover {
-  transform: scale(1.1);
-}
-
-.delete-icon svg {
-  @apply fill-red-600;
-}
-
-.error-message {
-  @apply text-center mt-8 text-red-500;
-}
-
-.error-message h2 {
-  @apply text-2xl mb-4;
-}
-
-.error-message p {
-  @apply text-lg mb-4;
-}
-
-.error-message button {
-  @apply px-4 py-2 bg-yellow-400 rounded-md font-bold hover:bg-yellow-300;
-}
-
-@media (max-width: 768px) {
-  .sidebar {
-    @apply fixed bottom-0 left-0 w-full h-auto flex-row items-center justify-around p-2 border-t border-gray-800;
-  }
-
-  .page-content {
-    @apply pt-4 pb-20;
-  }
-
-  .header {
-    @apply flex-col items-center text-center p-4;
-  }
-
-  .button-primary,
-  .button-secondary {
-    @apply text-sm px-3 py-2;
-  }
-
-  .login-form,
-  .admin-section,
+@layer components {
   .card {
-    @apply p-4;
+    @apply bg-black border border-brand text-white rounded-xl p-4;
   }
 
-  .sidebar .flex {
-    @apply gap-2;
+  .button-primary {
+    @apply px-4 py-2 bg-brand text-black font-semibold rounded-md shadow hover:bg-brand-dark transition;
   }
-}
 
-.btn {
-  @apply px-3 py-1.5 text-sm rounded-md font-semibold bg-[#f3c700] text-black border border-[#f3c700] hover:bg-yellow-300 transition-colors duration-200;
+  .button-secondary {
+    @apply px-4 py-2 border border-foreground text-foreground rounded-md font-semibold hover:bg-foreground hover:text-background transition;
+  }
 }

@@ -24,7 +24,32 @@ import { UserTask } from "../types/User";
 import { toast } from "react-toastify";
 import ConfirmationModal from "./ConfirmationModal";
 
-// NEW HELPER to combine issueddate and issuedtime:
+// Define Rank Categories
+const rankCategories = {
+  ALL: "All Ranks",
+  CADET: "Cadets",
+  TROOPER: "State Troopers", // Trooper, TFC, Cpl
+  SUPERVISOR: "Supervisors", // Sgt, SSgt
+  COMMAND: "Command", // Lt, Cpt, Cmdr
+  HIGH_COMMAND: "High Command", // AC, DC, Comm
+};
+
+const getRankCategory = (rank: string): keyof typeof rankCategories | null => {
+  const lowerRank = rank.toLowerCase();
+  if (lowerRank === "cadet") return "CADET";
+  if (["trooper", "trooper first class", "corporal"].includes(lowerRank))
+    return "TROOPER";
+  if (["sergeant", "staff sergeant"].includes(lowerRank)) return "SUPERVISOR";
+  if (["lieutenant", "captain", "commander"].includes(lowerRank)) return "COMMAND";
+  if (
+    ["assistant commissioner", "deputy commissioner", "commissioner"].includes(
+      lowerRank
+    )
+  )
+    return "HIGH_COMMAND";
+  return null;
+};
+
 const getAssignedAt = (task: UserTask): string => {
   const combined = `${task.issueddate} ${task.issuedtime}`;
   const date = new Date(combined);
@@ -39,16 +64,16 @@ const formatDateForDisplay = (dateValue: string | null | undefined): string => {
       parsedDate.getFullYear() % 100
     }`;
   }
-  return dateValue; // Return the original string if parsing fails
+  return dateValue;
 };
 
 const convertToString = (
   value: string | Timestamp | null | undefined
 ): string => {
   if (value instanceof Timestamp) {
-    return value.toDate().toISOString().split("T")[0]; // Convert to YYYY-MM-DD format
+    return value.toDate().toISOString().split("T")[0];
   }
-  return value || "N/A"; // Default to "N/A" if null or undefined
+  return value || "N/A";
 };
 
 interface FirestoreUserWithDetails extends RosterUser {
@@ -118,6 +143,10 @@ export default function AdminMenu(): JSX.Element {
   } | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [newTask, setNewTask] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<
+    keyof typeof rankCategories
+  >("ALL");
 
   const handleRankSelection = (rank: string) => {
     setSelectedRank(rank);
@@ -136,23 +165,18 @@ export default function AdminMenu(): JSX.Element {
         : [...prev, userId]
     );
 
-    // Ensure selectedUserId is set to the first selected user
     setSelectedUserId((prev) =>
       selectedUsers.includes(userId) ? null : userId
     );
   };
 
   const handleAssignTask = async () => {
-    console.log("Selected Users:", selectedUsers);
-    console.log("Task Description (newTask):", newTask);
-
     if (selectedUsers.length === 0) {
       toast.error("Please select at least one user.");
       return;
     }
 
     if (!newTask || newTask.trim() === "") {
-      console.error("Task description is empty or whitespace.");
       toast.error("Task description cannot be empty.");
       return;
     }
@@ -181,7 +205,6 @@ export default function AdminMenu(): JSX.Element {
 
       await batch.commit();
 
-      // Update local state
       setUsersData((prevUsers) =>
         prevUsers.map((user) =>
           selectedUsers.includes(user.id)
@@ -191,7 +214,7 @@ export default function AdminMenu(): JSX.Element {
                   ...user.tasks,
                   {
                     ...newTaskData,
-                    id: Date.now().toString(), // Generate a unique ID for local state
+                    id: Date.now().toString(),
                   },
                 ],
               }
@@ -200,11 +223,10 @@ export default function AdminMenu(): JSX.Element {
       );
 
       toast.success(`Task assigned to ${selectedUsers.length} user(s).`);
-      setNewTask(""); // Clear the task input field
-      setBulkTaskGoal(0); // Reset goal input
-      setBulkTaskType("normal"); // Reset task type
+      setNewTask("");
+      setBulkTaskGoal(0);
+      setBulkTaskType("normal");
     } catch (error) {
-      console.error("Error assigning task:", error);
       toast.error("Failed to assign task.");
     }
   };
@@ -213,7 +235,7 @@ export default function AdminMenu(): JSX.Element {
     setSelectedRank(null);
     setSelectedUsers([]);
     setTaskDescription("");
-    setBulkTaskType("normal"); // Reset task type to default
+    setBulkTaskType("normal");
   };
 
   useEffect(() => {
@@ -229,7 +251,6 @@ export default function AdminMenu(): JSX.Element {
         const userData = userDoc.data() as Partial<RosterUser>;
         const userEmail = userDoc.id;
         if (!userEmail) {
-          console.error("User email missing");
           return null;
         }
         const name =
@@ -364,7 +385,6 @@ export default function AdminMenu(): JSX.Element {
         ) as FirestoreUserWithDetails[]
       );
     } catch (error) {
-      console.error("Error fetching admin data:", error);
       setUsersError("Failed to load user, task, or discipline data.");
     } finally {
       setUsersLoading(false);
@@ -462,7 +482,6 @@ export default function AdminMenu(): JSX.Element {
 
       selectedUsers.forEach((userEmail) => {
         if (!userEmail) {
-          console.warn("Skipping task assignment for undefined user email.");
           return;
         }
         const userTasksRef = collection(
@@ -483,7 +502,6 @@ export default function AdminMenu(): JSX.Element {
       setBulkTaskType("normal");
       setBulkTaskGoal(0);
     } catch (error) {
-      console.error("Error assigning task:", error);
       toast.error("Failed to assign task.");
     } finally {
       setIsAssigning(false);
@@ -495,7 +513,6 @@ export default function AdminMenu(): JSX.Element {
     taskId: string
   ) => {
     if (!userEmail) {
-      console.error("User email is missing.");
       toast.error("User email is missing.");
       return;
     }
@@ -529,7 +546,6 @@ export default function AdminMenu(): JSX.Element {
       );
       toast.success("Task deleted successfully.");
     } catch (error) {
-      console.error("Error deleting task:", error);
       toast.error("Failed to delete task.");
     } finally {
       setTaskToDelete(null);
@@ -600,31 +616,60 @@ export default function AdminMenu(): JSX.Element {
     });
   }, [usersData]);
 
+  const filteredUsersData = useMemo(() => {
+    let filtered = sortedUsersData;
+
+    // Filter by category
+    if (selectedCategory !== "ALL") {
+      filtered = filtered.filter(
+        (user) => getRankCategory(user.rank) === selectedCategory
+      );
+    }
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter((user) =>
+        user.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    return filtered;
+  }, [sortedUsersData, searchTerm, selectedCategory]);
+
   const closeEditUserModal = () => {
     setEditingUser(null);
   };
 
+  const buttonPrimary =
+    "px-4 py-2 bg-[#f3c700] text-black font-bold rounded hover:bg-yellow-300 transition-colors duration-200";
+  const buttonSecondary =
+    "px-3 py-1 border border-[#f3c700] text-[#f3c700] rounded hover:bg-[#f3c700]/10 transition-colors duration-200 text-xs";
+  const buttonDanger =
+    "px-4 py-2 bg-red-600 text-white font-bold rounded hover:bg-red-500 transition-colors duration-200";
+  const inputStyle =
+    "w-full p-2 bg-black/80 text-white rounded border border-[#f3c700] text-sm focus:ring-[#f3c700] focus:border-[#f3c700]";
+  const cardBase =
+    "p-4 bg-black/80 rounded-lg shadow-lg border border-[#f3c700]/50";
+  const textPrimary = "text-white";
+  const textSecondary = "text-white/70";
+  const textAccent = "text-[#f3c700]";
+  const borderAccent = "border-[#f3c700]";
+
   return (
     <Layout>
       <div
-        className="page-content space-y-6 p-6 text-gray-300 min-h-screen"
-        style={{
-          backgroundImage: `url(${backgroundImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-        }}
+        className="page-content space-y-6 p-6 text-white/80 min-h-screen bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${backgroundImage})`, fontFamily: "'Inter', sans-serif" }}
       >
-        {/* Tabs Container */}
-        <div className="bg-black/75 text-[#f3c700] font-inter p-4 rounded-lg shadow-lg mb-6">
+        <div className="bg-black/75 text-[#f3c700] font-sans p-4 rounded-lg shadow-lg mb-6">
           <div className="flex space-x-6 border-b border-[#f3c700]">
             <NavLink
               to="/admin"
               className={({ isActive }) =>
-                `px-4 py-2 text-sm font-medium ${
+                `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
                   isActive
                     ? "text-[#f3c700] border-b-2 border-[#f3c700]"
-                    : "text-gray-400 hover:text-[#f3c700]"
+                    : "text-white/60 hover:text-[#f3c700]"
                 }`
               }
             >
@@ -633,10 +678,10 @@ export default function AdminMenu(): JSX.Element {
             <NavLink
               to="/bulletins"
               className={({ isActive }) =>
-                `px-4 py-2 text-sm font-medium ${
+                `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
                   isActive
                     ? "text-[#f3c700] border-b-2 border-[#f3c700]"
-                    : "text-gray-400 hover:text-[#f3c700]"
+                    : "text-white/60 hover:text-[#f3c700]"
                 }`
               }
             >
@@ -644,33 +689,29 @@ export default function AdminMenu(): JSX.Element {
             </NavLink>
           </div>
         </div>
-        {/* Assign Task Button */}
         <button
-          className="px-4 py-2 bg-[#f3c700] text-black font-bold rounded hover:bg-yellow-300"
+          className={`${buttonPrimary} mb-4`}
           onClick={() => setIsAssignTaskOpen((prev) => !prev)}
         >
           {isAssignTaskOpen ? "Close Assign Task" : "Assign Task"}
         </button>
         {isAssignTaskOpen && (
-          <div className="bg-black/70 text-[#f3c700] font-inter p-4 rounded-lg shadow-lg space-y-4">
-            <h2 className="text-xl font-bold">Assign Task</h2>
-            {/* Task Description */}
+          <div className={`${cardBase} space-y-4`}>
+            <h2 className={`text-xl font-bold ${textAccent}`}>Assign Task</h2>
             <textarea
-              className="w-full p-2 bg-black/80 text-white rounded border border-[#f3c700] text-sm"
+              className={inputStyle}
               placeholder="Enter task description..."
               value={newTask}
               onChange={(e) => {
-                console.log("Task Input Changed:", e.target.value);
                 setNewTask(e.target.value);
               }}
             />
-            {/* Task Type Selection */}
             <div>
-              <label className="block text-sm font-medium text-[#f3c700] mb-2">
+              <label className={`block text-sm font-medium ${textAccent} mb-2`}>
                 Task Type:
               </label>
               <select
-                className="w-full p-2 bg-black/80 text-white rounded border border-[#f3c700] text-sm"
+                className={inputStyle}
                 value={bulkTaskType}
                 onChange={(e) =>
                   setBulkTaskType(e.target.value as "goal" | "normal")
@@ -680,244 +721,292 @@ export default function AdminMenu(): JSX.Element {
                 <option value="goal">Goal Task</option>
               </select>
             </div>
-            {/* Goal Input (conditionally displayed) */}
             {bulkTaskType === "goal" && (
               <div>
-                <label className="block text-sm font-medium text-[#f3c700] mb-2">
+                <label
+                  className={`block text-sm font-medium ${textAccent} mb-2`}
+                >
                   Goal Value:
                 </label>
                 <input
                   type="number"
-                  className="w-full p-2 bg-black/80 text-white rounded border border-[#f3c700] text-sm"
+                  className={inputStyle}
                   placeholder="Enter goal value"
                   value={bulkTaskGoal}
                   onChange={(e) => setBulkTaskGoal(Number(e.target.value))}
                 />
               </div>
             )}
-            {/* Selected Users */}
             <div>
-              <h3 className="text-lg font-semibold mb-2">Selected Users:</h3>
-              <div className="grid grid-cols-2 gap-2 bg-black/80 p-3 rounded border border-[#f3c700]">
+              <h3 className="text-lg font-semibold mb-2 text-white">
+                Selected Users:
+              </h3>
+              <div
+                className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-black/80 p-3 rounded ${borderAccent}`}
+              >
                 {usersData.map((user) => (
                   <label
                     key={user.id}
-                    className={`flex items-center space-x-2 p-2 rounded border ${
+                    className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors duration-200 ${
                       selectedUsers.includes(user.id)
-                        ? "bg-[#f3c700] text-black"
-                        : "bg-black/90 text-white"
+                        ? "bg-[#f3c700] text-black border-[#f3c700]"
+                        : `bg-black/90 text-white border-white/20 hover:border-[#f3c700]/50`
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={selectedUsers.includes(user.id)}
                       onChange={() => handleUserToggle(user.id)}
-                      className="h-4 w-4 text-[#f3c700] border-[#f3c700] rounded focus:ring-[#f3c700] bg-black"
+                      className="h-4 w-4 text-[#f3c700] border-white/30 rounded focus:ring-[#f3c700] bg-black/50"
                     />
                     <span className="text-sm">{user.name}</span>
                   </label>
                 ))}
               </div>
             </div>
-            {/* Action Buttons */}
-            <div className="flex justify-between items-center">
-              <button
-                className="px-4 py-2 bg-red-600 text-white font-bold rounded hover:bg-red-500"
-                onClick={handleClearSelections}
-              >
+            <div className="flex justify-between items-center pt-4">
+              <button className={buttonDanger} onClick={handleClearSelections}>
                 Clear Selections
               </button>
               <button
-                className="px-4 py-2 bg-[#f3c700] text-black font-bold rounded hover:bg-yellow-300"
+                className={buttonPrimary}
                 onClick={handleAssignTask}
+                disabled={isAssigning}
               >
-                Assign Task
+                {isAssigning ? "Assigning..." : "Assign Task"}
               </button>
             </div>
           </div>
         )}
-        {/* Users Overview */}
-        <div className="admin-section p-6 bg-black bg-opacity-85 rounded-lg shadow-lg border border-[#f3c700]">
-          <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700]">
-            Users Overview
-          </h2>
+        <div className={`${cardBase}`}>
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 flex-wrap">
+            <h2 className={`section-header text-2xl font-bold ${textAccent}`}>
+              Users Overview
+            </h2>
+            <div className="flex gap-4 flex-wrap sm:flex-nowrap justify-end w-full sm:w-auto">
+              <select
+                value={selectedCategory}
+                onChange={(e) =>
+                  setSelectedCategory(e.target.value as keyof typeof rankCategories)
+                }
+                className={`${inputStyle} max-w-xs sm:max-w-[150px]`}
+              >
+                {Object.entries(rankCategories).map(([key, value]) => (
+                  <option key={key} value={key}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Search by name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`${inputStyle} max-w-xs sm:max-w-[200px]`}
+              />
+            </div>
+          </div>
           {usersLoading && (
-            <p className="italic text-gray-400">Loading users...</p>
+            <p className="italic text-white/60">Loading users...</p>
           )}
           {usersError && <p className="text-red-500">{usersError}</p>}
           {!usersLoading && !usersError && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedUsersData.map((userData) => (
-                <div
-                  key={userData.id}
-                  className="user-card p-3 border border-[#f3c700] rounded-lg flex flex-col bg-black bg-opacity-90 text-white"
-                >
-                  <div className="flex-grow">
-                    <h4 className="font-semibold text-[#f3c700]">
-                      {userData.name}
-                    </h4>
-                    <p className="text-sm text-gray-400">
-                      {userData.rank} - Badge: {userData.badge}
-                    </p>
-                    <p className="text-sm text-gray-400 mb-2">
-                      Callsign: {userData.callsign || "N/A"}
-                    </p>
-                    <p className="text-xs text-gray-500 italic mb-2">
-                      {userData.tasks?.length || 0} task(s) assigned.
-                    </p>
-                    <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2">
-                      {userData.tasks.map((task) => (
-                        <div
-                          key={task.id}
-                          className="p-1.5 rounded border border-[#f3c700] bg-black bg-opacity-90 relative group"
+            <>
+              {filteredUsersData.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredUsersData.map((userData) => (
+                    <div
+                      key={userData.id}
+                      className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md`}
+                    >
+                      <div className="flex-grow">
+                        <h4 className={`font-semibold ${textAccent}`}>
+                          {userData.name}
+                        </h4>
+                        <p className={`text-sm ${textSecondary}`}>
+                          {userData.rank} - Badge: {userData.badge}
+                        </p>
+                        <p className={`text-sm ${textSecondary} mb-2`}>
+                          Callsign: {userData.callsign || "N/A"}
+                        </p>
+                        <p className="text-xs text-white/50 italic mb-2">
+                          {userData.tasks?.length || 0} task(s) assigned.
+                        </p>
+                        <h5
+                          className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
                         >
-                          <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                            {editingTask &&
-                            editingTask.userId === userData.id &&
-                            editingTask.task.id === task.id ? (
-                              <button
-                                onClick={handleEditTask}
-                                className="button-primary"
-                              >
-                                Saved
-                              </button>
-                            ) : (
-                              <FaEdit
-                                className="text-[#f3c700] hover:text-yellow-300 cursor-pointer h-3 w-3"
-                                title="Edit Task"
-                                onClick={() =>
-                                  setEditingTask({
-                                    userId: userData.id,
-                                    task,
-                                  })
-                                }
-                              />
-                            )}
-                            <FaTrash
-                              className="text-red-500 hover:text-red-400 cursor-pointer h-3 w-3"
-                              title="Delete Task"
-                              onClick={() =>
-                                handleDeleteTask(userData.email, task.id)
-                              }
-                            />
-                          </div>
-                          {editingTask &&
-                          editingTask.userId === userData.id &&
-                          editingTask.task.id === task.id ? (
-                            <input
-                              type="text"
-                              value={editingTask.task.task}
-                              onChange={(e) =>
-                                setEditingTask({
-                                  userId: userData.id,
-                                  task: {
-                                    ...editingTask.task,
-                                    task: e.target.value,
-                                  },
-                                })
-                              }
-                              className="input"
-                            />
-                          ) : (
-                            <p
-                              className={`inline text-xs ${
-                                task.completed
-                                  ? "line-through text-gray-500"
-                                  : "text-gray-300"
-                              }`}
+                          Tasks ({userData.tasks?.length || 0}):
+                        </h5>
+                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 mb-3">
+                          {userData.tasks.map((task) => (
+                            <div
+                              key={task.id}
+                              className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50 relative group"
                             >
-                              {task.task}
+                              <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                {editingTask &&
+                                editingTask.userId === userData.id &&
+                                editingTask.task.id === task.id ? (
+                                  <button
+                                    onClick={handleEditTask}
+                                    className="px-2 py-0.5 text-xs bg-[#f3c700] text-black rounded hover:bg-yellow-300"
+                                  >
+                                    Save
+                                  </button>
+                                ) : (
+                                  <FaEdit
+                                    className="text-[#f3c700] hover:text-yellow-300 cursor-pointer h-3.5 w-3.5 transition-colors duration-150"
+                                    title="Edit Task"
+                                    onClick={() =>
+                                      setEditingTask({
+                                        userId: userData.id,
+                                        task,
+                                      })
+                                    }
+                                  />
+                                )}
+                                <FaTrash
+                                  className="text-red-500 hover:text-red-400 cursor-pointer h-3.5 w-3.5 transition-colors duration-150"
+                                  title="Delete Task"
+                                  onClick={() =>
+                                    handleDeleteTask(userData.email, task.id)
+                                  }
+                                />
+                              </div>
+                              {editingTask &&
+                              editingTask.userId === userData.id &&
+                              editingTask.task.id === task.id ? (
+                                <input
+                                  type="text"
+                                  value={editingTask.task.task}
+                                  onChange={(e) =>
+                                    setEditingTask({
+                                      userId: userData.id,
+                                      task: {
+                                        ...editingTask.task,
+                                        task: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  className="w-full p-1 bg-black/70 text-white rounded border border-[#f3c700]/50 text-xs focus:ring-[#f3c700] focus:border-[#f3c700]"
+                                />
+                              ) : (
+                                <p
+                                  className={`inline text-xs pr-10 ${
+                                    task.completed
+                                      ? "line-through text-white/50"
+                                      : "text-white/90"
+                                  }`}
+                                >
+                                  {task.task}
+                                </p>
+                              )}
+                              <small className="text-white/60 block mt-1 text-[10px]">
+                                Type: {task.type}
+                                {task.type === "goal" &&
+                                  ` | Progress: ${task.progress ?? 0}/${
+                                    task.goal ?? "N/A"
+                                  }`}
+                                | Status:{" "}
+                                {task.completed ? (
+                                  <span className="text-green-400">
+                                    Completed
+                                  </span>
+                                ) : (
+                                  <span className={textAccent}>
+                                    In Progress
+                                  </span>
+                                )}
+                                | Assigned: {getAssignedAt(task)} | By:{" "}
+                                {task.issuedby || "Unknown"}
+                              </small>
+                            </div>
+                          ))}
+                          {userData.tasks.length === 0 && (
+                            <p className="text-white/50 italic text-xs">
+                              No tasks assigned.
                             </p>
                           )}
-                          <small className="text-gray-400 block mt-1 text-[10px]">
-                            Type: {task.type}
-                            {task.type === "goal" &&
-                              ` | Progress: ${task.progress ?? 0}/${
-                                task.goal ?? "N/A"
-                              }`}
-                            | Status:{" "}
-                            {task.completed ? (
-                              <span className="text-green-400">Completed</span>
-                            ) : (
-                              <span className="text-[#f3c700]">
-                                In Progress
-                              </span>
-                            )}
-                            | Assigned: {getAssignedAt(task)} | Issued By:{" "}
-                            {task.issuedby || "Unknown"}
-                          </small>
                         </div>
-                      ))}
-                      {userData.tasks.length === 0 && (
-                        <p className="text-gray-500 italic text-xs">
-                          No tasks assigned.
-                        </p>
-                      )}
-                    </div>
-                    <h5 className="text-xs text-gray-500 italic mb-1 mt-2 border-t border-[#f3c700] pt-1">
-                      Discipline ({userData.disciplineEntries?.length || 0}):
-                    </h5>
-                    <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
-                      {userData.disciplineEntries &&
-                      userData.disciplineEntries.length > 0 ? (
-                        userData.disciplineEntries.map((entry) => (
-                          <div
-                            key={entry.id}
-                            className="p-1.5 rounded border border-[#f3c700] bg-black bg-opacity-90"
-                          >
-                            <p className="text-gray-300 font-medium uppercase text-[10px]">
-                              {entry.type}
+                        <h5
+                          className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
+                        >
+                          Discipline ({userData.disciplineEntries?.length || 0}):
+                        </h5>
+                        <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs mb-3">
+                          {userData.disciplineEntries &&
+                          userData.disciplineEntries.length > 0 ? (
+                            userData.disciplineEntries.map((entry) => (
+                              <div
+                                key={entry.id}
+                                className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50"
+                              >
+                                <p className="text-white/90 font-medium uppercase text-[10px]">
+                                  {entry.type}
+                                </p>
+                                <p className="text-white/80 truncate">
+                                  {entry.disciplinenotes}
+                                </p>
+                                <small className="text-white/60 block mt-0.5 text-[10px]">
+                                  By: {entry.issuedby} on{" "}
+                                  {formatIssuedAt(
+                                    entry.issueddate,
+                                    entry.issuedtime
+                                  )}
+                                </small>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-white/50 italic">
+                              No discipline.
                             </p>
-                            <p className="text-gray-300 truncate">
-                              {entry.disciplinenotes}
-                            </p>
-                            <small className="text-gray-400 block mt-0.5 text-[10px]">
-                              By: {entry.issuedby} on{" "}
-                              {formatIssuedAt(
-                                entry.issueddate,
-                                entry.issuedtime
-                              )}
-                            </small>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-gray-500 italic">No discipline.</p>
-                      )}
+                          )}
+                        </div>
+                        <h5
+                          className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
+                        >
+                          Notes ({userData.generalNotes?.length || 0}):
+                        </h5>
+                        <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
+                          {userData.generalNotes &&
+                          userData.generalNotes.length > 0 ? (
+                            userData.generalNotes.map((note) => (
+                              <div
+                                key={note.id}
+                                className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50"
+                              >
+                                <p className="text-white/90 font-medium text-[10px]">
+                                  {note.note}
+                                </p>
+                                <small className="text-white/60 block mt-0.5 text-[10px]">
+                                  By: {note.issuedby} on{" "}
+                                  {formatIssuedAt(
+                                    note.issueddate,
+                                    note.issuedtime
+                                  )}
+                                </small>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-white/50 italic">No notes.</p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        className={`${buttonSecondary} mt-3 self-end`}
+                        onClick={() => setEditingUser(userData)}
+                      >
+                        Manage User
+                      </button>
                     </div>
-                    <h5 className="text-xs text-gray-500 italic mb-1 mt-2 border-t border-[#f3c700] pt-1">
-                      Notes ({userData.generalNotes?.length || 0}):
-                    </h5>
-                    <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
-                      {userData.generalNotes &&
-                      userData.generalNotes.length > 0 ? (
-                        userData.generalNotes.map((note) => (
-                          <div
-                            key={note.id}
-                            className="p-1.5 rounded border border-[#f3c700] bg-black bg-opacity-90"
-                          >
-                            <p className="text-gray-300 font-medium text-[10px]">
-                              {note.note}
-                            </p>
-                            <small className="text-gray-400 block mt-0.5 text-[10px]">
-                              By: {note.issuedby} on{" "}
-                              {formatIssuedAt(note.issueddate, note.issuedtime)}
-                            </small>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-gray-500 italic">No notes.</p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    className="button-secondary mt-2 text-xs px-3 py-1 self-end"
-                    onClick={() => setEditingUser(userData)}
-                  >
-                    Manage User
-                  </button>
+                  ))}
                 </div>
-              ))}
-            </div>
+              ) : (
+                <p className="text-white/60 italic text-center py-4">
+                  No users found matching the current filters.
+                </p>
+              )}
+            </>
           )}
         </div>
         {editingUser && (

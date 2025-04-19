@@ -15,5 +15,4 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background-color: #eab308; /* bg-yellow-500 */
   }
-  /* ... other custom utilities ... */
 }

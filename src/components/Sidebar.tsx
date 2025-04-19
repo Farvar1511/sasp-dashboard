@@ -48,15 +48,16 @@ const ClockDisplay = React.memo(() => {
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
   const { user, logout } = useAuth();
   const isAdmin = computeIsAdmin(user);
-  const ftoCertStatus = user?.certifications?.FTO;
-  const hasFTOCert = ftoCertStatus === "CERT" || ftoCertStatus === "LEAD" || ftoCertStatus === "SUPER";
+  const ftoCertStatus = user?.certifications?.FTO?.toUpperCase(); // Ensure comparison is case-insensitive
+  // Include 'TRAIN' in the check for FTO certification
+  const hasFTOCert = ["CERT", "LEAD", "SUPER", "TRAIN"].includes(ftoCertStatus || "");
   const isCadet = user?.rank === "Cadet"; // Check if user is a Cadet
 
   const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
     `flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out border border-transparent ${
       isActive
         ? "bg-[#f3c700] text-black font-semibold shadow-md"
-        : "text-gray-300 hover:bg-gray-800 hover:text-white hover:border-gray-700"
+        : "text-white hover:bg-white/10 hover:text-[#f3c700]"
     }`;
 
   const NavItem = ({
@@ -142,7 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
             title="Admin Menu"
           />
         )}
-        {/* FTO Link for FTO Personnel */}
+        {/* FTO Link for FTO Personnel (now includes TRAIN) */}
         {hasFTOCert && !isCadet && ( // Ensure Cadets don't see this if they somehow get FTO cert
           <NavItem
             to="/fto"

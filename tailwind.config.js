@@ -9,6 +9,20 @@ module.exports = {
         orbitron: ["Orbitron", "sans-serif"],
       },
       colors: {
+        transparent: "transparent",
+        current: "currentColor",
+        white: "#ffffff",
+        black: "#000000",
+
+        brand: {
+          DEFAULT: "#f3c700",
+          dark: "#eab308",
+          50: "#fffdea",
+          100: "#fff3b0",
+          500: "#f3c700",
+          600: "#eab308",
+        },
+
         neutral: {
           50: "#f9f9f9",
           100: "#e5e5e5",
@@ -20,21 +34,15 @@ module.exports = {
           700: "#2f2f2f",
           800: "#1f1f1f",
           900: "#141414",
-          950: "#0a0a0a", // deeper black
+          950: "#0a0a0a",
         },
-        brand: {
-          DEFAULT: "#f3c700",
-          dark: "#eab308",
-          50: "#fffdea",
-          100: "#fff3b0",
-          500: "#f3c700",
-          600: "#eab308",
-        },
+
         background: {
           light: "#ffffff",
-          DEFAULT: "#0e0e0e", // main background
+          DEFAULT: "#0e0e0e",
           dark: "#000000",
         },
+
         foreground: {
           DEFAULT: "#f1f1f1",
           muted: "#999999",
@@ -51,9 +59,9 @@ module.exports = {
     },
   },
   plugins: [
-            require('@tailwindcss/typography'),
-            require('@tailwindcss/forms'),
-            require('@tailwindcss/aspect-ratio'),
-            require('@tailwindcss/line-clamp'),
+    require("@tailwindcss/typography"),
+    require("@tailwindcss/forms"),
+    require("@tailwindcss/aspect-ratio"),
+    require("@tailwindcss/vite"),
   ],
 };
