@@ -25,6 +25,8 @@ import {
 } from "../types/User";
 import { CertStatus } from "../types/User";
 import { formatIssuedAt, convertFirestoreDate } from "../utils/timeHelpers";
+import { toast } from "react-toastify"; // Add toast import
+import { QueryConstraint, where as firestoreWhere, WhereFilterOp } from "firebase/firestore";
 
 // Define rank ordering
 const rankOrder: { [key: string]: number } = {
@@ -92,41 +94,35 @@ const MyDashboard: React.FC = () => {
   ) => {
     if (!authUser?.email) {
       console.error("User email is missing.");
+      toast.error("User email is missing.");
       return;
-    }
-    const task = tasks.find((task) => task.id === taskId);
-    if (!task) {
-      console.error("Task not found.");
-      return;
-    }
-    const newCompletedStatus = !currentCompletedStatus;
-    if (task.type === "goal" && newCompletedStatus) {
-      const currentProgress = task.progress ?? 0;
-      const goal = task.goal ?? Infinity;
-      if (goal !== Infinity && currentProgress < goal) {
-        alert(
-          `Goal task cannot be marked complete. Progress (${currentProgress}/${goal}) is not 100%.`
-        );
-        return;
-      }
     }
     try {
-      const taskRef = doc(
-        dbFirestore,
-        "users",
-        authUser.email,
-        "tasks",
-        taskId
-      );
-      await updateDoc(taskRef, { completed: newCompletedStatus });
+      console.debug(`Searching for task with ID: ${taskId}`);
+      const tasksCollectionRef = collection(dbFirestore, "users", authUser.email, "tasks");
+      const taskQuery = query(tasksCollectionRef, where("id", "==", taskId)); // Use Firestore's where function
+      const taskSnapshot = await getDocs(taskQuery);
+
+      if (taskSnapshot.empty) {
+        console.warn(`Task with ID ${taskId} does not exist.`);
+        toast.error("Task does not exist or was already deleted.");
+        return;
+      }
+
+      const taskDoc = taskSnapshot.docs[0]; // Get the first matching document
+      const newCompletedStatus = !currentCompletedStatus;
+      console.debug(`Updating task ${taskDoc.id} completed status to: ${newCompletedStatus}`);
+      await updateDoc(taskDoc.ref, { completed: newCompletedStatus });
+
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
           t.id === taskId ? { ...t, completed: newCompletedStatus } : t
         )
       );
+      toast.success("Task status updated successfully.");
     } catch (error) {
       console.error("Error toggling task completion:", error);
-      alert(
+      toast.error(
         `Failed to update task status: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
@@ -137,52 +133,58 @@ const MyDashboard: React.FC = () => {
   const handleAdjustProgress = async (taskId: string, adjustment: number) => {
     if (!authUser?.email) {
       console.error("User email is missing.");
+      toast.error("User email is missing.");
       return;
     }
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task || task.type !== "goal" || task.goal == null) {
-      console.error("Cannot adjust progress for this task.");
-      return;
-    }
-    const currentProgress = task.progress || 0;
-    const newProgress = Math.min(
-      task.goal,
-      Math.max(0, currentProgress + adjustment)
-    );
-    setTasks((prevTasks) =>
-      prevTasks.map((t) =>
-        t.id === taskId ? { ...t, progress: newProgress } : t
-      )
-    );
     try {
-      const taskRef = doc(
-        dbFirestore,
-        "users",
-        authUser.email,
-        "tasks",
-        taskId
+      console.debug(`Searching for task with ID: ${taskId}`);
+      const tasksCollectionRef = collection(dbFirestore, "users", authUser.email, "tasks");
+      const taskQuery = query(tasksCollectionRef, where("id", "==", taskId));
+      const taskSnapshot = await getDocs(taskQuery);
+
+      if (taskSnapshot.empty) {
+        console.warn(`Task with ID ${taskId} does not exist.`);
+        toast.error("Task does not exist or was already deleted.");
+        return;
+      }
+
+      const taskDoc = taskSnapshot.docs[0]; // Get the first matching document
+      const taskData = taskDoc.data() as UserTask;
+
+      if (taskData.type !== "goal" || taskData.goal == null) {
+        console.warn(`Cannot adjust progress for task ID: ${taskId}`);
+        toast.error("Cannot adjust progress for this task.");
+        return;
+      }
+
+      const currentProgress = taskData.progress || 0;
+      const newProgress = Math.min(
+        taskData.goal,
+        Math.max(0, currentProgress + adjustment)
       );
-      await updateDoc(taskRef, { progress: newProgress });
-    } catch (error) {
-      console.error("Error adjusting task progress:", error);
-      // rollback UI update if needed
+      console.debug(`Adjusting progress for task ${taskDoc.id}: ${currentProgress} -> ${newProgress}`);
+      await updateDoc(taskDoc.ref, { progress: newProgress });
+
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
-          t.id === taskId ? { ...t, progress: currentProgress } : t
+          t.id === taskId ? { ...t, progress: newProgress } : t
         )
       );
-      alert("Failed to update task progress.");
+      toast.success("Task progress updated successfully.");
+    } catch (error) {
+      console.error("Error adjusting task progress:", error);
+      toast.error("Failed to update task progress.");
     }
   };
 
   const handleAddBulletin = async (title: string, content: string) => {
     if (!authUser || !authUser.name || !authUser.rank) {
-      alert("Could not identify user. Please log in again.");
+      toast.error("Could not identify user. Please log in again.");
       return;
     }
 
     if (!title.trim() || !content.trim()) {
-      alert("Title and content are required.");
+      toast.error("Title and content are required.");
       return;
     }
 
@@ -198,11 +200,11 @@ const MyDashboard: React.FC = () => {
         createdAt, // Store the timestamp
       });
 
-      alert("Bulletin added successfully!");
+      toast.success("Bulletin added successfully!");
       // Optionally, refresh bulletins or reset form state here
     } catch (error) {
       console.error("Error adding bulletin:", error);
-      alert(
+      toast.error(
         `Failed to add bulletin: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
@@ -926,3 +928,7 @@ const getCertStyle = (status: CertStatus | null) => {
 };
 
 export default MyDashboard;
+function where(fieldPath: string, opStr: WhereFilterOp, value: unknown): QueryConstraint {
+  return firestoreWhere(fieldPath, opStr, value);
+}
+

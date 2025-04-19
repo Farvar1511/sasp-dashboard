@@ -895,7 +895,7 @@ export default function AdminMenu(): JSX.Element {
                             key={note.id}
                             className="p-1.5 rounded border border-[#f3c700] bg-black bg-opacity-90"
                           >
-                            <p className="text-gray-300 font-medium uppercase text-[10px]">
+                            <p className="text-gray-300 font-medium text-[10px]">
                               {note.note}
                             </p>
                             <small className="text-gray-400 block mt-0.5 text-[10px]">
