@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, JSX } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, Link, useLocation } from "react-router-dom";
 import Layout from "./Layout";
 import {
   collection,
@@ -146,6 +146,7 @@ const getCurrentDateTimeStrings = () => {
 
 export default function AdminMenu(): JSX.Element {
   const { user: currentUser } = useAuth();
+  const location = useLocation();
   const [usersData, setUsersData] = useState<FirestoreUserWithDetails[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
@@ -383,46 +384,51 @@ export default function AdminMenu(): JSX.Element {
 
   return (
     <Layout>
-      <div className="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat bg-fixed" style={{ backgroundImage: `url(${backgroundImage})` }}></div>
       <div
-        className="page-content relative space-y-6 p-6 text-white/80 min-h-screen"
-        style={{ fontFamily: "'Inter', sans-serif" }}
+        className="page-content space-y-6 p-6 text-white/80 min-h-screen bg-cover bg-center bg-no-repeat bg-fixed"
+        style={{ backgroundImage: `url(${backgroundImage})`, fontFamily: "'Inter', sans-serif" }}
       >
         <div className="bg-black/75 text-[#f3c700] font-sans p-4 rounded-lg shadow-lg mb-6">
-          <div className="flex space-x-6 border-b border-[#f3c700]">
+          <h1 className="text-2xl font-bold text-center mb-4">Admin Management</h1>
+
+          <div className="flex space-x-6 border-b border-[#f3c700] mb-6">
             <NavLink
               to="/admin"
               className={({ isActive }) =>
                 `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
                   isActive
-                    ? "text-[#f3c700] border-b-2 border-[#f3c700]"
-                    : "text-white/60 hover:text-[#f3c700]"
+                    ? 'text-[#f3c700] border-b-2 border-[#f3c700] pointer-events-none'
+                    : 'text-white/60 hover:text-[#f3c700]'
                 }`
               }
             >
               Admin Menu
             </NavLink>
+
             <NavLink
               to="/promotions"
               className={({ isActive }) =>
                 `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
                   isActive
-                    ? "text-[#f3c700] border-b-2 border-[#f3c700]"
-                    : "text-white/60 hover:text-[#f3c700]"
+                    ? 'text-[#f3c700] border-b-2 border-[#f3c700] pointer-events-none'
+                    : 'text-white/60 hover:text-[#f3c700]'
                 }`
               }
+              aria-current={location.pathname === '/promotions' ? 'page' : undefined}
             >
               Promotions
             </NavLink>
+
             <NavLink
               to="/bulletins"
               className={({ isActive }) =>
                 `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
                   isActive
-                    ? "text-[#f3c700] border-b-2 border-[#f3c700]"
-                    : "text-white/60 hover:text-[#f3c700]"
+                    ? 'text-[#f3c700] border-b-2 border-[#f3c700] pointer-events-none'
+                    : 'text-white/60 hover:text-[#f3c700]'
                 }`
               }
+              aria-current={location.pathname === '/bulletins' ? 'page' : undefined}
             >
               Bulletins
             </NavLink>
@@ -638,10 +644,14 @@ export default function AdminMenu(): JSX.Element {
                                 </span>
                               )}
                               {eligibleForPromotion && !(isHiddenByRule && showHiddenCards) && (
-                                <div className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 px-1.5 py-0.5 rounded border border-green-600" title={`Eligible for Promotion (Last: ${formatDateForDisplay(userData.lastPromotionDate)})`}>
+                                <Link
+                                  to={`/admin/promotions?focusUser=${userData.id}`}
+                                  className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 px-1.5 py-0.5 rounded border border-green-600 hover:bg-green-800/50 transition-colors duration-150"
+                                  title={`Eligible for Promotion (Last: ${formatDateForDisplay(userData.lastPromotionDate)}) - Click to view in Promotions`}
+                                >
                                   <FaArrowUp size="0.65rem" />
                                   <span>Eligible</span>
-                                </div>
+                                </Link>
                               )}
                               {eligibleForPromotion && needsHCVote && !(isHiddenByRule && showHiddenCards) && (
                                 <div className="text-xs text-yellow-400/80 italic px-1.5 py-0.5 rounded bg-yellow-900/50 border border-yellow-600/50" title="Promotion to this rank requires High Command review">

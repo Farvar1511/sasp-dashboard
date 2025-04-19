@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, JSX } from "react";
+import React, { useState, useEffect, useMemo, useCallback, JSX, useRef } from "react";
 import Layout from "./Layout";
 import {
   collection,
@@ -15,7 +15,7 @@ import {
   onSnapshot,
   deleteDoc,
   deleteField,
-  FieldPath,
+  FieldPath, // Import FieldPath
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { useAuth } from "../context/AuthContext";
@@ -23,8 +23,8 @@ import { RosterUser } from "../types/User";
 import { isOlderThanDays, formatDateForDisplay, formatTimestampDateTime } from "../utils/timeHelpers";
 import { getRandomBackgroundImage } from "../utils/backgroundImage";
 import { toast } from "react-toastify";
-import { FaEdit, FaTrash, FaSave, FaTimes, FaSearch, FaFilter, FaEyeSlash } from "react-icons/fa";
-import { NavLink } from "react-router-dom";
+import { FaEdit, FaTrash, FaSave, FaTimes, FaSearch, FaFilter, FaEyeSlash, FaEye } from "react-icons/fa";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 const adminVoterRanks = [
   "Sergeant",
@@ -56,7 +56,8 @@ type PromotionVote = 'promote' | 'deny' | 'needs_time';
 
 interface PromotionVoteData {
   votes: { [voterEmail: string]: PromotionVote };
-  hideUntil?: Timestamp | null;
+  hideUntil?: Timestamp | null; // Keep for legacy data compatibility
+  isManuallyHidden?: boolean; // New field for manual hide state
 }
 
 interface PromotionComment {
@@ -83,6 +84,11 @@ export default function PromotionsTab(): JSX.Element {
   const [editingComment, setEditingComment] = useState<{ userId: string; commentId: string; text: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [showHiddenByVotes, setShowHiddenByVotes] = useState<boolean>(false);
+  const [highlightedUserId, setHighlightedUserId] = useState<string | null>(null);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const userCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     setBackgroundImage(getRandomBackgroundImage());
@@ -158,27 +164,29 @@ export default function PromotionsTab(): JSX.Element {
       }
 
       const unsubVotes = onSnapshot(promotionDocRef, (docSnap) => {
-        // Always create a new object for voteData and votes to force React state update
+        console.log(`Snapshot received for user ${eligibleUser.id}:`, docSnap.exists() ? docSnap.data() : 'No data');
         const rawVoteData = docSnap.exists() ? (docSnap.data() as PromotionVoteData) : { votes: {} };
-        // Defensive: ensure votes is always a plain object, not undefined or null
         const votesObj = rawVoteData.votes ? { ...rawVoteData.votes } : {};
-        // Remove any undefined/null votes (defensive for Firestore edge cases)
         Object.keys(votesObj).forEach(k => {
           if (votesObj[k] == null) delete votesObj[k];
         });
         const safeVoteData: PromotionVoteData = {
           ...rawVoteData,
-          votes: votesObj
+          votes: votesObj,
+          isManuallyHidden: rawVoteData.isManuallyHidden ?? false,
         };
-        // Always create a new object for the user entry and comments as well
-        setPromotionData(prev => ({
-          ...prev,
-          [eligibleUser.id]: {
-            ...(prev[eligibleUser.id] || initialData[eligibleUser.id]),
-            voteData: { ...safeVoteData, votes: { ...safeVoteData.votes } },
-            comments: prev[eligibleUser.id]?.comments ? [...prev[eligibleUser.id].comments] : []
-          }
-        }));
+        setPromotionData(prev => {
+          const newState = {
+            ...prev,
+            [eligibleUser.id]: {
+              ...(prev[eligibleUser.id] || initialData[eligibleUser.id]),
+              voteData: { ...safeVoteData, votes: { ...safeVoteData.votes } },
+              comments: prev[eligibleUser.id]?.comments ? [...prev[eligibleUser.id].comments] : []
+            }
+          };
+          console.log(`State updated for ${eligibleUser.id}`, newState[eligibleUser.id]?.voteData);
+          return newState;
+        });
       }, (err) => {
         console.error(`Error fetching votes for ${eligibleUser.id}:`, err);
         setError(prev => `${prev ? prev + '; ' : ''}Failed to load vote data for ${eligibleUser.name}`);
@@ -234,10 +242,8 @@ export default function PromotionsTab(): JSX.Element {
     }
 
     if (!showHiddenByVotes) {
-      const now = Timestamp.now();
       data = data.filter(userPromoData => {
-        const hideUntil = userPromoData.voteData?.hideUntil;
-        return !hideUntil || hideUntil.toMillis() <= now.toMillis();
+        return !userPromoData.voteData?.isManuallyHidden;
       });
     }
 
@@ -245,6 +251,27 @@ export default function PromotionsTab(): JSX.Element {
 
     return data;
   }, [promotionData, searchTerm, showHiddenByVotes]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const focusUserId = params.get('focusUser');
+
+    if (focusUserId && filteredPromotionData.length > 0) {
+      setTimeout(() => {
+        const targetElement = userCardRefs.current[focusUserId];
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setHighlightedUserId(focusUserId);
+          const timer = setTimeout(() => setHighlightedUserId(null), 2500);
+
+          navigate(location.pathname, { replace: true });
+          return () => clearTimeout(timer);
+        } else {
+          navigate(location.pathname, { replace: true });
+        }
+      }, 100);
+    }
+  }, [location.search, navigate, filteredPromotionData]);
 
   const handleVote = async (userId: string, vote: PromotionVote) => {
     if (!currentUser?.email || !userId) {
@@ -255,30 +282,25 @@ export default function PromotionsTab(): JSX.Element {
     const promotionDocId = "activePromotion";
     const promotionDocRef = doc(dbFirestore, "users", userId, "promotions", promotionDocId);
     const voterEmail = currentUser.email;
-    const voteFieldPath = new FieldPath("votes", voterEmail);
-    const totalEligibleVoters = adminVoters.length;
+    const votePath = new FieldPath('votes', voterEmail);
 
     try {
-      // Always fetch the latest votes from Firestore before deciding
       const currentDocSnap = await getDoc(promotionDocRef);
-      let currentVotesData: PromotionVoteData | undefined = undefined;
-      if (currentDocSnap.exists()) {
-        currentVotesData = currentDocSnap.data() as PromotionVoteData;
-      }
+      const currentVotesData = currentDocSnap.exists()
+        ? (currentDocSnap.data() as PromotionVoteData)
+        : { votes: {} };
+
       const currentVoteInDb = currentVotesData?.votes?.[voterEmail];
-      const currentHideUntil = currentVotesData?.hideUntil;
 
-      // Prepare updated votes map for hideUntil calculation *after* the update
-      let updatedVotes = { ...(currentVotesData?.votes || {}) };
-
-      // Remove vote if clicking the same vote, otherwise set/change using updateDoc and FieldPath
       if (currentVoteInDb === vote) {
-        await updateDoc(promotionDocRef, voteFieldPath, deleteField());
-        delete updatedVotes[voterEmail]; // Update local copy for hideUntil calc
+        console.log(`Attempting to remove vote for ${userId} at path:`, votePath);
+        await updateDoc(promotionDocRef, votePath, deleteField());
+        console.log(`Firestore vote removal successful for ${userId}.`);
         toast.success(`Vote removed for ${promotionData[userId]?.name || userId}.`);
       } else {
-        await updateDoc(promotionDocRef, voteFieldPath, vote);
-        updatedVotes[voterEmail] = vote; // Update local copy for hideUntil calc
+        console.log(`Attempting to set vote for ${userId} to '${vote}' at path:`, votePath);
+        await updateDoc(promotionDocRef, votePath, vote);
+        console.log(`Firestore vote update successful for ${userId}.`);
         toast.success(
           currentVoteInDb
             ? `Vote changed for ${promotionData[userId]?.name || userId}.`
@@ -286,37 +308,32 @@ export default function PromotionsTab(): JSX.Element {
         );
       }
 
-      // Recalculate hideUntil based on the state *after* the update
-      const allVoteValues = Object.values(updatedVotes);
-      const denyVotesCount = allVoteValues.filter(v => v === 'deny').length;
-      const needsTimeVotesCount = allVoteValues.filter(v => v === 'needs_time').length;
-
-      let newHideUntil: Timestamp | null = null;
-      if (totalEligibleVoters > 0 && (denyVotesCount / totalEligibleVoters >= 0.5)) {
-        const date = new Date();
-        date.setDate(date.getDate() + 14);
-        newHideUntil = Timestamp.fromDate(date);
-      } else if (totalEligibleVoters > 0 && (needsTimeVotesCount / totalEligibleVoters >= 0.5)) {
-        const date = new Date();
-        date.setDate(date.getDate() + 7);
-        newHideUntil = Timestamp.fromDate(date);
-      }
-
-      // Update hideUntil field if necessary
-      const currentHideUntilMillis = currentHideUntil?.toMillis();
-      const newHideUntilMillis = newHideUntil?.toMillis();
-      if (currentHideUntilMillis !== newHideUntilMillis) {
-        if (newHideUntil) {
-          await updateDoc(promotionDocRef, { hideUntil: newHideUntil });
-        } else if (currentHideUntil) { // Only delete if it existed before
-          await updateDoc(promotionDocRef, { hideUntil: deleteField() });
-        }
-      }
-      // The onSnapshot listener will handle the UI update based on the Firestore change.
-
     } catch (err: any) {
       console.error("Error updating vote:", err);
+      if (err.message && err.message.includes('[object Object]')) {
+          console.error("FieldPath approach still resulted in [object Object] error. VoterEmail:", voterEmail);
+      }
       toast.error(`Failed to update vote: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleToggleManualHide = async (userId: string) => {
+    const userPromoData = promotionData[userId];
+    if (!userPromoData) return;
+
+    const promotionDocId = "activePromotion";
+    const promotionDocRef = doc(dbFirestore, "users", userId, "promotions", promotionDocId);
+    const currentHiddenState = userPromoData.voteData?.isManuallyHidden ?? false;
+    const newHiddenState = !currentHiddenState;
+
+    try {
+      await updateDoc(promotionDocRef, {
+        isManuallyHidden: newHiddenState
+      });
+      toast.success(`${userPromoData.name} ${newHiddenState ? 'hidden' : 'shown'}.`);
+    } catch (err: any) {
+      console.error("Error toggling manual hide state:", err);
+      toast.error(`Failed to ${newHiddenState ? 'hide' : 'show'} user: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -431,14 +448,13 @@ export default function PromotionsTab(): JSX.Element {
         <div className="bg-black/75 text-[#f3c700] font-sans p-4 rounded-lg shadow-lg mb-6">
           <h1 className="text-2xl font-bold text-center mb-4">Promotion Review</h1>
 
-          {/* Navigation Tabs (exactly like AdminMenu) */}
           <div className="flex space-x-6 border-b border-[#f3c700] mb-6">
             <NavLink
               to="/admin"
               className={({ isActive }) =>
                 `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
                   isActive
-                    ? "text-[#f3c700] border-b-2 border-[#f3c700]"
+                    ? "text-[#f3c700] border-b-2 border-[#f3c700] pointer-events-none"
                     : "text-white/60 hover:text-[#f3c700]"
                 }`
               }
@@ -446,21 +462,34 @@ export default function PromotionsTab(): JSX.Element {
               Admin Menu
             </NavLink>
             <NavLink
-              to="/admin/promotions"
+              to="/promotions"
               className={({ isActive }) =>
                 `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
                   isActive
-                    ? "text-[#f3c700] border-b-2 border-[#f3c700]"
+                    ? "text-[#f3c700] border-b-2 border-[#f3c700] pointer-events-none"
                     : "text-white/60 hover:text-[#f3c700]"
                 }`
               }
+              aria-current={location.pathname === '/promotions' ? 'page' : undefined}
             >
               Promotions
             </NavLink>
+            <NavLink
+              to="/bulletins"
+              className={({ isActive }) =>
+                `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
+                  isActive
+                    ? "text-[#f3c700] border-b-2 border-[#f3c700] pointer-events-none"
+                    : "text-white/60 hover:text-[#f3c700]"
+                }`
+              }
+              aria-current={location.pathname === '/bulletins' ? 'page' : undefined}
+            >
+              Bulletins
+            </NavLink>
           </div>
 
-          {/* Search and Filter */}
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
              <div className="relative w-full sm:w-auto max-w-xs">
                <input
                  type="text"
@@ -479,7 +508,7 @@ export default function PromotionsTab(): JSX.Element {
                  className="h-4 w-4 rounded border-gray-300 text-[#f3c700] focus:ring-[#f3c700] bg-black/50"
                />
                <FaFilter size="0.9em"/>
-               Show Hidden by Votes
+               Show Manually Hidden
              </label>
           </div>
         </div>
@@ -499,34 +528,44 @@ export default function PromotionsTab(): JSX.Element {
 
             {filteredPromotionData.map((userPromoData) => {
               const userId = userPromoData.id;
-              const votes = userPromoData.voteData?.votes || {};
-              const hideUntil = userPromoData.voteData?.hideUntil;
-              const allVotes = Object.values(votes);
+              const voteData = userPromoData.voteData;
+              const isManuallyHidden = voteData?.isManuallyHidden ?? false;
+
+              const allVotes = Object.values(voteData?.votes || {});
               const promoteVotes = allVotes.filter(v => v === 'promote').length;
               const denyVotes = allVotes.filter(v => v === 'deny').length;
               const needsTimeVotes = allVotes.filter(v => v === 'needs_time').length;
               const totalVotesCast = promoteVotes + denyVotes + needsTimeVotes;
-              const currentUserVote = currentUser?.email ? votes[currentUser.email] : undefined;
+              const currentUserVote = currentUser?.email ? voteData?.votes[currentUser.email] : undefined;
               const comments = userPromoData.comments || [];
               const voteDisplay = getVoteDisplay(currentUserVote);
-
-              const now = Timestamp.now();
-              const isHiddenByVoteRule = hideUntil && hideUntil.toMillis() > now.toMillis();
 
               return (
                 <div
                   key={userId}
-                  className={`${cardBase} space-y-4 ${isHiddenByVoteRule && showHiddenByVotes ? 'opacity-70 border-dashed border-orange-500' : ''}`}
-                  title={isHiddenByVoteRule && showHiddenByVotes ? `Normally hidden until ${formatTimestampDateTime(hideUntil)}` : ''}
+                  ref={el => { userCardRefs.current[userId] = el; }}
+                  className={`${cardBase} space-y-4 ${
+                    (isManuallyHidden && showHiddenByVotes ? 'opacity-70 border-dashed border-orange-500' : '')
+                  } ${
+                    highlightedUserId === userId ? 'ring-2 ring-offset-2 ring-[#f3c700] ring-offset-black/80 scale-102' : ''
+                  }`}
+                  title={isManuallyHidden && showHiddenByVotes ? 'This user is manually hidden' : ''}
                 >
                   <div>
                     <div className="flex justify-between items-start mb-1">
                         <h3 className={`text-xl font-bold ${textAccent}`}>{userPromoData.name}</h3>
-                        {isHiddenByVoteRule && showHiddenByVotes && (
-                            <span className="text-xs text-orange-400 bg-orange-900/60 px-1.5 py-0.5 rounded border border-orange-600 flex items-center gap-1">
-                                <FaEyeSlash size="0.65rem"/> Hidden
-                            </span>
-                        )}
+                        <button
+                            onClick={() => handleToggleManualHide(userId)}
+                            className={`text-xs px-1.5 py-0.5 rounded border flex items-center gap-1 transition-colors ${
+                                isManuallyHidden
+                                ? 'text-green-400 bg-green-900/60 border-green-600 hover:bg-green-800/60'
+                                : 'text-orange-400 bg-orange-900/60 border-orange-600 hover:bg-orange-800/60'
+                            }`}
+                            title={isManuallyHidden ? 'Click to Show' : 'Click to Hide'}
+                        >
+                            {isManuallyHidden ? <FaEye size="0.65rem"/> : <FaEyeSlash size="0.65rem"/>}
+                            {isManuallyHidden ? 'Show' : 'Hide'}
+                        </button>
                     </div>
                     <p className={`text-sm ${textSecondary}`}>{userPromoData.rank} - Badge: {userPromoData.badge}</p>
                     <p className={`text-xs ${textSecondary}`}>Last Promotion: {formatDateForDisplay(userPromoData.lastPromotionDate)}</p>

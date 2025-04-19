@@ -16,6 +16,7 @@ import TiptapEditor from "../components/TipTapEditor";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ConfirmationModal from "./ConfirmationModal";
+import { NavLink, useLocation } from "react-router-dom";
 
 interface Bulletin {
   id: string;
@@ -29,6 +30,15 @@ interface Bulletin {
 interface BulletinsProps {
   selectedBulletin?: Bulletin;
 }
+
+const commandAndHighCommandRanks = [
+  "lieutenant",
+  "captain",
+  "commander",
+  "assistant commissioner",
+  "deputy commissioner",
+  "commissioner",
+];
 
 const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
   if (selectedBulletin) {
@@ -54,7 +64,8 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
     );
   }
 
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isAdmin: isAdminFromAuth } = useAuth();
+  const location = useLocation();
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +86,13 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
+
+  const canViewAdminNav = useMemo(() => {
+    if (!currentUser) return false;
+    const userRankLower = currentUser.rank?.toLowerCase() || "";
+    const isCommandOrHC = commandAndHighCommandRanks.includes(userRankLower);
+    return isAdminFromAuth || isCommandOrHC;
+  }, [currentUser, isAdminFromAuth]);
 
   const canManageBulletins = useMemo(() => {
     if (!currentUser?.role || !currentUser?.rank) return false;
@@ -183,13 +201,13 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
         toast.success("Bulletin deleted successfully!");
         fetchBulletins();
         setBulletinToDeleteId(null);
-        setIsConfirmModalOpen(false); // Ensure the modal closes
+        setIsConfirmModalOpen(false);
       })
       .catch((error) => {
         console.error("Error deleting bulletin:", error);
         toast.error("Failed to delete bulletin.");
         setBulletinToDeleteId(null);
-        setIsConfirmModalOpen(false); // Ensure the modal closes even on error
+        setIsConfirmModalOpen(false);
       });
   };
 
@@ -235,7 +253,55 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
     <Layout>
       <div className="page-content p-6 text-gray-300 min-h-screen">
         <div className="bg-black/70 text-[#f3c700] font-inter p-6 rounded-lg shadow-lg">
-          <h1 className="text-3xl font-bold mb-4">Bulletins</h1>
+          <h1 className="text-3xl font-bold mb-4 text-center">Bulletins</h1>
+
+          {canViewAdminNav && (
+            <div className="flex space-x-6 border-b border-[#f3c700] mb-6">
+              <NavLink
+                to="/admin"
+                className={({ isActive }) =>
+                  `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
+                    isActive
+                      ? "text-[#f3c700] border-b-2 border-[#f3c700] pointer-events-none"
+                      : "text-white/60 hover:text-[#f3c700]"
+                  }`
+                }
+              >
+                Admin Menu
+              </NavLink>
+              <NavLink
+                to="/promotions"
+                className={({ isActive }) =>
+                  `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
+                    isActive
+                      ? "text-[#f3c700] border-b-2 border-[#f3c700] pointer-events-none"
+                      : "text-white/60 hover:text-[#f3c700]"
+                  }`
+                }
+                aria-current={
+                  location.pathname === "/promotions" ? "page" : undefined
+                }
+              >
+                Promotions
+              </NavLink>
+              <NavLink
+                to="/bulletins"
+                className={({ isActive }) =>
+                  `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
+                    isActive
+                      ? "text-[#f3c700] border-b-2 border-[#f3c700] pointer-events-none"
+                      : "text-white/60 hover:text-[#f3c700]"
+                  }`
+                }
+                aria-current={
+                  location.pathname === "/bulletins" ? "page" : undefined
+                }
+              >
+                Bulletins
+              </NavLink>
+            </div>
+          )}
+
           {statusMessage && (
             <div
               className={`fixed top-20 right-6 px-4 py-2 rounded shadow-lg z-50 text-sm font-medium ${
@@ -249,7 +315,6 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
           )}
 
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold text-yellow-400">Bulletins</h1>
             {canManageBulletins && (
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
