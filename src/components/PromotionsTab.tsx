@@ -14,6 +14,8 @@ import {
   setDoc,
   onSnapshot,
   deleteDoc,
+  deleteField,
+  FieldPath,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { useAuth } from "../context/AuthContext";
@@ -21,7 +23,8 @@ import { RosterUser } from "../types/User";
 import { isOlderThanDays, formatDateForDisplay, formatTimestampDateTime } from "../utils/timeHelpers";
 import { getRandomBackgroundImage } from "../utils/backgroundImage";
 import { toast } from "react-toastify";
-import { FaEdit, FaTrash, FaSave, FaTimes } from "react-icons/fa";
+import { FaEdit, FaTrash, FaSave, FaTimes, FaSearch, FaFilter, FaEyeSlash } from "react-icons/fa";
+import { NavLink } from "react-router-dom";
 
 const adminVoterRanks = [
   "Sergeant",
@@ -53,6 +56,7 @@ type PromotionVote = 'promote' | 'deny' | 'needs_time';
 
 interface PromotionVoteData {
   votes: { [voterEmail: string]: PromotionVote };
+  hideUntil?: Timestamp | null;
 }
 
 interface PromotionComment {
@@ -77,6 +81,8 @@ export default function PromotionsTab(): JSX.Element {
   const [backgroundImage, setBackgroundImage] = useState<string>("");
   const [newComments, setNewComments] = useState<{ [userId: string]: string }>({});
   const [editingComment, setEditingComment] = useState<{ userId: string; commentId: string; text: string } | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [showHiddenByVotes, setShowHiddenByVotes] = useState<boolean>(false);
 
   useEffect(() => {
     setBackgroundImage(getRandomBackgroundImage());
@@ -146,19 +152,32 @@ export default function PromotionsTab(): JSX.Element {
         const docSnap = await getDoc(promotionDocRef);
         if (!docSnap.exists()) {
           await setDoc(promotionDocRef, { votes: {} });
-          console.log(`Created initial promotion document for ${eligibleUser.id}`);
         }
       } catch (err) {
         console.error(`Error checking/creating promotion document for ${eligibleUser.id}:`, err);
       }
 
       const unsubVotes = onSnapshot(promotionDocRef, (docSnap) => {
+        // Always create a new object for voteData and votes to force React state update
+        const rawVoteData = docSnap.exists() ? (docSnap.data() as PromotionVoteData) : { votes: {} };
+        // Defensive: ensure votes is always a plain object, not undefined or null
+        const votesObj = rawVoteData.votes ? { ...rawVoteData.votes } : {};
+        // Remove any undefined/null votes (defensive for Firestore edge cases)
+        Object.keys(votesObj).forEach(k => {
+          if (votesObj[k] == null) delete votesObj[k];
+        });
+        const safeVoteData: PromotionVoteData = {
+          ...rawVoteData,
+          votes: votesObj
+        };
+        // Always create a new object for the user entry and comments as well
         setPromotionData(prev => ({
           ...prev,
           [eligibleUser.id]: {
             ...(prev[eligibleUser.id] || initialData[eligibleUser.id]),
-            voteData: docSnap.exists() ? (docSnap.data() as PromotionVoteData) : { votes: {} },
-          },
+            voteData: { ...safeVoteData, votes: { ...safeVoteData.votes } },
+            comments: prev[eligibleUser.id]?.comments ? [...prev[eligibleUser.id].comments] : []
+          }
         }));
       }, (err) => {
         console.error(`Error fetching votes for ${eligibleUser.id}:`, err);
@@ -199,11 +218,33 @@ export default function PromotionsTab(): JSX.Element {
       unsubscribes.forEach(unsub => unsub());
     };
 
-  }, [eligibleUsers, currentUser]);
+  }, [eligibleUsers, currentUser, adminVoters]);
 
   useEffect(() => {
     fetchAllUsers();
   }, [fetchAllUsers]);
+
+  const filteredPromotionData = useMemo(() => {
+    let data = Object.values(promotionData);
+
+    if (searchTerm) {
+      data = data.filter(userPromoData =>
+        userPromoData.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (!showHiddenByVotes) {
+      const now = Timestamp.now();
+      data = data.filter(userPromoData => {
+        const hideUntil = userPromoData.voteData?.hideUntil;
+        return !hideUntil || hideUntil.toMillis() <= now.toMillis();
+      });
+    }
+
+    data.sort((a, b) => a.name.localeCompare(b.name));
+
+    return data;
+  }, [promotionData, searchTerm, showHiddenByVotes]);
 
   const handleVote = async (userId: string, vote: PromotionVote) => {
     if (!currentUser?.email || !userId) {
@@ -213,21 +254,69 @@ export default function PromotionsTab(): JSX.Element {
 
     const promotionDocId = "activePromotion";
     const promotionDocRef = doc(dbFirestore, "users", userId, "promotions", promotionDocId);
+    const voterEmail = currentUser.email;
+    const voteFieldPath = new FieldPath("votes", voterEmail);
+    const totalEligibleVoters = adminVoters.length;
 
     try {
-      const currentVoteData = promotionData[userId]?.voteData?.votes[currentUser.email];
-      const isChangingVote = !!currentVoteData;
+      // Always fetch the latest votes from Firestore before deciding
+      const currentDocSnap = await getDoc(promotionDocRef);
+      let currentVotesData: PromotionVoteData | undefined = undefined;
+      if (currentDocSnap.exists()) {
+        currentVotesData = currentDocSnap.data() as PromotionVoteData;
+      }
+      const currentVoteInDb = currentVotesData?.votes?.[voterEmail];
+      const currentHideUntil = currentVotesData?.hideUntil;
 
-      await setDoc(promotionDocRef, {
-        votes: {
-          [currentUser.email]: vote
+      // Prepare updated votes map for hideUntil calculation *after* the update
+      let updatedVotes = { ...(currentVotesData?.votes || {}) };
+
+      // Remove vote if clicking the same vote, otherwise set/change using updateDoc and FieldPath
+      if (currentVoteInDb === vote) {
+        await updateDoc(promotionDocRef, voteFieldPath, deleteField());
+        delete updatedVotes[voterEmail]; // Update local copy for hideUntil calc
+        toast.success(`Vote removed for ${promotionData[userId]?.name || userId}.`);
+      } else {
+        await updateDoc(promotionDocRef, voteFieldPath, vote);
+        updatedVotes[voterEmail] = vote; // Update local copy for hideUntil calc
+        toast.success(
+          currentVoteInDb
+            ? `Vote changed for ${promotionData[userId]?.name || userId}.`
+            : `Vote recorded for ${promotionData[userId]?.name || userId}.`
+        );
+      }
+
+      // Recalculate hideUntil based on the state *after* the update
+      const allVoteValues = Object.values(updatedVotes);
+      const denyVotesCount = allVoteValues.filter(v => v === 'deny').length;
+      const needsTimeVotesCount = allVoteValues.filter(v => v === 'needs_time').length;
+
+      let newHideUntil: Timestamp | null = null;
+      if (totalEligibleVoters > 0 && (denyVotesCount / totalEligibleVoters >= 0.5)) {
+        const date = new Date();
+        date.setDate(date.getDate() + 14);
+        newHideUntil = Timestamp.fromDate(date);
+      } else if (totalEligibleVoters > 0 && (needsTimeVotesCount / totalEligibleVoters >= 0.5)) {
+        const date = new Date();
+        date.setDate(date.getDate() + 7);
+        newHideUntil = Timestamp.fromDate(date);
+      }
+
+      // Update hideUntil field if necessary
+      const currentHideUntilMillis = currentHideUntil?.toMillis();
+      const newHideUntilMillis = newHideUntil?.toMillis();
+      if (currentHideUntilMillis !== newHideUntilMillis) {
+        if (newHideUntil) {
+          await updateDoc(promotionDocRef, { hideUntil: newHideUntil });
+        } else if (currentHideUntil) { // Only delete if it existed before
+          await updateDoc(promotionDocRef, { hideUntil: deleteField() });
         }
-      }, { merge: true });
+      }
+      // The onSnapshot listener will handle the UI update based on the Firestore change.
 
-      toast.success(isChangingVote ? `Vote changed for ${promotionData[userId]?.name || 'user'}.` : `Vote recorded for ${promotionData[userId]?.name || 'user'}.`);
-    } catch (err) {
-      console.error("Error recording vote:", err);
-      toast.error("Failed to record vote.");
+    } catch (err: any) {
+      console.error("Error updating vote:", err);
+      toast.error(`Failed to update vote: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -336,11 +425,63 @@ export default function PromotionsTab(): JSX.Element {
   return (
     <Layout>
       <div
-        className="page-content space-y-6 p-6 text-white/80 min-h-screen bg-cover bg-center bg-no-repeat"
+        className="page-content space-y-6 p-6 text-white/80 min-h-screen bg-cover bg-center bg-no-repeat bg-fixed"
         style={{ backgroundImage: `url(${backgroundImage})`, fontFamily: "'Inter', sans-serif" }}
       >
         <div className="bg-black/75 text-[#f3c700] font-sans p-4 rounded-lg shadow-lg mb-6">
-          <h1 className="text-2xl font-bold text-center">Promotion Review</h1>
+          <h1 className="text-2xl font-bold text-center mb-4">Promotion Review</h1>
+
+          {/* Navigation Tabs (exactly like AdminMenu) */}
+          <div className="flex space-x-6 border-b border-[#f3c700] mb-6">
+            <NavLink
+              to="/admin"
+              className={({ isActive }) =>
+                `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
+                  isActive
+                    ? "text-[#f3c700] border-b-2 border-[#f3c700]"
+                    : "text-white/60 hover:text-[#f3c700]"
+                }`
+              }
+            >
+              Admin Menu
+            </NavLink>
+            <NavLink
+              to="/admin/promotions"
+              className={({ isActive }) =>
+                `px-4 py-2 text-sm font-medium transition-colors duration-200 ${
+                  isActive
+                    ? "text-[#f3c700] border-b-2 border-[#f3c700]"
+                    : "text-white/60 hover:text-[#f3c700]"
+                }`
+              }
+            >
+              Promotions
+            </NavLink>
+          </div>
+
+          {/* Search and Filter */}
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+             <div className="relative w-full sm:w-auto max-w-xs">
+               <input
+                 type="text"
+                 placeholder="Search by name..."
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+                 className={`${inputStyle} pl-8`}
+               />
+               <FaSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/50" size="0.9em"/>
+             </div>
+             <label className="flex items-center gap-2 cursor-pointer text-xs text-white/80 hover:text-white">
+               <input
+                 type="checkbox"
+                 checked={showHiddenByVotes}
+                 onChange={(e) => setShowHiddenByVotes(e.target.checked)}
+                 className="h-4 w-4 rounded border-gray-300 text-[#f3c700] focus:ring-[#f3c700] bg-black/50"
+               />
+               <FaFilter size="0.9em"/>
+               Show Hidden by Votes
+             </label>
+          </div>
         </div>
 
         {loading && <p className="italic text-white/60">Loading promotion candidates...</p>}
@@ -348,11 +489,18 @@ export default function PromotionsTab(): JSX.Element {
 
         {!loading && !error && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {Object.values(promotionData).length === 0 && <p className="text-white/60 italic col-span-full text-center">No users currently eligible for promotion review.</p>}
+            {filteredPromotionData.length === 0 && (
+                <p className="text-white/60 italic col-span-full text-center">
+                    {Object.keys(promotionData).length === 0
+                        ? "No users currently eligible for promotion review."
+                        : "No eligible users match the current filters."}
+                </p>
+            )}
 
-            {Object.values(promotionData).map((userPromoData) => {
+            {filteredPromotionData.map((userPromoData) => {
               const userId = userPromoData.id;
               const votes = userPromoData.voteData?.votes || {};
+              const hideUntil = userPromoData.voteData?.hideUntil;
               const allVotes = Object.values(votes);
               const promoteVotes = allVotes.filter(v => v === 'promote').length;
               const denyVotes = allVotes.filter(v => v === 'deny').length;
@@ -362,16 +510,30 @@ export default function PromotionsTab(): JSX.Element {
               const comments = userPromoData.comments || [];
               const voteDisplay = getVoteDisplay(currentUserVote);
 
+              const now = Timestamp.now();
+              const isHiddenByVoteRule = hideUntil && hideUntil.toMillis() > now.toMillis();
+
               return (
-                <div key={userId} className={`${cardBase} space-y-4`}>
+                <div
+                  key={userId}
+                  className={`${cardBase} space-y-4 ${isHiddenByVoteRule && showHiddenByVotes ? 'opacity-70 border-dashed border-orange-500' : ''}`}
+                  title={isHiddenByVoteRule && showHiddenByVotes ? `Normally hidden until ${formatTimestampDateTime(hideUntil)}` : ''}
+                >
                   <div>
-                    <h3 className={`text-xl font-bold ${textAccent}`}>{userPromoData.name}</h3>
+                    <div className="flex justify-between items-start mb-1">
+                        <h3 className={`text-xl font-bold ${textAccent}`}>{userPromoData.name}</h3>
+                        {isHiddenByVoteRule && showHiddenByVotes && (
+                            <span className="text-xs text-orange-400 bg-orange-900/60 px-1.5 py-0.5 rounded border border-orange-600 flex items-center gap-1">
+                                <FaEyeSlash size="0.65rem"/> Hidden
+                            </span>
+                        )}
+                    </div>
                     <p className={`text-sm ${textSecondary}`}>{userPromoData.rank} - Badge: {userPromoData.badge}</p>
                     <p className={`text-xs ${textSecondary}`}>Last Promotion: {formatDateForDisplay(userPromoData.lastPromotionDate)}</p>
                   </div>
 
                   <div className="border-t border-white/20 pt-4">
-                    <h4 className="text-lg font-semibold mb-2 text-white">Poll ({totalVotesCast} / {totalVoters} Voted)</h4>
+                    <h4 className="text-lg font-semibold mb-2 text-white">Poll ({totalVotesCast} / {adminVoters.length} Voted)</h4>
                     <div className="grid grid-cols-3 gap-2 items-center bg-black/50 p-3 rounded border border-white/10">
                       <div className="text-center">
                         <p className="text-green-400 font-bold text-2xl">{promoteVotes}</p>

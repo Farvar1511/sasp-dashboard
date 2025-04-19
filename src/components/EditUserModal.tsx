@@ -14,6 +14,7 @@ import {
   NoteEntry,
   CertStatus,
 } from "../types/User";
+import { Timestamp } from "firebase/firestore";
 import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { formatIssuedAt, formatDateToMMDDYY } from "../utils/timeHelpers";
@@ -43,6 +44,11 @@ interface EditUserModalProps {
     tasks: UserTask[];
     disciplineEntries: DisciplineEntry[];
     generalNotes: NoteEntry[];
+    promotionStatus?: {
+      votes?: { [voterId: string]: "Approve" | "Deny" | "Needs Time" };
+      hideUntil?: Timestamp | null;
+      lastVoteTimestamp?: Timestamp;
+    };
   };
   onClose: () => void;
   onSave: () => void;
@@ -86,6 +92,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     tasks: UserTask[];
     disciplineEntries: DisciplineEntry[];
     generalNotes: NoteEntry[];
+    promotionStatus?: {
+      votes?: { [voterId: string]: "Approve" | "Deny" | "Needs Time" };
+      hideUntil?: Timestamp | null;
+      lastVoteTimestamp?: Timestamp;
+    };
   }>({
     ...user,
     newTaskDesc: "",

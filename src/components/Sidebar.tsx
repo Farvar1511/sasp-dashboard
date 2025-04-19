@@ -5,7 +5,6 @@ import { computeIsAdmin } from "../utils/isadmin";
 import { showTime } from "../utils/timeHelpers";
 import {
   FaHome,
-  FaBullhorn,
   FaUsers,
   FaCar,
   FaTools,
@@ -13,8 +12,8 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaFileAlt,
-  FaClipboardList,
   FaUserGraduate, // Added for Cadet FTO icon
+  FaUserShield, // Added for FTO Management icon
 } from "react-icons/fa";
 
 const saspLogo = "/SASPLOGO2.png";
@@ -83,6 +82,28 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
     </NavLink>
   );
 
+  // Define all potential nav items
+  const allNavItems = [
+    { to: "/home", icon: FaHome, label: "Home", title: "Home", show: true },
+    { to: "/documents", icon: FaFileAlt, label: "Documents", title: "Documents", show: true },
+    { to: "/sasp-roster", icon: FaUsers, label: "Roster", title: "Roster", show: true },
+    { to: "/fleet", icon: FaCar, label: "Fleet", title: "Fleet", show: true },
+    // FTO Link with conditional text and icon
+    {
+      to: "/fto",
+      icon: isCadet ? FaUserGraduate : FaUserShield,
+      label: isCadet ? "My Training Progress" : "FTO Management",
+      title: isCadet ? "My Training Progress" : "FTO Management",
+      show: hasFTOCert || isCadet, // Show if FTO certified OR if user is a Cadet
+    },
+    // Admin Menu item definition
+    { to: "/admin", icon: FaTools, label: "Admin Menu", title: "Admin Menu", show: isAdmin },
+  ];
+
+  // Filter items to show, separating the Admin item
+  const adminItem = allNavItems.find(item => item.to === "/admin");
+  const regularNavItems = allNavItems.filter(item => item.show && item.to !== "/admin");
+
   return (
     <div
       className={`${
@@ -116,50 +137,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
 
       {/* Navigation */}
       <nav className="flex-grow px-3 py-4 space-y-2 overflow-y-auto custom-scrollbar">
-        <NavItem to="/home" icon={FaHome} label="Home" title="Home" />
-        <NavItem
-          to="/documents"
-          icon={FaFileAlt}
-          label="Documents"
-          title="Documents"
-        />
-        <NavItem
-          to="/sasp-roster"
-          icon={FaUsers}
-          label="Roster"
-          title="Roster"
-        />
-        <NavItem
-          to="/fleet"
-          icon={FaCar}
-          label="Fleet"
-          title="Fleet"
-        />
-        {isAdmin && (
-          <NavItem
-            to="/admin"
-            icon={FaTools}
-            label="Admin Menu"
-            title="Admin Menu"
-          />
-        )}
-        {/* FTO Link for FTO Personnel (now includes TRAIN) */}
-        {hasFTOCert && !isCadet && ( // Ensure Cadets don't see this if they somehow get FTO cert
-          <NavItem
-            to="/fto"
-            icon={FaClipboardList} // Keep original icon for FTO personnel
-            label="FTO Management" // Changed label for clarity
-            title="FTO Management Page"
-          />
-        )}
-        {/* FTO Link for Cadets */}
-        {isCadet && (
-          <NavItem
-            to="/fto"
-            icon={FaUserGraduate} // Use a different icon for cadets
-            label="SASP Training Progress" // Cadet-specific label
-            title="SASP Training Progress"
-          />
+        {/* Render regular items */}
+        {regularNavItems.map((item) => (
+          <NavItem key={item.to} {...item} />
+        ))}
+        {/* Render Admin item last if it should be shown */}
+        {adminItem && adminItem.show && (
+          <NavItem key={adminItem.to} {...adminItem} />
         )}
       </nav>
 

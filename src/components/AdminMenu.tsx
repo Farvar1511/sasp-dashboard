@@ -9,31 +9,31 @@ import {
   orderBy,
   doc,
   deleteDoc,
-  addDoc,
   updateDoc,
   Timestamp,
+  deleteField,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime } from "../utils/timeHelpers";
 import { getRandomBackgroundImage } from "../utils/backgroundImage";
-import { FaEdit, FaTrash, FaArrowUp } from "react-icons/fa";
+import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { RosterUser, DisciplineEntry, NoteEntry } from "../types/User";
 import EditUserModal from "./EditUserModal";
 import { UserTask } from "../types/User";
 import { toast } from "react-toastify";
 import ConfirmationModal from "./ConfirmationModal";
+import { where as firestoreWhere, QueryConstraint } from "firebase/firestore";
+import { limit as firestoreLimit } from "firebase/firestore";
 
-// Define Rank Categories (Keep for category logic)
 const rankCategories = {
   CADET: "Cadets",
-  TROOPER: "State Troopers", // Trooper, TFC, Cpl
-  SUPERVISOR: "Supervisors", // Sgt, SSgt
-  COMMAND: "Command", // Lt, Cpt, Cmdr
-  HIGH_COMMAND: "High Command", // AC, DC, Comm
+  TROOPER: "State Troopers",
+  SUPERVISOR: "Supervisors",
+  COMMAND: "Command",
+  HIGH_COMMAND: "High Command",
 };
 
-// Ranks to exclude from promotion eligibility check
 const commandPlusRanks = [
   "Lieutenant",
   "Captain",
@@ -43,7 +43,30 @@ const commandPlusRanks = [
   "Commissioner",
 ].map(rank => rank.toLowerCase());
 
-// Function to get category remains the same
+const highCommandRanks = [
+  "Assistant Commissioner",
+  "Deputy Commissioner",
+  "Commissioner",
+].map(rank => rank.toLowerCase());
+
+const needsHighCommandVoteRanks = [
+  "Corporal",
+  "Sergeant",
+  "Staff Sergeant",
+  "Lieutenant",
+].map(rank => rank.toLowerCase());
+
+const eligibleVoterRanks = [
+  "Sergeant",
+  "Staff Sergeant",
+  "Lieutenant",
+  "Captain",
+  "Commander",
+  "Assistant Commissioner",
+  "Deputy Commissioner",
+  "Commissioner",
+].map(rank => rank.toLowerCase());
+
 const getRankCategory = (rank: string): keyof typeof rankCategories | null => {
   const lowerRank = rank.toLowerCase();
   if (lowerRank === "cadet") return "CADET";
@@ -60,31 +83,27 @@ const getRankCategory = (rank: string): keyof typeof rankCategories | null => {
   return null;
 };
 
-const getAssignedAt = (task: UserTask): string => {
-  const combined = `${task.issueddate} ${task.issuedtime}`;
-  const date = new Date(combined);
-  return isNaN(date.getTime()) ? combined : date.toLocaleString();
-};
-
 const convertToString = (
   value: string | Timestamp | Date | null | undefined
 ): string => {
   if (value instanceof Timestamp) {
-    // Convert Timestamp to YYYY-MM-DD string for date inputs
     return value.toDate().toISOString().split("T")[0];
   } else if (value instanceof Date) {
-    // Convert Date to YYYY-MM-DD string
     return value.toISOString().split("T")[0];
   }
-  // Handle string, null, or undefined
-  return value || ""; // Return empty string for null/undefined to avoid "N/A" in inputs
+  return value || "";
 };
 
 interface FirestoreUserWithDetails extends RosterUser {
   tasks: UserTask[];
   disciplineEntries: DisciplineEntry[];
   generalNotes: NoteEntry[];
-  lastSignInTime?: Timestamp | string | null; // Add lastSignInTime
+  lastSignInTime?: Timestamp | string | null;
+  promotionStatus?: {
+    votes?: { [voterId: string]: 'Approve' | 'Deny' | 'Needs Time' };
+    hideUntil?: Timestamp | null;
+    lastVoteTimestamp?: Timestamp;
+  };
 }
 
 const availableRanks = [
@@ -102,16 +121,14 @@ const availableRanks = [
   "Commissioner",
 ];
 
-// Create combined filter options for the dropdown
 const filterOptions = {
   ALL: "All Ranks",
-  ...rankCategories, // Spread the existing categories
+  ...rankCategories,
   ...Object.fromEntries(availableRanks.map((rank) => [rank, rank])),
 };
 
-// Create options specifically for the Assign Task filter dropdown
 const assignTaskFilterOptions = {
-  SELECT: "-- Select by Rank/Category --", // Placeholder option
+  SELECT: "-- Select by Rank/Category --",
   ALL: "All Users",
   ...rankCategories,
   ...Object.fromEntries(availableRanks.map((rank) => [rank, rank])),
@@ -132,163 +149,23 @@ export default function AdminMenu(): JSX.Element {
   const [usersData, setUsersData] = useState<FirestoreUserWithDetails[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [bulkTaskDescription, setBulkTaskDescription] = useState("");
   const [bulkTaskType, setBulkTaskType] = useState<"goal" | "normal">("normal");
   const [bulkTaskGoal, setBulkTaskGoal] = useState<number>(0);
   const [isAssigning, setIsAssigning] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState<string>("");
-  const [selectedUsersByName, setSelectedUsersByName] = useState<
-    { value: string; label: string }[]
-  >([]);
-  const [editingUser, setEditingUser] =
-    useState<FirestoreUserWithDetails | null>(null);
+  const [editingUser, setEditingUser] = useState<FirestoreUserWithDetails | null>(null);
   const [confirmationModal, setConfirmationModal] = useState<{
     show: boolean;
     message: string;
     onConfirm: () => void;
   } | null>(null);
   const [isAssignTaskOpen, setIsAssignTaskOpen] = useState(false);
-  const [selectedRank, setSelectedRank] = useState<string | null>(null);
-  const [taskDescription, setTaskDescription] = useState("");
-  const [editingTask, setEditingTask] = useState<{
-    userId: string;
-    task: UserTask;
-  } | null>(null);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState<{
-    userId: string;
-    taskId: string;
-  } | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [newTask, setNewTask] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<"rank" | "name">("rank");
-  // Add state for the new assign task filter dropdown
   const [selectedAssignFilter, setSelectedAssignFilter] = useState<string>("SELECT");
-
-  const handleRankSelection = (rank: string) => {
-    setSelectedRank(rank);
-    const usersInRank = usersData
-      .filter((user) => user.rank === rank)
-      .map((user) => user.email);
-    setSelectedUsers(
-      usersInRank.filter((email): email is string => email !== undefined)
-    );
-  };
-
-  const handleUserToggle = (userId: string) => {
-    setSelectedUsers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    );
-
-    setSelectedUserId((prev) =>
-      selectedUsers.includes(userId) ? null : userId
-    );
-
-    // Reset the assign filter dropdown if a user is manually toggled
-    setSelectedAssignFilter("SELECT");
-  };
-
-  // Handler for the new Assign Task filter dropdown
-  const handleAssignFilterChange = (selectedValue: string) => {
-    setSelectedAssignFilter(selectedValue);
-
-    let usersToSelect: string[] = [];
-
-    if (selectedValue === "ALL") {
-      usersToSelect = usersData.map((user) => user.id).filter((id): id is string => !!id);
-    } else if (Object.keys(rankCategories).includes(selectedValue)) {
-      // It's a category
-      usersToSelect = usersData
-        .filter((user) => getRankCategory(user.rank) === selectedValue && user.id)
-        .map((user) => user.id!);
-    } else if (availableRanks.includes(selectedValue)) {
-      // It's an individual rank
-      usersToSelect = usersData
-        .filter((user) => user.rank === selectedValue && user.id)
-        .map((user) => user.id!);
-    }
-    // If 'SELECT' or other invalid value, usersToSelect remains empty
-
-    setSelectedUsers(usersToSelect);
-  };
-
-  const handleAssignTask = async () => {
-    if (selectedUsers.length === 0) {
-      toast.error("Please select at least one user.");
-      return;
-    }
-
-    if (!newTask || newTask.trim() === "") {
-      toast.error("Task description cannot be empty.");
-      return;
-    }
-
-    try {
-      const { date, time } = getCurrentDateTimeStrings();
-
-      const newTaskData: Omit<UserTask, "id"> = {
-        task: newTask.trim(),
-        type: bulkTaskType,
-        issuedby: currentUser?.name || "System",
-        issueddate: date,
-        issuedtime: time,
-        completed: false,
-        progress: 0,
-        ...(bulkTaskType === "goal" ? { goal: bulkTaskGoal } : {}),
-      };
-
-      const batch = writeBatch(dbFirestore);
-
-      selectedUsers.forEach((userId) => {
-        const userTasksRef = collection(dbFirestore, "users", userId, "tasks");
-        const newTaskRef = doc(userTasksRef);
-        batch.set(newTaskRef, newTaskData);
-      });
-
-      await batch.commit();
-
-      setUsersData((prevUsers) =>
-        prevUsers.map((user) =>
-          selectedUsers.includes(user.id)
-            ? {
-                ...user,
-                tasks: [
-                  ...user.tasks,
-                  {
-                    ...newTaskData,
-                    id: Date.now().toString(),
-                  },
-                ],
-              }
-            : user
-        )
-      );
-
-      toast.success(`Task assigned to ${selectedUsers.length} user(s).`);
-      setNewTask("");
-      setBulkTaskGoal(0);
-      setBulkTaskType("normal");
-      // Reset filter dropdown after assigning
-      setSelectedAssignFilter("SELECT");
-    } catch (error) {
-      toast.error("Failed to assign task.");
-    }
-  };
-
-  const handleClearSelections = () => {
-    setSelectedRank(null);
-    setSelectedUsers([]);
-    setTaskDescription("");
-    setBulkTaskType("normal");
-    // Also reset the assign filter dropdown
-    setSelectedAssignFilter("SELECT");
-  };
+  const [showHiddenCards, setShowHiddenCards] = useState<boolean>(false);
 
   useEffect(() => {
     setBackgroundImage(getRandomBackgroundImage());
@@ -300,13 +177,9 @@ export default function AdminMenu(): JSX.Element {
     try {
       const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
       const usersPromises = usersSnapshot.docs.map(async (userDoc) => {
-        const userData = userDoc.data() as Partial<RosterUser & { lastSignInTime?: Timestamp | string | null }>; // Include lastSignInTime here
+        const userData = userDoc.data() as Partial<RosterUser & { lastSignInTime?: Timestamp | string | null, promotionStatus?: any }>;
         const userEmail = userDoc.id;
-        if (!userEmail) {
-          return null;
-        }
-        const name =
-          typeof userData.name === "string" ? userData.name : "Unknown";
+        const name = typeof userData.name === "string" ? userData.name : "Unknown";
 
         const tasksSnapshot = await getDocs(
           query(
@@ -314,33 +187,31 @@ export default function AdminMenu(): JSX.Element {
             orderBy("issueddate", "desc")
           )
         );
-        const tasks = tasksSnapshot.docs
-          .map((taskDoc) => {
-            const data = taskDoc.data();
-            if (
-              typeof data.task === "string" &&
-              (data.type === "goal" || data.type === "normal") &&
-              typeof data.issuedby === "string" &&
-              typeof data.issueddate === "string" &&
-              typeof data.issuedtime === "string" &&
-              typeof data.completed === "boolean" &&
-              (data.type === "goal" ? typeof data.progress === "number" : true)
-            ) {
-              return {
-                id: taskDoc.id,
-                task: data.task,
-                type: data.type,
-                issuedby: data.issuedby,
-                issueddate: data.issueddate,
-                issuedtime: data.issuedtime,
-                progress: data.progress,
-                completed: data.completed,
-                goal: data.goal,
-              } as UserTask;
-            }
-            return null;
-          })
-          .filter((task): task is UserTask => task !== null);
+        const tasks = tasksSnapshot.docs.map((taskDoc) => {
+          const data = taskDoc.data();
+          if (
+            typeof data.task === "string" &&
+            (data.type === "goal" || data.type === "normal") &&
+            typeof data.issuedby === "string" &&
+            typeof data.issueddate === "string" &&
+            typeof data.issuedtime === "string" &&
+            typeof data.completed === "boolean" &&
+            (data.type === "goal" ? typeof data.progress === "number" : true)
+          ) {
+            return {
+              id: taskDoc.id,
+              task: data.task,
+              type: data.type,
+              issuedby: data.issuedby,
+              issueddate: data.issueddate,
+              issuedtime: data.issuedtime,
+              progress: data.progress,
+              completed: data.completed,
+              goal: data.goal,
+            } as UserTask;
+          }
+          return null;
+        }).filter((task): task is UserTask => task !== null);
 
         const disciplineSnapshot = await getDocs(
           query(
@@ -348,28 +219,26 @@ export default function AdminMenu(): JSX.Element {
             orderBy("issueddate", "desc")
           )
         );
-        const disciplineEntries = disciplineSnapshot.docs
-          .map((entryDoc) => {
-            const data = entryDoc.data();
-            if (
-              typeof data.type === "string" &&
-              typeof data.disciplinenotes === "string" &&
-              typeof data.issuedby === "string" &&
-              typeof data.issueddate === "string" &&
-              typeof data.issuedtime === "string"
-            ) {
-              return {
-                id: entryDoc.id,
-                type: data.type,
-                disciplinenotes: data.disciplinenotes,
-                issuedby: data.issuedby,
-                issueddate: data.issueddate,
-                issuedtime: data.issuedtime,
-              } as DisciplineEntry;
-            }
-            return null;
-          })
-          .filter((entry): entry is DisciplineEntry => entry !== null);
+        const disciplineEntries = disciplineSnapshot.docs.map((entryDoc) => {
+          const data = entryDoc.data();
+          if (
+            typeof data.type === "string" &&
+            typeof data.disciplinenotes === "string" &&
+            typeof data.issuedby === "string" &&
+            typeof data.issueddate === "string" &&
+            typeof data.issuedtime === "string"
+          ) {
+            return {
+              id: entryDoc.id,
+              type: data.type,
+              disciplinenotes: data.disciplinenotes,
+              issuedby: data.issuedby,
+              issueddate: data.issueddate,
+              issuedtime: data.issuedtime,
+            } as DisciplineEntry;
+          }
+          return null;
+        }).filter((entry): entry is DisciplineEntry => entry !== null);
 
         const notesSnapshot = await getDocs(
           query(
@@ -377,26 +246,24 @@ export default function AdminMenu(): JSX.Element {
             orderBy("issueddate", "desc")
           )
         );
-        const generalNotes = notesSnapshot.docs
-          .map((noteDoc) => {
-            const data = noteDoc.data();
-            if (
-              typeof data.note === "string" &&
-              typeof data.issuedby === "string" &&
-              typeof data.issueddate === "string" &&
-              typeof data.issuedtime === "string"
-            ) {
-              return {
-                id: noteDoc.id,
-                note: data.note,
-                issuedby: data.issuedby,
-                issueddate: data.issueddate,
-                issuedtime: data.issuedtime,
-              } as NoteEntry;
-            }
-            return null;
-          })
-          .filter((note): note is NoteEntry => note !== null);
+        const generalNotes = notesSnapshot.docs.map((noteDoc) => {
+          const data = noteDoc.data();
+          if (
+            typeof data.note === "string" &&
+            typeof data.issuedby === "string" &&
+            typeof data.issueddate === "string" &&
+            typeof data.issuedtime === "string"
+          ) {
+            return {
+              id: noteDoc.id,
+              note: data.note,
+              issuedby: data.issuedby,
+              issueddate: data.issueddate,
+              issuedtime: data.issuedtime,
+            } as NoteEntry;
+          }
+          return null;
+        }).filter((note): note is NoteEntry => note !== null);
 
         return {
           id: userEmail,
@@ -420,13 +287,11 @@ export default function AdminMenu(): JSX.Element {
           tasks: tasks,
           disciplineEntries: disciplineEntries,
           generalNotes: generalNotes,
-          lastSignInTime: userData.lastSignInTime || null, // Read lastSignInTime from Firestore data
+          lastSignInTime: userData.lastSignInTime || null,
+          promotionStatus: userData.promotionStatus || { votes: {} },
           isAdmin:
             userData.role?.toLowerCase() === "admin" ||
-            availableRanks
-              .slice(availableRanks.indexOf("Lieutenant"))
-              .map((r) => r.toLowerCase())
-              .includes(userData.rank?.toLowerCase() || ""),
+            highCommandRanks.includes(userData.rank?.toLowerCase() || ""),
           displayName: name,
         } as FirestoreUserWithDetails;
       });
@@ -434,7 +299,7 @@ export default function AdminMenu(): JSX.Element {
       const resolvedUsersData = await Promise.all(usersPromises);
       setUsersData(
         resolvedUsersData.filter(
-          (user) => user !== null
+          (user) => user !== null && !user.isPlaceholder
         ) as FirestoreUserWithDetails[]
       );
     } catch (error) {
@@ -448,229 +313,23 @@ export default function AdminMenu(): JSX.Element {
     fetchAdminData();
   }, [fetchAdminData]);
 
-  useEffect(() => {
-    if (currentUser && !usersLoading) {
-      // Uncomment cautiously - might cause loops if currentUser object changes too often
-      // fetchAdminData();
-    }
-  }, [currentUser, usersLoading, fetchAdminData]);
-
-  const handleRoleSelectionChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const rank = event.target.value;
-    const isChecked = event.target.checked;
-    setSelectedRoles((prev) =>
-      isChecked ? [...prev, rank] : prev.filter((r) => r !== rank)
-    );
-    const userEmailsInRank = usersData
-      .filter((u) => u.rank === rank && u.email)
-      .map((u) => u.email!);
-    setSelectedUsers((prev) => {
-      const currentSet = new Set(prev);
-      if (isChecked) {
-        userEmailsInRank.forEach((email) => currentSet.add(email));
-      } else {
-        userEmailsInRank.forEach((email) => currentSet.delete(email));
-      }
-      return Array.from(currentSet);
-    });
-  };
-
-  const handleUserByNameSelectionChange = (
-    selectedOptions: readonly { value: string; label: string }[] | null
-  ) => {
-    const selectedEmails = selectedOptions
-      ? selectedOptions.map((o) => o.value)
-      : [];
-    setSelectedUsersByName(selectedOptions ? [...selectedOptions] : []);
-    setSelectedUsers((prev) => {
-      const currentSet = new Set(prev);
-      selectedEmails.forEach((email) => currentSet.add(email));
-      return Array.from(currentSet);
-    });
-  };
-
-  const removeUserFromSelection = (userEmailToRemove: string) => {
-    setSelectedUsers((prev) =>
-      prev.filter((email) => email !== userEmailToRemove)
-    );
-    setSelectedUsersByName((prev) =>
-      prev.filter((u) => u.value !== userEmailToRemove)
-    );
-  };
-
-  const clearUserSelection = () => {
-    setSelectedUsers([]);
-    setSelectedRoles([]);
-    setSelectedUsersByName([]);
-  };
-
-  const handleBulkAssignTask = async () => {
-    if (selectedUsers.length === 0) {
-      toast.error("Please select at least one user or role.");
-      return;
-    }
-    if (!bulkTaskDescription.trim()) {
-      toast.error("Task description cannot be empty.");
-      return;
-    }
-    if (bulkTaskType === "goal" && bulkTaskGoal <= 0) {
-      toast.error("Goal must be greater than 0 for goal tasks.");
-      return;
-    }
-    if (!currentUser?.email) {
-      toast.error("User email missing.");
-      return;
-    }
-    setIsAssigning(true);
-
-    try {
-      const batch = writeBatch(dbFirestore);
-      const { date, time } = getCurrentDateTimeStrings();
-
-      const taskData: Omit<UserTask, "id"> = {
-        task: bulkTaskDescription.trim(),
-        type: bulkTaskType,
-        ...(bulkTaskType === "goal" && { goal: bulkTaskGoal }),
-        progress: 0,
-        completed: false,
-        issuedby: currentUser!.name || currentUser!.email,
-        issueddate: date,
-        issuedtime: time,
-      };
-
-      selectedUsers.forEach((userEmail) => {
-        if (!userEmail) {
-          return;
-        }
-        const userTasksRef = collection(
-          dbFirestore,
-          "users",
-          userEmail,
-          "tasks"
-        );
-        const newTaskRef = doc(userTasksRef);
-        batch.set(newTaskRef, taskData);
-      });
-
-      await batch.commit();
-      toast.success(`Task assigned to ${selectedUsers.length} user(s).`);
-      fetchAdminData();
-      clearUserSelection();
-      setBulkTaskDescription("");
-      setBulkTaskType("normal");
-      setBulkTaskGoal(0);
-    } catch (error) {
-      toast.error("Failed to assign task.");
-    } finally {
-      setIsAssigning(false);
-    }
-  };
-
-  const handleDeleteTask = async (
-    userEmail: string | undefined,
-    taskId: string
-  ) => {
-    if (!userEmail) {
-      toast.error("User email is missing.");
-      return;
-    }
-    setTaskToDelete({ userId: userEmail, taskId });
-    setIsConfirmModalOpen(true);
-  };
-
-  const confirmDeleteTask = async () => {
-    if (!taskToDelete) return;
-
-    try {
-      const taskRef = doc(
-        dbFirestore,
-        "users",
-        taskToDelete.userId,
-        "tasks",
-        taskToDelete.taskId
-      );
-      await deleteDoc(taskRef);
-      setUsersData((prev) =>
-        prev.map((user) =>
-          user.id === taskToDelete.userId
-            ? {
-                ...user,
-                tasks: user.tasks.filter(
-                  (task) => task.id !== taskToDelete.taskId
-                ),
-              }
-            : user
-        )
-      );
-      toast.success("Task deleted successfully.");
-    } catch (error) {
-      toast.error("Failed to delete task.");
-    } finally {
-      setTaskToDelete(null);
-      setIsConfirmModalOpen(false);
-    }
-  };
-
-  const handleEditTask = () => {
-    if (!editingTask || !editingTask.task.task.trim()) {
-      toast.error("Task description cannot be empty.");
-      return;
-    }
-    setUsersData((prevUsers) =>
-      prevUsers.map((user) =>
-        user.id === editingTask.userId
-          ? {
-              ...user,
-              tasks: user.tasks.map((task) =>
-                task.id === editingTask.task.id
-                  ? { ...task, task: editingTask.task.task }
-                  : task
-              ),
-            }
-          : user
-      )
-    );
-    toast.success("Task updated successfully!");
-    setEditingTask(null);
-  };
-
-  const userOptions = useMemo(() => {
-    return [...usersData]
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((user) => ({
-        value: user.email,
-        label: `${user.name} (${user.rank || "N/A"})`,
-      }));
-  }, [usersData]);
-
-  const selectedUserDisplayNames = useMemo(() => {
-    const selectedSet = new Set(selectedUsers);
-    return usersData
-      .filter((user) => user.email && selectedSet.has(user.email))
-      .map((user) => ({ email: user.email!, name: user.name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [selectedUsers, usersData]);
-
-  const rankOrder: { [key: string]: number } = {
-    Commissioner: 1,
-    "Deputy Commissioner": 2,
-    "Assistant Commissioner": 3,
-    Commander: 4,
-    Captain: 5,
-    Lieutenant: 6,
-    "Staff Sergeant": 7,
-    Sergeant: 8,
-    Corporal: 9,
-    "Trooper First Class": 10,
-    Trooper: 11,
-    Cadet: 12,
-  };
-
-  const sortedUsersData = useMemo(() => {
-    return [...usersData].sort((a, b) => {
+  const filteredUsersData = useMemo(() => {
+    let filtered = [...usersData].sort((a, b) => {
       if (sortBy === "rank") {
+        const rankOrder: { [key: string]: number } = {
+          Commissioner: 1,
+          "Deputy Commissioner": 2,
+          "Assistant Commissioner": 3,
+          Commander: 4,
+          Captain: 5,
+          Lieutenant: 6,
+          "Staff Sergeant": 7,
+          Sergeant: 8,
+          Corporal: 9,
+          "Trooper First Class": 10,
+          Trooper: 11,
+          Cadet: 12,
+        };
         const aOrder = rankOrder[a.rank] || Infinity;
         const bOrder = rankOrder[b.rank] || Infinity;
         if (aOrder !== bOrder) {
@@ -679,10 +338,6 @@ export default function AdminMenu(): JSX.Element {
       }
       return a.name.localeCompare(b.name);
     });
-  }, [usersData, sortBy]);
-
-  const filteredUsersData = useMemo(() => {
-    let filtered = sortedUsersData;
 
     if (selectedCategory !== "ALL") {
       if (Object.keys(rankCategories).includes(selectedCategory)) {
@@ -700,12 +355,16 @@ export default function AdminMenu(): JSX.Element {
       );
     }
 
-    return filtered;
-  }, [sortedUsersData, searchTerm, selectedCategory]);
+    if (!showHiddenCards) {
+      const now = Timestamp.now();
+      filtered = filtered.filter(user => {
+        const hideUntil = user.promotionStatus?.hideUntil;
+        return !hideUntil || hideUntil.toMillis() <= now.toMillis();
+      });
+    }
 
-  const closeEditUserModal = () => {
-    setEditingUser(null);
-  };
+    return filtered;
+  }, [usersData, sortBy, selectedCategory, searchTerm, showHiddenCards]);
 
   const buttonPrimary =
     "px-4 py-2 bg-[#f3c700] text-black font-bold rounded hover:bg-yellow-300 transition-colors duration-200";
@@ -724,9 +383,10 @@ export default function AdminMenu(): JSX.Element {
 
   return (
     <Layout>
+      <div className="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat bg-fixed" style={{ backgroundImage: `url(${backgroundImage})` }}></div>
       <div
-        className="page-content space-y-6 p-6 text-white/80 min-h-screen bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: `url(${backgroundImage})`, fontFamily: "'Inter', sans-serif" }}
+        className="page-content relative space-y-6 p-6 text-white/80 min-h-screen"
+        style={{ fontFamily: "'Inter', sans-serif" }}
       >
         <div className="bg-black/75 text-[#f3c700] font-sans p-4 rounded-lg shadow-lg mb-6">
           <div className="flex space-x-6 border-b border-[#f3c700]">
@@ -775,14 +435,14 @@ export default function AdminMenu(): JSX.Element {
           {isAssignTaskOpen ? "Close Assign Task" : "Assign Task"}
         </button>
         {isAssignTaskOpen && (
-          <div className={`${cardBase} space-y-4`}>
+          <div className={`${cardBase} space-y-4 mb-6`}>
             <h2 className={`text-xl font-bold ${textAccent}`}>Assign Task</h2>
             <textarea
               className={inputStyle}
               placeholder="Enter task description..."
-              value={newTask}
+              value={bulkTaskType}
               onChange={(e) => {
-                setNewTask(e.target.value);
+                setBulkTaskType(e.target.value as "goal" | "normal");
               }}
             />
             <div>
@@ -816,7 +476,6 @@ export default function AdminMenu(): JSX.Element {
                 />
               </div>
             )}
-            {/* Add the new filter dropdown here */}
             <div>
               <label className={`block text-sm font-medium ${textAccent} mb-2`}>
                 Select Users by Rank/Category:
@@ -824,7 +483,7 @@ export default function AdminMenu(): JSX.Element {
               <select
                 className={inputStyle}
                 value={selectedAssignFilter}
-                onChange={(e) => handleAssignFilterChange(e.target.value)}
+                onChange={(e) => setSelectedAssignFilter(e.target.value)}
               >
                 {Object.entries(assignTaskFilterOptions).map(([key, value]) => (
                   <option key={key} value={key}>
@@ -840,41 +499,44 @@ export default function AdminMenu(): JSX.Element {
               <div
                 className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-black/80 p-3 rounded ${borderAccent} max-h-60 overflow-y-auto custom-scrollbar`}
               >
-                {/* Sort users alphabetically for the checkbox list */}
                 {[...usersData]
                   .sort((a, b) => a.name.localeCompare(b.name))
                   .map((user) => (
-                  <label
-                    key={user.id}
-                    className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors duration-200 ${
-                      selectedUsers.includes(user.id)
-                        ? "bg-[#f3c700] text-black border-[#f3c700]"
-                        : `bg-black/90 text-white border-white/20 hover:border-[#f3c700]/50`
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedUsers.includes(user.id)}
-                      onChange={() => handleUserToggle(user.id)}
-                      className="h-4 w-4 text-[#f3c700] border-white/30 rounded focus:ring-[#f3c700] bg-black/50 flex-shrink-0"
-                    />
-                    <span className="text-xs leading-tight">
-                      {user.name} <br />
-                      <span className="text-[10px] opacity-80">
-                        {user.rank} - {user.badge || 'N/A'}
+                    <label
+                      key={user.id}
+                      className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors duration-200 ${
+                        selectedUsers.includes(user.id)
+                          ? "bg-[#f3c700] text-black border-[#f3c700]"
+                          : `bg-black/90 text-white border-white/20 hover:border-[#f3c700]/50`
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.includes(user.id)}
+                        onChange={() => setSelectedUsers((prev) =>
+                          prev.includes(user.id)
+                            ? prev.filter((id) => id !== user.id)
+                            : [...prev, user.id]
+                        )}
+                        className="h-4 w-4 text-[#f3c700] border-white/30 rounded focus:ring-[#f3c700] bg-black/50 flex-shrink-0"
+                      />
+                      <span className="text-xs leading-tight">
+                        {user.name} <br />
+                        <span className="text-[10px] opacity-80">
+                          {user.rank} - {user.badge || 'N/A'}
+                        </span>
                       </span>
-                    </span>
-                  </label>
-                ))}
+                    </label>
+                  ))}
               </div>
             </div>
             <div className="flex justify-between items-center pt-4">
-              <button className={buttonDanger} onClick={handleClearSelections}>
+              <button className={buttonDanger} onClick={() => setSelectedUsers([])}>
                 Clear Selections
               </button>
               <button
                 className={buttonPrimary}
-                onClick={handleAssignTask}
+                onClick={() => setIsAssigning(true)}
                 disabled={isAssigning}
               >
                 {isAssigning ? "Assigning..." : "Assign Task"}
@@ -884,10 +546,10 @@ export default function AdminMenu(): JSX.Element {
         )}
         <div className={`${cardBase}`}>
           <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 flex-wrap">
-            <h2 className={`section-header text-2xl font-bold ${textAccent}`}>
+            <h2 className={`section-header text-2xl font-bold ${textAccent} border-none pb-0`}>
               Users Overview
             </h2>
-            <div className="flex gap-4 flex-wrap sm:flex-nowrap justify-end w-full sm:w-auto">
+            <div className="flex gap-4 flex-wrap sm:flex-nowrap justify-end items-center w-full sm:w-auto">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as "rank" | "name")}
@@ -914,6 +576,16 @@ export default function AdminMenu(): JSX.Element {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className={`${inputStyle} max-w-xs sm:max-w-[200px]`}
               />
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-white/80 hover:text-white">
+                <input
+                  type="checkbox"
+                  checked={showHiddenCards}
+                  onChange={(e) => setShowHiddenCards(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-[#f3c700] focus:ring-[#f3c700] bg-black/50"
+                />
+                {showHiddenCards ? <FaEye size="0.9em"/> : <FaEyeSlash size="0.9em"/>}
+                Show Hidden
+              </label>
             </div>
           </div>
           {usersLoading && (
@@ -925,202 +597,120 @@ export default function AdminMenu(): JSX.Element {
               {filteredUsersData.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredUsersData.map((userData) => {
-                    // Check if rank is in the exclusion list
                     const isCommandPlus = commandPlusRanks.includes(userData.rank.toLowerCase());
-                    // Check promotion readiness using the helper (14 days) AND exclude command+
                     const eligibleForPromotion = !isCommandPlus && isOlderThanDays(userData.lastPromotionDate, 14);
+                    const needsHCVote = needsHighCommandVoteRanks.includes(userData.rank.toLowerCase());
 
-                    function formatDateForDisplay(dateString: string): string {
-                      const date = new Date(dateString);
+                    const now = Timestamp.now();
+                    const isHiddenByRule = userData.promotionStatus?.hideUntil && userData.promotionStatus.hideUntil.toMillis() > now.toMillis();
+
+                    function formatDateForDisplay(dateString: string | Timestamp | null | undefined): string {
+                      if (!dateString) return "N/A";
+                      let date: Date;
+                      if (dateString instanceof Timestamp) {
+                        date = dateString.toDate();
+                      } else {
+                        date = new Date(dateString);
+                      }
                       if (isNaN(date.getTime())) {
-                      return "Invalid Date";
+                        return "Invalid Date";
                       }
                       return date.toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
+                        year: "numeric", month: "short", day: "numeric",
                       });
                     }
+
                     return (
                       <div
                         key={userData.id}
-                        className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md`}
+                        className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md ${isHiddenByRule && showHiddenCards ? 'opacity-70 border-dashed border-orange-500' : ''}`}
+                        title={isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}
                       >
                         <div className="flex-grow">
-                          <div className="flex justify-between items-start"> {/* Container for name and promotion indicator */}
+                          <div className="flex justify-between items-start mb-1">
                             <h4 className={`font-semibold ${textAccent}`}>
                               {userData.name}
                             </h4>
-                            {/* Conditionally render promotion indicator */}
-                            {eligibleForPromotion && (
-                              // Use formatDateForDisplay instead of formatIssuedAt for the title
-                              <div className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 px-1.5 py-0.5 rounded border border-green-600" title={`Eligible for Promotion (Last: ${formatDateForDisplay(convertToString(userData.lastPromotionDate))})`}>
-                                <FaArrowUp size="0.65rem" />
-                                <span>Eligible</span>
-                              </div>
-                            )}
+                            <div className="flex flex-col items-end gap-1">
+                              {isHiddenByRule && showHiddenCards && (
+                                <span className="text-xs text-orange-400 bg-orange-900/60 px-1.5 py-0.5 rounded border border-orange-600 flex items-center gap-1">
+                                  <FaEyeSlash size="0.65rem"/> Hidden
+                                </span>
+                              )}
+                              {eligibleForPromotion && !(isHiddenByRule && showHiddenCards) && (
+                                <div className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 px-1.5 py-0.5 rounded border border-green-600" title={`Eligible for Promotion (Last: ${formatDateForDisplay(userData.lastPromotionDate)})`}>
+                                  <FaArrowUp size="0.65rem" />
+                                  <span>Eligible</span>
+                                </div>
+                              )}
+                              {eligibleForPromotion && needsHCVote && !(isHiddenByRule && showHiddenCards) && (
+                                <div className="text-xs text-yellow-400/80 italic px-1.5 py-0.5 rounded bg-yellow-900/50 border border-yellow-600/50" title="Promotion to this rank requires High Command review">
+                                  Requires HC Approval
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <p className={`text-sm ${textSecondary}`}>
-                            {userData.rank} - Badge: {userData.badge}
+                            {userData.rank} - {userData.callsign || "N/A"}
                           </p>
                           <p className={`text-sm ${textSecondary} mb-2`}>
-                            Callsign: {userData.callsign || "N/A"}
+                            Badge: {userData.badge}
                           </p>
-                          <p className="text-xs text-white/50 italic mb-2">
-                            {userData.tasks?.length || 0} task(s) assigned.
-                          </p>
-                          <h5
-                            className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
-                          >
+                          <h5 className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}>
                             Tasks ({userData.tasks?.length || 0}):
                           </h5>
                           <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 mb-3">
-                            {userData.tasks.map((task) => (
+                            {userData.tasks && userData.tasks.length > 0 ? userData.tasks.map((task) => (
                               <div
                                 key={task.id}
                                 className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50 relative group"
                               >
                                 <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                  {editingTask &&
-                                  editingTask.userId === userData.id &&
-                                  editingTask.task.id === task.id ? (
-                                    <button
-                                      onClick={handleEditTask}
-                                      className="px-2 py-0.5 text-xs bg-[#f3c700] text-black rounded hover:bg-yellow-300"
-                                    >
-                                      Save
-                                    </button>
-                                  ) : (
-                                    <FaEdit
-                                      className="text-[#f3c700] hover:text-yellow-300 cursor-pointer h-3.5 w-3.5 transition-colors duration-150"
-                                      title="Edit Task"
-                                      onClick={() =>
-                                        setEditingTask({
-                                          userId: userData.id,
-                                          task,
-                                        })
-                                      }
-                                    />
-                                  )}
-                                  <FaTrash
-                                    className="text-red-500 hover:text-red-400 cursor-pointer h-3.5 w-3.5 transition-colors duration-150"
-                                    title="Delete Task"
-                                    onClick={() =>
-                                      handleDeleteTask(userData.email, task.id)
-                                    }
-                                  />
+                                  <FaEdit className="text-[#f3c700] hover:text-yellow-300 cursor-pointer h-3.5 w-3.5 transition-colors duration-150" title="Edit Task" />
+                                  <FaTrash className="text-red-500 hover:text-red-400 cursor-pointer h-3.5 w-3.5 transition-colors duration-150" title="Delete Task" />
                                 </div>
-                                {editingTask &&
-                                editingTask.userId === userData.id &&
-                                editingTask.task.id === task.id ? (
-                                  <input
-                                    type="text"
-                                    value={editingTask.task.task}
-                                    onChange={(e) =>
-                                      setEditingTask({
-                                        userId: userData.id,
-                                        task: {
-                                          ...editingTask.task,
-                                          task: e.target.value,
-                                        },
-                                      })
-                                    }
-                                    className="w-full p-1 bg-black/70 text-white rounded border border-[#f3c700]/50 text-xs focus:ring-[#f3c700] focus:border-[#f3c700]"
-                                  />
-                                ) : (
-                                  <p
-                                    className={`inline text-xs pr-10 ${
-                                      task.completed
-                                        ? "line-through text-white/50"
-                                        : "text-white/90"
-                                    }`}
-                                  >
-                                    {task.task}
-                                  </p>
-                                )}
+                                <p className={`inline text-xs pr-10 ${task.completed ? "line-through text-white/50" : "text-white/90"}`}>
+                                  {task.task}
+                                </p>
                                 <small className="text-white/60 block mt-1 text-[10px]">
                                   Type: {task.type}
-                                  {task.type === "goal" &&
-                                    ` | Progress: ${task.progress ?? 0}/${
-                                      task.goal ?? "N/A"
-                                    }`}
-                                  | Status:{" "}
-                                  {task.completed ? (
-                                    <span className="text-green-400">
-                                      Completed
-                                    </span>
-                                  ) : (
-                                    <span className={textAccent}>
-                                      In Progress
-                                    </span>
-                                  )}
-                                  | Assigned: {getAssignedAt(task)} | By:{" "}
-                                  {task.issuedby || "Unknown"}
+                                  {task.type === "goal" && ` | Progress: ${task.progress ?? 0}/${task.goal ?? "N/A"}`}
+                                  | Status: {task.completed ? <span className="text-green-400">Completed</span> : <span className={textAccent}>In Progress</span>}
+                                  | Assigned: {formatIssuedAt(task.issueddate, task.issuedtime)} | By: {task.issuedby || "Unknown"}
                                 </small>
                               </div>
-                            ))}
-                            {userData.tasks.length === 0 && (
-                              <p className="text-white/50 italic text-xs">
-                                No tasks assigned.
-                              </p>
+                            )) : (
+                              <p className="text-white/50 italic text-xs">No tasks assigned.</p>
                             )}
                           </div>
-                          <h5
-                            className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
-                          >
+                          <h5 className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}>
                             Discipline ({userData.disciplineEntries?.length || 0}):
                           </h5>
                           <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs mb-3">
-                            {userData.disciplineEntries &&
-                            userData.disciplineEntries.length > 0 ? (
+                            {userData.disciplineEntries && userData.disciplineEntries.length > 0 ? (
                               userData.disciplineEntries.map((entry) => (
-                                <div
-                                  key={entry.id}
-                                  className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50"
-                                >
-                                  <p className="text-white/90 font-medium uppercase text-[10px]">
-                                    {entry.type}
-                                  </p>
-                                  <p className="text-white/80 truncate">
-                                    {entry.disciplinenotes}
-                                  </p>
+                                <div key={entry.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50">
+                                  <p className="text-white/90 font-medium uppercase text-[10px]">{entry.type}</p>
+                                  <p className="text-white/80 truncate">{entry.disciplinenotes}</p>
                                   <small className="text-white/60 block mt-0.5 text-[10px]">
-                                    By: {entry.issuedby} on{" "}
-                                    {formatIssuedAt(
-                                      entry.issueddate,
-                                      entry.issuedtime
-                                    )}
+                                    By: {entry.issuedby} on {formatIssuedAt(entry.issueddate, entry.issuedtime)}
                                   </small>
                                 </div>
                               ))
                             ) : (
-                              <p className="text-white/50 italic">
-                                No discipline.
-                              </p>
+                              <p className="text-white/50 italic">No discipline.</p>
                             )}
                           </div>
-                          <h5
-                            className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}
-                          >
+                          <h5 className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}>
                             Notes ({userData.generalNotes?.length || 0}):
                           </h5>
                           <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
-                            {userData.generalNotes &&
-                            userData.generalNotes.length > 0 ? (
+                            {userData.generalNotes && userData.generalNotes.length > 0 ? (
                               userData.generalNotes.map((note) => (
-                                <div
-                                  key={note.id}
-                                  className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50"
-                                >
-                                  <p className="text-white/90 font-medium text-[10px]">
-                                    {note.note}
-                                  </p>
+                                <div key={note.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50">
+                                  <p className="text-white/90 font-medium text-[10px]">{note.note}</p>
                                   <small className="text-white/60 block mt-0.5 text-[10px]">
-                                    By: {note.issuedby} on{" "}
-                                    {formatIssuedAt(
-                                      note.issueddate,
-                                      note.issuedtime
-                                    )}
+                                    By: {note.issuedby} on {formatIssuedAt(note.issueddate, note.issuedtime)}
                                   </small>
                                 </div>
                               ))
@@ -1129,25 +719,24 @@ export default function AdminMenu(): JSX.Element {
                             )}
                           </div>
                         </div>
-                        {/* Use the new formatter */}
-                        <div className="mt-2 pt-2 border-t border-white/10 text-right">
+                        <div className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center">
                           <span className="text-xs text-white/50 italic">
                             Last Signed In: {formatTimestampDateTime(userData.lastSignInTime)}
                           </span>
+                          <button
+                            className={`${buttonSecondary}`}
+                            onClick={() => setEditingUser(userData)}
+                          >
+                            Manage User
+                          </button>
                         </div>
-                        <button
-                          className={`${buttonSecondary} mt-2 self-end`} // Adjusted margin-top
-                          onClick={() => setEditingUser(userData)}
-                        >
-                          Manage User
-                        </button>
                       </div>
                     );
                   })}
                 </div>
               ) : (
                 <p className="text-white/60 italic text-center py-4">
-                  No users found matching the current filters.
+                  No users found matching the current filters or eligible for display.
                 </p>
               )}
             </>
@@ -1162,7 +751,6 @@ export default function AdminMenu(): JSX.Element {
               discordId: editingUser.discordId || "-",
               certifications: editingUser.certifications || {},
               assignedVehicleId: editingUser.assignedVehicleId || undefined,
-              // Use convertToString for date inputs in the modal
               loaStartDate: convertToString(editingUser.loaStartDate),
               loaEndDate: convertToString(editingUser.loaEndDate),
               joinDate: convertToString(editingUser.joinDate),
@@ -1179,22 +767,26 @@ export default function AdminMenu(): JSX.Element {
               tasks: editingUser.tasks || [],
               disciplineEntries: editingUser.disciplineEntries || [],
               generalNotes: editingUser.generalNotes || [],
+              promotionStatus: editingUser.promotionStatus,
             }}
-            onClose={closeEditUserModal}
+            onClose={() => setEditingUser(null)}
             onSave={() => {
               fetchAdminData();
-              closeEditUserModal();
+              setEditingUser(null);
             }}
           />
         )}
-        <ConfirmationModal
-          isOpen={isConfirmModalOpen}
-          onClose={() => setIsConfirmModalOpen(false)}
-          onConfirm={confirmDeleteTask}
-          title="Delete Task"
-          message="Are you sure you want to delete this task? This action cannot be undone."
-        />
       </div>
     </Layout>
   );
 }
+/**
+ * Wrapper for Firestore's where function to match the expected type.
+ */
+function where(fieldPath: string, opStr: string, value: any): QueryConstraint {
+  return firestoreWhere(fieldPath, opStr as any, value);
+}
+function limit(count: number): QueryConstraint {
+  return firestoreLimit(count);
+}
+

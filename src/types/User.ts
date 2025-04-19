@@ -98,6 +98,13 @@ export interface RosterUser {
   disciplineEntries?: DisciplineEntry[]; // Populated in AdminMenu/Home
   generalNotes?: NoteEntry[]; // Populated in AdminMenu/Home
   assignedVehicleId?: string | null; // Assigned vehicle ID (plate)
+
+  lastSignInTime?: Timestamp | string | null; // Ensure this exists if used in AdminMenu
+  promotionStatus?: {
+    votes?: { [voterId: string]: 'Approve' | 'Deny' | 'Needs Time' };
+    hideUntil?: Timestamp | null; // Hide card until this time if majority Deny/Needs Time
+    lastVoteTimestamp?: Timestamp; // Track when the last vote affecting status occurred
+  };
 }
 
 // -----------------------------

@@ -59,7 +59,7 @@ const initialProgressState: { [key in ProgressItemKey]: boolean } = Object.keys(
 );
 
 type FtoTabKey = "home" | "announcements" | "add" | "logs" | "progress" | "personnel";
-type CadetTabKey = "home" | "progress" | "personnel";
+type CadetTabKey = "home";
 
 const FTOPage: React.FC = () => {
   const { user: authUser, loading: authLoading } = useAuth();
@@ -243,7 +243,7 @@ const FTOPage: React.FC = () => {
   }, [newLog.date, newLog.timeStarted, newLog.timeEnded]);
 
   useEffect(() => {
-    if (isCadet && !["home", "progress", "personnel"].includes(activeTab)) {
+    if (isCadet && !["home"].includes(activeTab)) {
       setActiveTab("home");
     }
   }, [isCadet, activeTab]);
@@ -732,7 +732,95 @@ const FTOPage: React.FC = () => {
       .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
   };
 
-  const renderCadetOwnOverview = (cadet: RosterUser | undefined) => {
+  const renderFtoDetails = (fto: RosterUser) => {
+    const logsForFTO = getLogsForFTO(fto.name);
+    const notesByFTO = getNotesByFTO(fto.id);
+
+    return (
+      <div className="space-y-6">
+        <button
+          className="mb-2 text-[#f3c700] hover:underline text-sm"
+          onClick={() => setSelectedFtoForDetails(null)}
+        >
+          ← Back to FTO List
+        </button>
+        <div className="bg-black/60 p-4 rounded-lg border border-white/20">
+          <h3 className="text-lg font-bold text-[#f3c700] mb-2">
+            {fto.name} | {fto.badge || "N/A"}
+          </h3>
+          <p className="text-white/80 text-sm mb-1">
+            <span className="font-semibold">Certification:</span>{" "}
+            {fto.certifications?.FTO || "N/A"}
+          </p>
+          <p className="text-white/80 text-sm mb-1">
+            <span className="font-semibold">Total Sessions Logged:</span> {logsForFTO.length}
+          </p>
+          <p className="text-white/80 text-sm mb-1">
+            <span className="font-semibold">Hours (Last 30d):</span> {getFTOHoursLast30Days(fto.name).toFixed(1)}
+          </p>
+          <p className="text-white/80 text-sm mb-1">
+            <span className="font-semibold">Last Session:</span>{" "}
+            {logsForFTO.length > 0
+              ? `${formatDateToMMDDYY(logsForFTO[0].date)} (${logsForFTO[0].sessionHours.toFixed(1)} hrs) with ${logsForFTO[0].cadetName}`
+              : <span className="italic text-white/50">None</span>}
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-black/60 p-4 rounded-lg border border-white/20">
+            <h4 className="text-md font-semibold text-[#f3c700] mb-2">Recent Training Logs</h4>
+            <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+              {logsForFTO.length === 0 ? (
+                <p className="text-white/60 italic">No logs found for this FTO.</p>
+              ) : (
+                logsForFTO.slice(0, 10).map((log) => (
+                  <div key={log.id} className="p-2 bg-black/40 rounded border border-white/10 text-xs">
+                    <p>
+                      <span className="font-semibold">Date:</span> {formatDateToMMDDYY(log.date)} |{" "}
+                      <span className="font-semibold">Cadet:</span> {log.cadetName}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Session Hours:</span> {log.sessionHours.toFixed(1)}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Summary:</span>{" "}
+                      {log.summary ? log.summary : <span className="italic text-white/50">None</span>}
+                    </p>
+                    <p className="text-white/50">
+                      Logged: {formatTimestampForUserDisplay(log.createdAt)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="bg-black/60 p-4 rounded-lg border border-white/20">
+            <h4 className="text-md font-semibold text-[#f3c700] mb-2">Recent Cadet Notes</h4>
+            <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+              {notesByFTO.length === 0 ? (
+                <p className="text-white/60 italic">No notes found for this FTO.</p>
+              ) : (
+                notesByFTO.slice(0, 10).map((note) => (
+                  <div key={note.id} className="p-2 bg-black/40 rounded border border-white/10 text-xs">
+                    <p>
+                      <span className="font-semibold">Cadet:</span> {note.cadetName}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Note:</span> {note.note}
+                    </p>
+                    <p className="text-white/50">
+                      {formatTimestampForUserDisplay(note.createdAt)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCadetOwnOverviewCard = (cadet: RosterUser | undefined) => {
     if (!cadet) {
       return <p className="text-white/60 italic">Could not find your cadet data.</p>;
     }
@@ -744,82 +832,198 @@ const FTOPage: React.FC = () => {
       totalProgressItems > 0 ? (completedCount / totalProgressItems) * 100 : 0;
 
     return (
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2">
-          My Overview
-        </h2>
-        <div
-          key={cadet.id}
-          className="bg-black/60 p-4 rounded-lg shadow border border-white/20 space-y-3 max-w-md"
-        >
-          <h3 className="text-lg font-bold text-[#f3c700]">
-            {cadet.name} | {cadet.badge || "N/A"}
-          </h3>
-          <p className="text-sm text-white/80">
-            <span className="font-semibold">Total Hours:</span>{" "}
-            {totalHours.toFixed(1)}
+      <div className="bg-black/60 p-4 rounded-lg shadow border border-white/20 space-y-3">
+        <h3 className="text-lg font-bold text-[#f3c700]">
+          {cadet.name} | {cadet.badge || "N/A"}
+        </h3>
+        <p className="text-sm text-white/80">
+          <span className="font-semibold">Total Hours:</span>{" "}
+          {totalHours.toFixed(1)}
+        </p>
+        <div>
+          <p className="text-sm font-semibold text-white/80 mb-1">
+            Progress ({completedCount}/{totalProgressItems})
           </p>
-          <div>
-            <p className="text-sm font-semibold text-white/80 mb-1">
-              Progress ({completedCount}/{totalProgressItems})
-            </p>
-            <div className="w-full bg-black/40 rounded-full h-2.5">
-              <div
-                className="bg-[#f3c700] h-2.5 rounded-full transition-all duration-500"
-                style={{ width: `${progressPercent}%` }}
-              ></div>
-            </div>
+          <div className="w-full bg-black/40 rounded-full h-2.5">
+            <div
+              className="bg-[#f3c700] h-2.5 rounded-full transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
+            ></div>
           </div>
-          {lastLog ? (
-            <div className="text-xs text-white/60 border-t border-white/20 pt-2 mt-2">
-              <p>
-                <span className="font-semibold">Last Session:</span>{" "}
-                {formatDateToMMDDYY(lastLog.date)}
-              </p>
-              <p>
-                <span className="font-semibold">Hours:</span>{" "}
-                {lastLog.sessionHours.toFixed(1)}
-              </p>
-              <p>
-                <span className="font-semibold">FTO:</span> {lastLog.ftoName}
-              </p>
-            </div>
-          ) : (
-            <p className="text-xs text-white/50 italic border-t border-white/20 pt-2 mt-2">
-              No sessions logged yet.
-            </p>
-          )}
         </div>
-        <div className="p-4 bg-black bg-opacity-70 border border-gray-700 rounded-lg">
-          <h2 className="text-xl font-semibold text-yellow-400 mb-3">
-            My FTO Notes
-          </h2>
-          <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-            {loading && <p className="text-yellow-400 italic">Loading notes...</p>}
-            {error && <p className="text-red-500 italic">{error}</p>}
-            {!loading && !error && ftoNotes.length > 0 ? (
-              ftoNotes.map((note) => (
-                <div
-                  key={note.id}
-                  className="p-3 bg-gray-800 rounded border border-gray-600 text-sm"
-                >
-                  <p className="text-gray-200">{note.note}</p>
-                  <p className="text-xs text-yellow-500 mt-1">
-                    - {note.ftoName} ({note.ftoRank}) on{" "}
-                    {formatTimestampForUserDisplay(note.createdAt)}
-                  </p>
-                </div>
-              ))
-            ) : !loading && !error ? (
-              <p className="text-gray-400 italic">
-                No FTO notes available.
-              </p>
-            ) : null}
+        {lastLog ? (
+          <div className="text-xs text-white/60 border-t border-white/20 pt-2 mt-2">
+            <p>
+              <span className="font-semibold">Last Session:</span>{" "}
+              {formatDateToMMDDYY(lastLog.date)}
+            </p>
+            <p>
+              <span className="font-semibold">Hours:</span>{" "}
+              {lastLog.sessionHours.toFixed(1)}
+            </p>
+            <p>
+              <span className="font-semibold">FTO:</span> {lastLog.ftoName}
+            </p>
           </div>
+        ) : (
+          <p className="text-xs text-white/50 italic border-t border-white/20 pt-2 mt-2">
+            No sessions logged yet.
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  const renderCadetOwnNotes = () => {
+    return (
+      <div className="p-4 bg-black/60 border border-white/20 rounded-lg space-y-4">
+        <h2 className="text-xl font-semibold text-[#f3c700] mb-3">
+          My FTO Notes
+        </h2>
+        <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+          {loading && <p className="text-[#f3c700] italic">Loading notes…</p>}
+          {error && <p className="text-red-500 italic">{error}</p>}
+          {!loading && !error && ftoNotes.length > 0 ? (
+            ftoNotes.map(note => (
+              <div
+                key={note.id}
+                className="p-4 bg-black/50 border border-white/10 rounded-lg text-sm"
+              >
+                <p className="text-white/80">{note.note}</p>
+                <p className="text-xs text-[#f3c700] mt-2">
+                  — {note.ftoName} <span className="text-white/60">({note.ftoRank})</span>
+                  on <span className="text-white/60">{formatTimestampForUserDisplay(note.createdAt)}</span>
+                </p>
+              </div>
+            ))
+          ) : !loading && !error ? (
+            <p className="text-white/50 italic">
+              No FTO notes available.
+            </p>
+          ) : null}
         </div>
       </div>
     );
   };
+
+  const renderCadetOwnProgress = (cadet: RosterUser | undefined) => {
+    if (!cadet) {
+      return <p className="text-white/60 italic">Could not find your cadet data.</p>;
+    }
+    const currentProgress = getCurrentProgressState(cadet.name);
+
+    return (
+      <div
+        key={cadet.id}
+        className="p-4 bg-black/60 rounded-lg shadow border border-white/20 h-full flex flex-col"
+      >
+        <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2 mb-4">
+          My Training Progress
+        </h2>
+        <div className="space-y-2 flex-grow">
+          {Object.entries(progressItems).map(([key, label]) => {
+            const itemKey = key as ProgressItemKey;
+            const isChecked = currentProgress[itemKey];
+            return (
+              <div key={key} className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id={`${cadet.id}-${itemKey}`}
+                  checked={isChecked}
+                  disabled
+                  className="form-checkbox h-4 w-4 text-[#f3c700] bg-black/40 border-white/30 rounded focus:ring-[#f3c700] focus:ring-offset-black disabled:opacity-50"
+                />
+                <label
+                  htmlFor={`${cadet.id}-${itemKey}`}
+                  className={`text-sm ${
+                    isChecked ? "text-[#f3c700] line-through" : "text-white/80"
+                  } ${isChecked ? 'opacity-70' : ''}`}
+                >
+                  {label}
+                </label>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-white/50 italic mt-3 pt-2 border-t border-white/10">
+          Progress is updated by FTOs during training sessions or manually via the checklist.
+        </p>
+      </div>
+    );
+  };
+
+  const renderFTOPersonnel = () => (
+    <div className="p-4 bg-black/60 rounded-lg shadow border border-white/20 h-full flex flex-col">
+      <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2 mb-4">
+        {isCadet ? "FTO Personnel" : "FTO Personnel Activity"}
+      </h2>
+
+      <div className="flex-grow overflow-hidden">
+        {selectedFtoForDetails && !isCadet ? (
+          renderFtoDetails(selectedFtoForDetails)
+        ) : (
+          <>
+            {ftoPersonnel.length === 0 ? (
+              <p className="text-white/60 italic">No FTO personnel found.</p>
+            ) : (
+              <div className="overflow-x-auto custom-scrollbar h-full">
+                <table className="min-w-full text-sm text-left">
+                  <thead className="text-xs text-[#f3c700] uppercase bg-black/60 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2">Name</th>
+                      <th className="px-4 py-2">Badge</th>
+                      <th className="px-4 py-2">Certification</th>
+                      {!isCadet && <th className="px-4 py-2">Hours (Last 30d)</th>}
+                      {!isCadet && <th className="px-4 py-2">Last Session Date</th>}
+                      {!isCadet && <th className="px-4 py-2">Last Cadet Trained</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="text-white/80">
+                    {ftoPersonnel.map((fto) => {
+                      const hoursLast30 = getFTOHoursLast30Days(fto.name);
+                      const lastLog = getFTOLastLog(fto.name);
+                      const certification = fto.certifications?.FTO || "N/A";
+                      const isClickable = !isCadet;
+                      return (
+                        <tr
+                          key={fto.id}
+                          className={`border-b border-white/20 ${
+                            isClickable ? 'hover:bg-white/10 cursor-pointer' : ''
+                          }`}
+                          onClick={isClickable ? () => setSelectedFtoForDetails(fto) : undefined}
+                        >
+                          <td className={`px-4 py-2 font-medium text-white ${isClickable ? 'hover:text-[#f3c700]' : ''}`}>
+                            {fto.name}
+                          </td>
+                          <td className="px-4 py-2">{fto.badge || "N/A"}</td>
+                          <td className="px-4 py-2">{certification}</td>
+                          {!isCadet && <td className="px-4 py-2">{hoursLast30.toFixed(1)}</td>}
+                          {!isCadet && (
+                            <td className="px-4 py-2">
+                              {formatDateToMMDDYY(lastLog?.date) || (
+                                <span className="italic text-white/50">None</span>
+                              )}
+                            </td>
+                          )}
+                          {!isCadet && (
+                            <td className="px-4 py-2">
+                              {lastLog?.cadetName || (
+                                <span className="italic text-white/50">None</span>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
 
   const renderFTOHome = () => (
     <div className="space-y-6">
@@ -899,647 +1103,125 @@ const FTOPage: React.FC = () => {
   );
 
   const renderAddLogForm = () => (
-    <div className="bg-black/60 p-4 rounded-lg shadow-lg space-y-4 border border-white/20">
-      <h2 className="text-xl font-semibold text-[#f3c700]">Add Cadet Training Log</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-white/80">Cadet Name</label>
-          <select
-            value={newLog.cadetName}
-            onChange={(e) =>
-              setNewLog((prev) => ({ ...prev, cadetName: e.target.value }))
-            }
-            className="input w-full bg-black/40 border-white/20 text-white"
-          >
-            <option value="">Select Cadet</option>
-            {cadets.map((cadet) => (
-              <option key={cadet.id} value={cadet.name}>
-                {cadet.name} ({cadet.badge || "No Badge"})
-              </option>
-            ))}
-          </select>
+    <div>
+      <div className="bg-black/60 p-4 rounded-lg shadow-lg space-y-4 border border-white/20">
+        <h2 className="text-xl font-semibold text-[#f3c700]">Add Cadet Training Log</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-white/80">Cadet Name</label>
+            <select
+              value={newLog.cadetName}
+              onChange={(e) =>
+                setNewLog((prev) => ({ ...prev, cadetName: e.target.value }))
+              }
+              className="input w-full bg-black/40 border-white/20 text-white"
+            >
+              <option value="">Select Cadet</option>
+              {cadets.map((cadet) => (
+                <option key={cadet.id} value={cadet.name}>
+                  {cadet.name} ({cadet.badge || "No Badge"})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/80">Date</label>
+            <input
+              type="date"
+              value={newLog.date}
+              onChange={(e) =>
+                setNewLog((prev) => ({ ...prev, date: e.target.value }))
+              }
+              className="input w-full bg-black/40 border-white/20 text-white"
+              style={{ colorScheme: "dark" }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/80">Time Started</label>
+            <input
+              type="time"
+              value={newLog.timeStarted}
+              onChange={(e) =>
+                setNewLog((prev) => ({
+                  ...prev,
+                  timeStarted: e.target.value,
+                }))
+              }
+              className="input w-full bg-black/40 border-white/20 text-white"
+              style={{ colorScheme: "dark" }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/80">Time Ended</label>
+            <input
+              type="time"
+              value={newLog.timeEnded}
+              onChange={(e) =>
+                setNewLog((prev) => ({
+                  ...prev,
+                  timeEnded: e.target.value,
+                }))
+              }
+              className="input w-full bg-black/40 border-white/20 text-white"
+              style={{ colorScheme: "dark" }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/80">
+              Session Hours (Calculated)
+            </label>
+            <input
+              type="text"
+              value={newLog.sessionHours > 0 ? newLog.sessionHours.toFixed(2) : "0.00"}
+              readOnly
+              className="input w-full bg-black/20 border-white/10 text-white/60"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-white/80">FTO</label>
+            <input
+              type="text"
+              value={newLog.ftoName}
+              readOnly
+              className="input w-full bg-black/20 border-white/10 text-white/60"
+            />
+          </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-white/80">Date</label>
-          <input
-            type="date"
-            value={newLog.date}
+          <label className="block text-sm font-medium text-white/80">
+            Summary of Training Session
+          </label>
+          <textarea
+            value={newLog.summary}
             onChange={(e) =>
-              setNewLog((prev) => ({ ...prev, date: e.target.value }))
+              setNewLog((prev) => ({ ...prev, summary: e.target.value }))
             }
             className="input w-full bg-black/40 border-white/20 text-white"
-            style={{ colorScheme: "dark" }}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-white/80">Time Started</label>
-          <input
-            type="time"
-            value={newLog.timeStarted}
-            onChange={(e) =>
-              setNewLog((prev) => ({
-                ...prev,
-                timeStarted: e.target.value,
-              }))
-            }
-            className="input w-full bg-black/40 border-white/20 text-white"
-            style={{ colorScheme: "dark" }}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-white/80">Time Ended</label>
-          <input
-            type="time"
-            value={newLog.timeEnded}
-            onChange={(e) =>
-              setNewLog((prev) => ({
-                ...prev,
-                timeEnded: e.target.value,
-              }))
-            }
-            className="input w-full bg-black/40 border-white/20 text-white"
-            style={{ colorScheme: "dark" }}
+            rows={3}
+            placeholder="Describe activities, performance, and keywords for progress..."
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-white/80">
-            Session Hours (Calculated)
+            Additional Notes / Areas for Improvement
           </label>
-          <input
-            type="text"
-            value={newLog.sessionHours > 0 ? newLog.sessionHours.toFixed(2) : "0.00"}
-            readOnly
-            className="input w-full bg-black/20 border-white/10 text-white/60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-white/80">FTO</label>
-          <input
-            type="text"
-            value={newLog.ftoName}
-            readOnly
-            className="input w-full bg-black/20 border-white/10 text-white/60"
-          />
-        </div>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-white/80">
-          Summary of Training Session
-        </label>
-        <textarea
-          value={newLog.summary}
-          onChange={(e) =>
-            setNewLog((prev) => ({ ...prev, summary: e.target.value }))
-          }
-          className="input w-full bg-black/40 border-white/20 text-white"
-          rows={3}
-          placeholder="Describe activities, performance, and keywords for progress..."
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-white/80">
-          Additional Notes / Areas for Improvement
-        </label>
-        <textarea
-          value={newLog.additionalNotes}
-          onChange={(e) =>
-            setNewLog((prev) => ({
-              ...prev,
-              additionalNotes: e.target.value,
-            }))
-          }
-          className="input w-full bg-black/40 border-white/20 text-white"
-          rows={3}
-          placeholder="Any other comments, feedback, or goals..."
-        />
-      </div>
-      <button onClick={handleAddLog} className="button-primary w-full mt-4">
-        Add Log
-      </button>
-    </div>
-  );
-
-  const renderCadetLogs = () => (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2">
-        View Cadet Logs & Notes
-      </h2>
-      <div className="space-y-2">
-        <p className="text-white/60 text-sm">Select a cadet to view/hide their logs & notes:</p>
-        {cadets.map((cadet) => (
-          <button
-            key={cadet.id}
-            onClick={() =>
-              setSelectedCadetForLogs((prev) =>
-                prev?.id === cadet.id ? null : cadet
-              )
+          <textarea
+            value={newLog.additionalNotes}
+            onChange={(e) =>
+              setNewLog((prev) => ({
+                ...prev,
+                additionalNotes: e.target.value,
+              }))
             }
-            className={`block w-full text-left p-2 rounded transition-colors ${
-              selectedCadetForLogs?.id === cadet.id
-                ? "bg-[#f3c700] text-black font-semibold"
-                : "bg-black/60 hover:bg-white/10 text-white"
-            }`}
-          >
-            {cadet.name} | {cadet.badge || "N/A"}
-          </button>
-        ))}
+            className="input w-full bg-black/40 border-white/20 text-white"
+            rows={3}
+            placeholder="Any other comments, feedback, or goals..."
+          />
+        </div>
+        <button onClick={handleAddLog} className="button-primary w-full mt-4">
+          Add Log
+        </button>
       </div>
-
-      {selectedCadetForLogs && (
-        <div className="mt-6 border-t border-white/20 pt-4 bg-black/60 p-4 rounded-lg space-y-6">
-          <div>
-            <h3 className="text-lg font-bold text-[#f3c700] mb-3">
-              Logs for {selectedCadetForLogs.name}
-            </h3>
-            <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar pr-2">
-              {logs.filter((log) => log.cadetName === selectedCadetForLogs.name).length === 0 ? (
-                <p className="text-white/60 italic">No logs found for this cadet.</p>
-              ) : (
-                logs
-                  .filter((log) => log.cadetName === selectedCadetForLogs.name)
-                  .map((log) => {
-                    if (log.type === "progress_update") {
-                      return (
-                        <div
-                          key={log.id}
-                          className="p-2 bg-black/40 rounded shadow border border-white/10 text-xs flex justify-between items-center"
-                        >
-                          <div>
-                            <p className="text-white/80">
-                              <span className="font-semibold text-[#f3c700]">Progress Update</span>{" "}
-                              by {log.ftoName} on {formatTimestampForUserDisplay(log.createdAt)}
-                            </p>
-                            <p className="text-white/60 italic mt-1">{log.summary}</p>
-                          </div>
-                          {!isCadet && (
-                            <button
-                              onClick={() => requestDeleteLog(log.id)}
-                              className="ml-2 text-red-500 hover:text-red-400 text-xs p-1"
-                              title="Delete Progress Update"
-                            >
-                              <FaTrash />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    }
-                    return (
-                      <div
-                        key={log.id}
-                        className="p-3 bg-black/50 rounded shadow border border-white/20"
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="text-sm text-white">
-                              <span className="font-semibold">Date:</span>{" "}
-                              {formatDateToMMDDYY(log.date)} |{" "}
-                              <span className="font-semibold">Time:</span>{" "}
-                              {formatTimeString12hr(log.timeStarted)} - {formatTimeString12hr(log.timeEnded)}
-                            </p>
-                            <p className="text-sm text-white">
-                              <span className="font-semibold">Session Hours:</span>{" "}
-                              {log.sessionHours.toFixed(1)} |{" "}
-                              <span className="font-semibold">Cumulative Hours:</span>{" "}
-                              {log.cumulativeHours.toFixed(1)}
-                            </p>
-                            <p className="text-sm text-white">
-                              <span className="font-semibold">FTO:</span> {log.ftoName}
-                            </p>
-                          </div>
-                          {!isCadet && (
-                            <div className="flex space-x-2 flex-shrink-0">
-                              <button
-                                onClick={() => handleEditLogClick(log)}
-                                className="text-xs text-yellow-400 hover:text-yellow-300 p-1"
-                                title="Edit Log"
-                              >
-                                <FaPencilAlt />
-                              </button>
-                              <button
-                                onClick={() => requestDeleteLog(log.id)}
-                                className="text-xs text-red-500 hover:text-red-400 p-1"
-                                title="Delete Log"
-                              >
-                                <FaTrash />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-sm text-white mt-2 whitespace-pre-wrap">
-                          <strong className="text-[#f3c700]">Summary:</strong>{" "}
-                          {log.summary || <span className="italic text-white/60">None</span>}
-                        </p>
-                        <p className="text-sm text-white mt-2 whitespace-pre-wrap">
-                          <strong className="text-[#f3c700]">Notes:</strong>{" "}
-                          {log.additionalNotes || <span className="italic text-white/60">None</span>}
-                        </p>
-                        <p className="text-xs text-white/60 mt-1">
-                          Logged: {formatTimestampForUserDisplay(log.createdAt)}
-                        </p>
-                      </div>
-                    );
-                  })
-              )}
-            </div>
-          </div>
-
-          {!isCadet && (
-            <div className="border-t border-white/10 pt-4">
-              <h3 className="text-lg font-bold text-[#f3c700] mb-3">
-                Notes for {selectedCadetForLogs.name}
-              </h3>
-              <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                {loadingSelectedCadetNotes ? (
-                  <p className="text-yellow-400 italic">Loading notes...</p>
-                ) : notesForSelectedCadet.length > 0 ? (
-                  notesForSelectedCadet.map((note) => (
-                    <div
-                      key={note.id}
-                      className="p-3 bg-gray-800 rounded border border-gray-600 text-sm flex justify-between items-start"
-                    >
-                      <div>
-                        <p className="text-gray-200">{note.note}</p>
-                        <p className="text-xs text-yellow-500 mt-1">
-                          - {note.ftoName} ({note.ftoRank}) on {formatTimestampForUserDisplay(note.createdAt)}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => requestDeleteNote(note.id)}
-                        className="ml-2 text-red-500 hover:text-red-400 text-xs p-1 flex-shrink-0"
-                        title="Delete Note"
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-gray-400 italic">
-                    No FTO notes found for this cadet.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {!isCadet && (
-            <div className="mt-4 p-4 bg-black/60 rounded-lg border border-white/20">
-              <h3 className="text-lg font-semibold text-[#f3c700] mb-3">
-                Add Note for {selectedCadetForLogs.name}
-              </h3>
-              <textarea
-                value={newNoteForSelectedCadet}
-                onChange={(e) => setNewNoteForSelectedCadet(e.target.value)}
-                className="input w-full bg-black/40 border-white/20 text-white mb-2"
-                rows={3}
-                placeholder={`Enter note for ${selectedCadetForLogs.name}... (Visible to cadet)`}
-              />
-              <button
-                onClick={handleAddNoteForSelectedCadet}
-                className="button-primary"
-              >
-                Add Note
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {isEditLogModalOpen && editingLog && (
-        <Modal isOpen={isEditLogModalOpen} onClose={() => { setIsEditLogModalOpen(false); setEditingLog(null); }}>
-          <div className="p-6 bg-black/80 border border-white/20 rounded-lg text-white max-w-4xl w-full mx-auto shadow-lg">
-            <h2 className="text-xl font-semibold text-[#f3c700] mb-5 border-b border-white/10 pb-2">Edit Training Log</h2>
-            <div className="space-y-4 text-sm">
-              <div>
-                <label className="block text-xs font-medium text-white/80">Cadet</label>
-                <input type="text" value={editingLog.cadetName} readOnly className="input w-full bg-black/20 border-white/10 text-white/60" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/80">Date</label>
-                <input
-                  type="date"
-                  value={editingLog.date}
-                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, date: e.target.value } : null)}
-                  className="input w-full bg-black/40 border-white/20 text-white" style={{ colorScheme: 'dark' }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/80">Time Started</label>
-                <input
-                  type="time"
-                  value={editingLog.timeStarted}
-                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, timeStarted: e.target.value } : null)}
-                  className="input w-full bg-black/40 border-white/20 text-white" style={{ colorScheme: 'dark' }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/80">Time Ended</label>
-                <input
-                  type="time"
-                  value={editingLog.timeEnded}
-                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, timeEnded: e.target.value } : null)}
-                  className="input w-full bg-black/40 border-white/20 text-white" style={{ colorScheme: 'dark' }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/80">Summary</label>
-                <textarea
-                  value={editingLog.summary}
-                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, summary: e.target.value } : null)}
-                  className="input w-full bg-black/40 border-white/20 text-white" rows={3}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/80">Additional Notes</label>
-                <textarea
-                  value={editingLog.additionalNotes}
-                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, additionalNotes: e.target.value } : null)}
-                  className="input w-full bg-black/40 border-white/20 text-white" rows={3}
-                />
-              </div>
-            </div> {/* This closes the inner div for textareas */}
-            <div className="mt-6 flex justify-end space-x-3 border-t border-white/10 pt-4">
-              <button
-                onClick={() => { setIsEditLogModalOpen(false); setEditingLog(null); }}
-                className="button-secondary"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateLog}
-                className="button-primary"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div> {/* This closes the main div inside Modal */}
-        </Modal>
-      )}
-
-      <ConfirmationModal
-        isOpen={isConfirmModalOpen}
-        onClose={() => setIsConfirmModalOpen(false)}
-        onConfirm={handleConfirmDelete}
-        title={`Confirm Deletion`}
-        message={`Are you sure you want to delete this ${itemToDelete?.type}? This action cannot be undone.`}
-      />
-    </div>
-  );
-
-  const renderCadetOwnProgress = (cadet: RosterUser | undefined) => {
-    if (!cadet) {
-      return <p className="text-white/60 italic">Could not find your cadet data.</p>;
-    }
-    const currentProgress = getCurrentProgressState(cadet.name);
-
-    return (
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2">
-          My Progress Checklist
-        </h2>
-        <div
-          key={cadet.id}
-          className="p-4 bg-black/60 rounded-lg shadow border border-white/20 max-w-md"
-        >
-          <h3 className="text-lg font-bold text-[#f3c700] mb-3">
-            {cadet.name} | {cadet.badge || "N/A"}
-          </h3>
-          <div className="space-y-2">
-            {Object.entries(progressItems).map(([key, label]) => {
-              const itemKey = key as ProgressItemKey;
-              const isChecked = currentProgress[itemKey];
-              return (
-                <div key={key} className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id={`${cadet.id}-${itemKey}`}
-                    checked={isChecked}
-                    disabled
-                    className="form-checkbox h-4 w-4 text-[#f3c700] bg-black/40 border-white/30 rounded focus:ring-[#f3c700] focus:ring-offset-black disabled:opacity-50"
-                  />
-                  <label
-                    htmlFor={`${cadet.id}-${itemKey}`}
-                    className={`text-sm ${
-                      isChecked ? "text-[#f3c700] line-through" : "text-white/80"
-                    } ${isChecked ? 'opacity-70' : ''}`}
-                  >
-                    {label}
-                  </label>
-                </div>
-              );
-            })}
-            <p className="text-xs text-white/50 italic mt-3">
-              Progress is updated by FTOs during training sessions or manually via the checklist.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderCadetProgress = () => (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2">
-        Cadet Progress Checklist (Manual Update)
-      </h2>
-      {cadets.length === 0 ? (
-        <p className="text-white/60 italic">No cadets found.</p>
-      ) : (
-        cadets.map((cadet) => {
-          const currentProgress = getCurrentProgressState(cadet.name);
-          return (
-            <div
-              key={cadet.id}
-              className="p-4 bg-black/60 rounded-lg shadow border border-white/20"
-            >
-              <h3 className="text-lg font-bold text-[#f3c700] mb-3">
-                {cadet.name} | {cadet.badge || "N/A"}
-              </h3>
-              <div className="space-y-2">
-                {Object.entries(progressItems).map(([key, label]) => {
-                  const itemKey = key as ProgressItemKey;
-                  const isChecked = currentProgress[itemKey];
-                  return (
-                    <div key={key} className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id={`${cadet.id}-${itemKey}`}
-                        checked={isChecked}
-                        onChange={(e) =>
-                          handleProgressChange(cadet.name, itemKey, e.target.checked)
-                        }
-                        className="form-checkbox h-4 w-4 text-[#f3c700] bg-black/40 border-white/30 rounded focus:ring-[#f3c700] focus:ring-offset-black"
-                      />
-                      <label
-                        htmlFor={`${cadet.id}-${itemKey}`}
-                        className={`text-sm ${
-                          isChecked ? "text-[#f3c700] line-through" : "text-white/80"
-                        }`}
-                      >
-                        {label}
-                      </label>
-                    </div>
-                  );
-                })}
-                <p className="text-xs text-white/50 italic mt-3">
-                  Changes are saved automatically when checkboxes are clicked.
-                </p>
-              </div>
-            </div>
-          );
-        })
-      )}
-    </div>
-  );
-
-  const renderFtoDetails = (fto: RosterUser) => {
-    const ftoLogs = getLogsForFTO(fto.name);
-    const ftoNotesWritten = getNotesByFTO(fto.id);
-    // Calculate total hours robustly, ensuring sessionHours is a number
-    const totalHours = ftoLogs.reduce((sum, log) => sum + (Number(log.sessionHours) || 0), 0);
-    const hoursLast30 = getFTOHoursLast30Days(fto.name); // Already returns a number rounded to 1 decimal
-    const certification = fto.certifications?.FTO || "N/A";
-
-    return (
-      <div className="space-y-6 p-4 bg-black/50 rounded-lg border border-white/20">
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="text-xl font-bold text-[#f3c700]">
-              {fto.name} | {fto.badge || "N/A"}
-            </h3>
-            <p className="text-sm text-white/80">Rank: {fto.rank}</p>
-            <p className="text-sm text-white/80">FTO Certification: {certification}</p>
-          </div>
-          <button
-            onClick={() => setSelectedFtoForDetails(null)}
-            className="button-secondary text-sm"
-          >
-            &times; Close
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="bg-black/40 p-3 rounded border border-white/10">
-            <p className="font-semibold text-[#f3c700]">Total Sessions</p>
-            <p className="text-lg font-bold">{ftoLogs.length}</p>
-          </div>
-          <div className="bg-black/40 p-3 rounded border border-white/10">
-            <p className="font-semibold text-[#f3c700]">Total Hours Logged</p>
-            {/* Display totalHours rounded to 1 decimal place */}
-            <p className="text-lg font-bold">{totalHours.toFixed(1)}</p>
-          </div>
-          <div className="bg-black/40 p-3 rounded border border-white/10">
-            <p className="font-semibold text-[#f3c700]">Hours (Last 30d)</p>
-            {/* Display hoursLast30 (already rounded) */}
-            <p className="text-lg font-bold">{hoursLast30.toFixed(1)}</p>
-          </div>
-        </div>
-
-        <div>
-          <h4 className="text-lg font-semibold text-[#f3c700] mb-2 border-b border-white/10 pb-1">Training Sessions Logged</h4>
-          <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-            {ftoLogs.length > 0 ? (
-              ftoLogs.map(log => (
-                <div key={log.id} className="p-2 bg-black/30 rounded border border-white/10 text-xs">
-                  <p><span className="font-semibold">Cadet:</span> {log.cadetName}</p>
-                  {/* Ensure sessionHours is displayed correctly */}
-                  <p><span className="font-semibold">Date:</span> {formatDateToMMDDYY(log.date)} | <span className="font-semibold">Hours:</span> {(Number(log.sessionHours) || 0).toFixed(1)}</p>
-                  <p className="mt-1 italic truncate" title={log.summary}>Summary: {log.summary || "N/A"}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-white/60 italic text-sm">No training sessions logged by this FTO.</p>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <h4 className="text-lg font-semibold text-[#f3c700] mb-2 border-b border-white/10 pb-1">Notes Written to Cadets</h4>
-          <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-            {ftoNotesWritten.length > 0 ? (
-              ftoNotesWritten.map(note => (
-                <div key={note.id} className="p-2 bg-black/30 rounded border border-white/10 text-xs">
-                  <p><span className="font-semibold">To Cadet:</span> {note.cadetName}</p>
-                  <p><span className="font-semibold">Date:</span> {formatTimestampForUserDisplay(note.createdAt)}</p>
-                  <p className="mt-1 italic truncate" title={note.note}>Note: {note.note}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-white/60 italic text-sm">No notes written to cadets by this FTO.</p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderFTOPersonnel = () => (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2">
-        FTO Personnel Activity
-      </h2>
-
-      {selectedFtoForDetails && !isCadet ? (
-        renderFtoDetails(selectedFtoForDetails)
-      ) : (
-        <>
-          {ftoPersonnel.length === 0 ? (
-            <p className="text-white/60 italic">No FTO personnel found.</p>
-          ) : (
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="min-w-full text-sm text-left">
-                <thead className="text-xs text-[#f3c700] uppercase bg-black/60">
-                  <tr>
-                    <th className="px-4 py-2">Name</th>
-                    <th className="px-4 py-2">Badge</th>
-                    <th className="px-4 py-2">Certification</th>
-                    {!isCadet && <th className="px-4 py-2">Hours (Last 30d)</th>}
-                    {!isCadet && <th className="px-4 py-2">Last Session Date</th>}
-                    {!isCadet && <th className="px-4 py-2">Last Cadet Trained</th>}
-                  </tr>
-                </thead>
-                <tbody className="text-white/80">
-                  {ftoPersonnel.map((fto) => {
-                    const hoursLast30 = getFTOHoursLast30Days(fto.name);
-                    const lastLog = getFTOLastLog(fto.name);
-                    const certification = fto.certifications?.FTO || "N/A";
-                    const isClickable = !isCadet;
-                    return (
-                      <tr
-                        key={fto.id}
-                        className={`border-b border-white/20 ${
-                          isClickable ? 'hover:bg-white/10 cursor-pointer' : ''
-                        }`}
-                        onClick={isClickable ? () => setSelectedFtoForDetails(fto) : undefined}
-                      >
-                        <td className={`px-4 py-2 font-medium text-white ${isClickable ? 'hover:text-[#f3c700]' : ''}`}>
-                          {fto.name}
-                        </td>
-                        <td className="px-4 py-2">{fto.badge || "N/A"}</td>
-                        <td className="px-4 py-2">{certification}</td>
-                        {!isCadet && <td className="px-4 py-2">{hoursLast30.toFixed(1)}</td>}
-                        {!isCadet && (
-                          <td className="px-4 py-2">
-                            {formatDateToMMDDYY(lastLog?.date) || (
-                              <span className="italic text-white/50">None</span>
-                            )}
-                          </td>
-                        )}
-                        {!isCadet && (
-                          <td className="px-4 py-2">
-                            {lastLog?.cadetName || (
-                              <span className="italic text-white/50">None</span>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 
@@ -1698,22 +1380,326 @@ const FTOPage: React.FC = () => {
     </div>
   );
 
-  const ftoTabs: { key: FtoTabKey; label: string }[] = [
-    { key: "home", label: "Home" },
-    { key: "announcements", label: "Announcements" },
-    { key: "add", label: "Add Log" },
-    { key: "logs", label: "Cadet Logs" },
-    { key: "progress", label: "Cadet Progress" },
-    { key: "personnel", label: "Personnel" },
-  ];
+  const renderCadetLogs = () => (
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2">
+        View Cadet Logs & Notes
+      </h2>
+      <div className="space-y-2">
+        <p className="text-white/60 text-sm">Select a cadet to view/hide their logs & notes:</p>
+        {cadets.map((cadet) => (
+          <button
+            key={cadet.id}
+            onClick={() =>
+              setSelectedCadetForLogs((prev) =>
+                prev?.id === cadet.id ? null : cadet
+              )
+            }
+            className={`block w-full text-left p-2 rounded transition-colors ${
+              selectedCadetForLogs?.id === cadet.id
+                ? "bg-[#f3c700] text-black font-semibold"
+                : "bg-black/60 hover:bg-white/10 text-white"
+            }`}
+          >
+            {cadet.name} | {cadet.badge || "N/A"}
+          </button>
+        ))}
+      </div>
 
-  const cadetTabs: { key: CadetTabKey; label: string }[] = [
-    { key: "home", label: "My Overview" },
-    { key: "progress", label: "My Progress" },
-    { key: "personnel", label: "FTO Personnel" },
-  ];
+      {selectedCadetForLogs && (
+        <div className="mt-6 border-t border-white/20 pt-4 bg-black/60 p-4 rounded-lg space-y-6">
+          <div>
+            <h3 className="text-lg font-bold text-[#f3c700] mb-3">
+              Logs for {selectedCadetForLogs.name}
+            </h3>
+            <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+              {logs.filter((log) => log.cadetName === selectedCadetForLogs.name).length === 0 ? (
+                <p className="text-white/60 italic">No logs found for this cadet.</p>
+              ) : (
+                logs
+                  .filter((log) => log.cadetName === selectedCadetForLogs.name)
+                  .map((log) => {
+                    if (log.type === "progress_update") {
+                      return (
+                        <div
+                          key={log.id}
+                          className="p-2 bg-black/40 rounded shadow border border-white/10 text-xs flex justify-between items-center"
+                        >
+                          <div>
+                            <p className="text-white/80">
+                              <span className="font-semibold text-[#f3c700]">Progress Update</span>{" "}
+                              by {log.ftoName} on {formatTimestampForUserDisplay(log.createdAt)}
+                            </p>
+                            <p className="text-white/60 italic mt-1">{log.summary}</p>
+                          </div>
+                          {!isCadet && (
+                            <button
+                              onClick={() => requestDeleteLog(log.id)}
+                              className="ml-2 text-red-500 hover:text-red-400 text-xs p-1"
+                              title="Delete Progress Update"
+                            >
+                              <FaTrash />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div
+                        key={log.id}
+                        className="p-3 bg-black/50 rounded shadow border border-white/20"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="text-sm text-white">
+                              <span className="font-semibold">Date:</span>{" "}
+                              {formatDateToMMDDYY(log.date)} |{" "}
+                              <span className="font-semibold">Time:</span>{" "}
+                              {formatTimeString12hr(log.timeStarted)} - {formatTimeString12hr(log.timeEnded)}
+                            </p>
+                            <p className="text-sm text-white">
+                              <span className="font-semibold">Session Hours:</span>{" "}
+                              {log.sessionHours.toFixed(1)} |{" "}
+                              <span className="font-semibold">Cumulative Hours:</span>{" "}
+                              {log.cumulativeHours.toFixed(1)}
+                            </p>
+                            <p className="text-sm text-white">
+                              <span className="font-semibold">FTO:</span> {log.ftoName}
+                            </p>
+                          </div>
+                          {!isCadet && (
+                            <div className="flex space-x-2 flex-shrink-0">
+                              <button
+                                onClick={() => handleEditLogClick(log)}
+                                className="text-xs text-yellow-400 hover:text-yellow-300 p-1"
+                                title="Edit Log"
+                              >
+                                <FaPencilAlt />
+                              </button>
+                              <button
+                                onClick={() => requestDeleteLog(log.id)}
+                                className="text-xs text-red-500 hover:text-red-400 p-1"
+                                title="Delete Log"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-sm text-white mt-2 whitespace-pre-wrap">
+                          <strong className="text-[#f3c700]">Summary:</strong>{" "}
+                          {log.summary || <span className="italic text-white/60">None</span>}
+                        </p>
+                        <p className="text-sm text-white mt-2 whitespace-pre-wrap">
+                          <strong className="text-[#f3c700]">Notes:</strong>{" "}
+                          {log.additionalNotes || <span className="italic text-white/60">None</span>}
+                        </p>
+                        <p className="text-xs text-white/60 mt-1">
+                          Logged: {formatTimestampForUserDisplay(log.createdAt)}
+                        </p>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          </div>
 
-  const tabsToRender = isCadet ? cadetTabs : ftoTabs;
+          {!isCadet && (
+            <div className="border-t border-white/10 pt-4">
+              <h3 className="text-lg font-bold text-[#f3c700] mb-3">
+                Notes for {selectedCadetForLogs.name}
+              </h3>
+              <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                {loadingSelectedCadetNotes ? (
+                  <p className="text-yellow-400 italic">Loading notes...</p>
+                ) : notesForSelectedCadet.length > 0 ? (
+                  notesForSelectedCadet.map((note) => (
+                    <div
+                      key={note.id}
+                      className="p-3 bg-black/50 rounded border border-white/10 text-sm flex justify-between items-start"
+                    >
+                      <div>
+                        <p className="text-white/80">{note.note}</p>
+                        <p className="text-xs text-[#f3c700] mt-1">
+                          - {note.ftoName} ({note.ftoRank}) on {formatTimestampForUserDisplay(note.createdAt)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => requestDeleteNote(note.id)}
+                        className="ml-2 text-red-500 hover:text-red-400 text-xs p-1 flex-shrink-0"
+                        title="Delete Note"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-white/50 italic">
+                    No FTO notes found for this cadet.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!isCadet && (
+            <div className="mt-4 p-4 bg-black/60 rounded-lg border border-white/20">
+              <h3 className="text-lg font-semibold text-[#f3c700] mb-3">
+                Add Note for {selectedCadetForLogs.name}
+              </h3>
+              <textarea
+                value={newNoteForSelectedCadet}
+                onChange={(e) => setNewNoteForSelectedCadet(e.target.value)}
+                className="input w-full bg-black/40 border-white/20 text-white mb-2"
+                rows={3}
+                placeholder={`Enter note for ${selectedCadetForLogs.name}... (Visible to cadet)`}
+              />
+              <button
+                onClick={handleAddNoteForSelectedCadet}
+                className="button-primary"
+              >
+                Add Note
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isEditLogModalOpen && editingLog && (
+        <Modal isOpen={isEditLogModalOpen} onClose={() => { setIsEditLogModalOpen(false); setEditingLog(null); }}>
+          <div className="p-6 bg-black/80 border border-white/20 rounded-lg text-white max-w-4xl w-full mx-auto shadow-lg">
+            <h2 className="text-xl font-semibold text-[#f3c700] mb-5 border-b border-white/10 pb-2">Edit Training Log</h2>
+            <div className="space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-medium text-white/80">Cadet</label>
+                <input type="text" value={editingLog.cadetName} readOnly className="input w-full bg-black/20 border-white/10 text-white/60" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Date</label>
+                <input
+                  type="date"
+                  value={editingLog.date}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, date: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" style={{ colorScheme: 'dark' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Time Started</label>
+                <input
+                  type="time"
+                  value={editingLog.timeStarted}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, timeStarted: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" style={{ colorScheme: 'dark' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Time Ended</label>
+                <input
+                  type="time"
+                  value={editingLog.timeEnded}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, timeEnded: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" style={{ colorScheme: 'dark' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Summary</label>
+                <textarea
+                  value={editingLog.summary}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, summary: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Additional Notes</label>
+                <textarea
+                  value={editingLog.additionalNotes}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, additionalNotes: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" rows={3}
+                />
+              </div>
+            </div> {/* This closes the inner div for textareas */}
+            <div className="mt-6 flex justify-end space-x-3 border-t border-white/10 pt-4">
+              <button
+                onClick={() => { setIsEditLogModalOpen(false); setEditingLog(null); }}
+                className="button-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateLog}
+                className="button-primary"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div> {/* This closes the main div inside Modal */}
+        </Modal>
+      )}
+
+      <ConfirmationModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => setIsConfirmModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title={`Confirm Deletion`}
+        message={`Are you sure you want to delete this ${itemToDelete?.type}? This action cannot be undone.`}
+      />
+    </div>
+  );
+
+  const renderCadetProgress = () => (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2">
+        Cadet Progress Checklist (Manual Update)
+      </h2>
+      {cadets.length === 0 ? (
+        <p className="text-white/60 italic">No cadets found.</p>
+      ) : (
+        cadets.map((cadet) => {
+          const currentProgress = getCurrentProgressState(cadet.name);
+          return (
+            <div
+              key={cadet.id}
+              className="p-4 bg-black/60 rounded-lg shadow border border-white/20"
+            >
+              <h3 className="text-lg font-bold text-[#f3c700] mb-3">
+                {cadet.name} | {cadet.badge || "N/A"}
+              </h3>
+              <div className="space-y-2">
+                {Object.entries(progressItems).map(([key, label]) => {
+                  const itemKey = key as ProgressItemKey;
+                  const isChecked = currentProgress[itemKey];
+                  return (
+                    <div key={key} className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id={`${cadet.id}-${itemKey}`}
+                        checked={isChecked}
+                        onChange={(e) =>
+                          handleProgressChange(cadet.name, itemKey, e.target.checked)
+                        }
+                        className="form-checkbox h-4 w-4 text-[#f3c700] bg-black/40 border-white/30 rounded focus:ring-[#f3c700] focus:ring-offset-black"
+                      />
+                      <label
+                        htmlFor={`${cadet.id}-${itemKey}`}
+                        className={`text-sm ${
+                          isChecked ? "text-[#f3c700] line-through" : "text-white/80"
+                        }`}
+                      >
+                        {label}
+                      </label>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-white/50 italic mt-3">
+                  Changes are saved automatically when checkboxes are clicked.
+                </p>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
 
   if (authLoading || loading) {
     return (
@@ -1736,23 +1722,27 @@ const FTOPage: React.FC = () => {
   return (
     <Layout>
       <div className="p-6 space-y-6 text-white">
-        <h1 className="text-3xl font-bold text-[#f3c700]">FTO Management</h1>
+        <h1 className="text-3xl font-bold text-[#f3c700]">
+          {isCadet ? "Cadet Overview" : "FTO Management"}
+        </h1>
 
-        <div className="flex space-x-1 border-b border-white/20 mb-6">
-          {tabsToRender.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2 text-sm font-medium rounded-t-md focus:outline-none transition-colors ${
-                activeTab === tab.key
-                  ? "bg-[#f3c700] text-black font-semibold"
-                  : "bg-black/80 text-[#f3c700] hover:bg-black/60 hover:text-[#f3c700]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {!isCadet && (
+          <div className="flex space-x-1 border-b border-white/20 mb-6">
+            {["home", "announcements", "add", "logs", "progress", "personnel"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as FtoTabKey)}
+                className={`px-4 py-2 text-sm font-medium rounded-t-md focus:outline-none transition-colors ${
+                  activeTab === tab
+                    ? "bg-[#f3c700] text-black font-semibold"
+                    : "bg-black/80 text-[#f3c700] hover:bg-black/60 hover:text-[#f3c700]"
+                }`}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="bg-black/70 p-4 md:p-6 rounded-lg shadow-lg border border-white/10">
           {loading && (
@@ -1763,11 +1753,20 @@ const FTOPage: React.FC = () => {
           {!loading && !error && (
             <>
               {isCadet ? (
-                <>
-                  {activeTab === "home" && renderCadetOwnOverview(allUsers.find(u => u.id === authUser?.id))}
-                  {activeTab === "progress" && renderCadetOwnProgress(allUsers.find(u => u.id === authUser?.id))}
-                  {activeTab === "personnel" && renderFTOPersonnel()}
-                </>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 auto-rows-max">
+                  <div className="bg-black/60 p-4 rounded-lg shadow border border-white/20">
+                    {renderCadetOwnOverviewCard(allUsers.find(u => u.id === authUser?.id))}
+                  </div>
+                  <div>
+                    {renderCadetOwnProgress(allUsers.find(u => u.id === authUser?.id))}
+                  </div>
+                  <div>
+                    {renderFTOPersonnel()}
+                  </div>
+                  <div className="col-span-full">
+                    {renderCadetOwnNotes()}
+                  </div>
+                </div>
               ) : (
                 <>
                   {activeTab === "home" && renderFTOHome()}
