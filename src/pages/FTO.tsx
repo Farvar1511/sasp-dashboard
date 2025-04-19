@@ -112,21 +112,24 @@ const FTOPage: React.FC = () => {
   const cadets = useMemo(() => allUsers.filter((u) => u.rank === "Cadet"), [allUsers]);
   const ftoPersonnel = useMemo(() => {
     const ftoUsers = allUsers.filter((u) => {
-      const ftoCert = u.certifications?.FTO;
-      return ftoCert === "CERT" || ftoCert === "LEAD" || ftoCert === "SUPER";
+      const ftoCert = u.certifications?.FTO?.toUpperCase(); // Ensure case-insensitive check
+      // Include 'TRAIN' in the filter condition
+      return ["CERT", "LEAD", "SUPER", "TRAIN"].includes(ftoCert || "");
     });
 
-    const certOrder: { [key: string]: number } = { LEAD: 1, SUPER: 2, CERT: 3 };
+    // Adjust sort order to include TRAIN (e.g., LEAD: 1, SUPER: 2, CERT: 3, TRAIN: 4)
+    const certOrder: { [key: string]: number } = { LEAD: 1, SUPER: 2, CERT: 3, TRAIN: 4 };
 
     ftoUsers.sort((a, b) => {
-      const certA = a.certifications?.FTO || "";
-      const certB = b.certifications?.FTO || "";
-      const orderA = certOrder[certA] || 99;
+      const certA = a.certifications?.FTO?.toUpperCase() || "";
+      const certB = b.certifications?.FTO?.toUpperCase() || "";
+      const orderA = certOrder[certA] || 99; // Default to 99 if cert is missing or not in map
       const orderB = certOrder[certB] || 99;
 
       if (orderA !== orderB) {
         return orderA - orderB;
       }
+      // If cert order is the same, sort by name
       return a.name.localeCompare(b.name);
     });
 
