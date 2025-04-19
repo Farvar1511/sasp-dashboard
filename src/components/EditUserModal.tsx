@@ -576,10 +576,16 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
+    <div
+      className="fixed inset-0 flex justify-center items-center z-50 p-4"
+      onClick={onClose}
+    >
       {/* Confirmation Modal */}
       {confirmationModal?.show && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[60]"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="bg-gray-800 text-white p-6 rounded shadow-lg space-y-4">
             <p className="text-lg">{confirmationModal.message}</p>
             <div className="flex justify-end space-x-4">
@@ -600,7 +606,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         </div>
       )}
 
-      <div className="bg-black p-6 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto custom-scrollbar border border-yellow-600">
+      <div
+        className="bg-black p-6 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto custom-scrollbar border border-yellow-600"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-2xl font-bold text-yellow-400 mb-6">
           Manage User: {formData.name} ({formData.badge})
         </h2>

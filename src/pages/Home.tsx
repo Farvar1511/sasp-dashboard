@@ -600,7 +600,7 @@ const MyDashboard: React.FC = () => {
 
         {/* Modal for Full Bulletin */}
         {selectedBulletin && (
-          <Modal onClose={() => setSelectedBulletin(null)}>
+          <Modal isOpen={!!selectedBulletin} onClose={() => setSelectedBulletin(null)}>
             <div className="p-6 bg-black bg-opacity-90 rounded-lg shadow-lg max-w-7xl w-full max-h-[80vh] overflow-y-auto mx-auto">
               {selectedBulletin ? (
                 <Bulletins

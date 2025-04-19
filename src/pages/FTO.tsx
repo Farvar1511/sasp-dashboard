@@ -8,6 +8,9 @@ import {
   Timestamp,
   limit,
   where,
+  doc,
+  updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { useAuth } from "../context/AuthContext";
@@ -16,6 +19,10 @@ import { toast } from "react-toastify";
 import { RosterUser, FTOAnnouncement, FTOCadetNote } from "../types/User";
 import TipTapEditor from "../components/TipTapEditor";
 import { computeIsAdmin } from "../utils/isadmin";
+import Modal from "../components/Modal";
+import ConfirmationModal from "../components/ConfirmationModal";
+import { formatDateToMMDDYY, formatTimestampForUserDisplay, formatTimeString12hr } from "../utils/timeHelpers";
+import { FaPencilAlt, FaTrash } from "react-icons/fa";
 
 interface CadetLog {
   id?: string;
@@ -87,6 +94,12 @@ const FTOPage: React.FC = () => {
   const [isAddingAnnouncement, setIsAddingAnnouncement] = useState(false);
   const [newAnnouncementTitle, setNewAnnouncementTitle] = useState("");
   const [newAnnouncementContent, setNewAnnouncementContent] = useState("");
+  const [editingLog, setEditingLog] = useState<CadetLog | null>(null);
+  const [isEditLogModalOpen, setIsEditLogModalOpen] = useState(false);
+  const [notesForSelectedCadet, setNotesForSelectedCadet] = useState<FTOCadetNote[]>([]);
+  const [loadingSelectedCadetNotes, setLoadingSelectedCadetNotes] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'log' | 'note' } | null>(null);
 
   const cadets = useMemo(() => allUsers.filter((u) => u.rank === "Cadet"), [allUsers]);
   const ftoPersonnel = useMemo(() => {
@@ -245,6 +258,39 @@ const FTOPage: React.FC = () => {
     }
   }, [isCadet, user?.id]);
 
+  useEffect(() => {
+    if (selectedCadetForLogs?.id && !isCadet) {
+      const fetchNotes = async () => {
+        setLoadingSelectedCadetNotes(true);
+        try {
+          const notesQuery = query(
+            collection(dbFirestore, "ftoCadetNotes"),
+            where("cadetId", "==", selectedCadetForLogs.id),
+            orderBy("createdAt", "desc")
+          );
+          const notesSnapshot = await getDocs(notesQuery);
+          setNotesForSelectedCadet(
+            notesSnapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt instanceof Timestamp
+                ? doc.data().createdAt
+                : Timestamp.now()
+            })) as FTOCadetNote[]
+          );
+        } catch (err) {
+          console.error("Error fetching notes for selected cadet:", err);
+          toast.error("Failed to load notes for the selected cadet.");
+        } finally {
+          setLoadingSelectedCadetNotes(false);
+        }
+      };
+      fetchNotes();
+    } else {
+      setNotesForSelectedCadet([]);
+    }
+  }, [selectedCadetForLogs, isCadet]);
+
   const handleAddLog = async () => {
     if (
       !newLog.cadetName ||
@@ -335,6 +381,97 @@ const FTOPage: React.FC = () => {
     } catch (err) {
       console.error("Error adding FTO cadet note:", err);
       toast.error("Failed to add note.");
+    }
+  };
+
+  const handleEditLogClick = (log: CadetLog) => {
+    const logToEdit = {
+      ...log,
+      createdAt: log.createdAt instanceof Timestamp ? log.createdAt : Timestamp.now(),
+    };
+    setEditingLog(logToEdit);
+    setIsEditLogModalOpen(true);
+  };
+
+  const handleUpdateLog = async () => {
+    if (!editingLog || !editingLog.id) {
+      toast.error("No log selected for editing.");
+      return;
+    }
+
+    let sessionHours = editingLog.sessionHours;
+    if (editingLog.date && editingLog.timeStarted && editingLog.timeEnded) {
+      try {
+        const startDateTime = new Date(`${editingLog.date}T${editingLog.timeStarted}`);
+        const endDateTime = new Date(`${editingLog.date}T${editingLog.timeEnded}`);
+        if (endDateTime > startDateTime) {
+          const diffMilliseconds = endDateTime.getTime() - startDateTime.getTime();
+          sessionHours = diffMilliseconds / (1000 * 60 * 60);
+        } else {
+          sessionHours = 0;
+        }
+      } catch (e) {
+        console.error("Error recalculating time difference during update:", e);
+        sessionHours = 0;
+      }
+    }
+
+    const logRef = doc(dbFirestore, "cadetLogs", editingLog.id);
+    try {
+      const { id, createdAt, ...updateData } = editingLog;
+      await updateDoc(logRef, {
+        ...updateData,
+        sessionHours: sessionHours,
+      });
+
+      setLogs((prevLogs) => prevLogs.map((log) => log.id === editingLog.id ? { ...editingLog, sessionHours: sessionHours } : log));
+
+      toast.success("Log updated successfully!");
+      setIsEditLogModalOpen(false);
+      setEditingLog(null);
+    } catch (error) {
+      console.error("Error updating log:", error);
+      toast.error("Failed to update log.");
+    }
+  };
+
+  const requestDeleteLog = (logId: string | undefined) => {
+    if (!logId) {
+      toast.error("Invalid log ID.");
+      return;
+    }
+    setItemToDelete({ id: logId, type: 'log' });
+    setIsConfirmModalOpen(true);
+  };
+
+  const requestDeleteNote = (noteId: string) => {
+    setItemToDelete({ id: noteId, type: 'note' });
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+
+    const { id, type } = itemToDelete;
+    const collectionName = type === 'log' ? 'cadetLogs' : 'ftoCadetNotes';
+    const ref = doc(dbFirestore, collectionName, id);
+
+    try {
+      await deleteDoc(ref);
+      if (type === 'log') {
+        setLogs((prevLogs) => prevLogs.filter((log) => log.id !== id));
+        toast.success("Log deleted successfully!");
+      } else {
+        setNotesForSelectedCadet((prevNotes) => prevNotes.filter((note) => note.id !== id));
+        setAllFtoCadetNotes((prevNotes) => prevNotes.filter((note) => note.id !== id));
+        toast.success("Note deleted successfully!");
+      }
+    } catch (error) {
+      console.error(`Error deleting ${type}:`, error);
+      toast.error(`Failed to delete ${type}.`);
+    } finally {
+      setIsConfirmModalOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -502,7 +639,7 @@ const FTOPage: React.FC = () => {
             <div className="text-xs text-white/60 border-t border-white/20 pt-2 mt-2">
               <p>
                 <span className="font-semibold">Last Session:</span>{" "}
-                {lastLog.date}
+                {formatDateToMMDDYY(lastLog.date)}
               </p>
               <p>
                 <span className="font-semibold">Hours:</span>{" "}
@@ -534,7 +671,7 @@ const FTOPage: React.FC = () => {
                   <p className="text-gray-200">{note.note}</p>
                   <p className="text-xs text-yellow-500 mt-1">
                     - {note.ftoName} ({note.ftoRank}) on{" "}
-                    {(note.createdAt ?? Timestamp.now()).toDate().toLocaleDateString()}
+                    {formatTimestampForUserDisplay(note.createdAt)}
                   </p>
                 </div>
               ))
@@ -597,7 +734,7 @@ const FTOPage: React.FC = () => {
                 </div>
                 {lastLog ? (
                   <div className="text-xs text-white/60 border-t border-white/20 pt-2 mt-2">
-                    <p><span className="font-semibold">Last Session:</span> {lastLog.date} ({lastLog.sessionHours.toFixed(1)} hrs)</p>
+                    <p><span className="font-semibold">Last Session:</span> {formatDateToMMDDYY(lastLog.date)} ({lastLog.sessionHours.toFixed(1)} hrs)</p>
                     <p><span className="font-semibold">FTO:</span> {lastLog.ftoName}</p>
                   </div>
                 ) : (
@@ -611,7 +748,7 @@ const FTOPage: React.FC = () => {
                     <>
                       <p className="italic truncate" title={latestNote.note}>"{latestNote.note}"</p>
                       <p className="text-white/50">
-                        - {latestNote.ftoName} on {latestNote.createdAt.toDate().toLocaleDateString()}
+                        - {latestNote.ftoName} on {formatTimestampForUserDisplay(latestNote.createdAt)}
                       </p>
                     </>
                   ) : (
@@ -750,10 +887,10 @@ const FTOPage: React.FC = () => {
   const renderCadetLogs = () => (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold text-[#f3c700] border-b border-white/20 pb-2">
-        View Cadet Logs
+        View Cadet Logs & Notes
       </h2>
       <div className="space-y-2">
-        <p className="text-white/60 text-sm">Select a cadet to view/hide their logs:</p>
+        <p className="text-white/60 text-sm">Select a cadet to view/hide their logs & notes:</p>
         {cadets.map((cadet) => (
           <button
             key={cadet.id}
@@ -774,93 +911,242 @@ const FTOPage: React.FC = () => {
       </div>
 
       {selectedCadetForLogs && (
-        <div className="mt-6 border-t border-white/20 pt-4 bg-black/60 p-4 rounded-lg">
-          <h3 className="text-lg font-bold text-[#f3c700] mb-3">
-            Logs for {selectedCadetForLogs.name}
-          </h3>
-          <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar pr-2">
-            {logs.filter((log) => log.cadetName === selectedCadetForLogs.name).length === 0 ? (
-              <p className="text-white/60 italic">No logs found for this cadet.</p>
-            ) : (
-              logs
-                .filter((log) => log.cadetName === selectedCadetForLogs.name)
-                .map((log) => {
-                  if (log.type === "progress_update") {
+        <div className="mt-6 border-t border-white/20 pt-4 bg-black/60 p-4 rounded-lg space-y-6">
+          <div>
+            <h3 className="text-lg font-bold text-[#f3c700] mb-3">
+              Logs for {selectedCadetForLogs.name}
+            </h3>
+            <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+              {logs.filter((log) => log.cadetName === selectedCadetForLogs.name).length === 0 ? (
+                <p className="text-white/60 italic">No logs found for this cadet.</p>
+              ) : (
+                logs
+                  .filter((log) => log.cadetName === selectedCadetForLogs.name)
+                  .map((log) => {
+                    if (log.type === "progress_update") {
+                      return (
+                        <div
+                          key={log.id}
+                          className="p-2 bg-black/40 rounded shadow border border-white/10 text-xs flex justify-between items-center"
+                        >
+                          <div>
+                            <p className="text-white/80">
+                              <span className="font-semibold text-[#f3c700]">Progress Update</span>{" "}
+                              by {log.ftoName} on {formatTimestampForUserDisplay(log.createdAt)}
+                            </p>
+                            <p className="text-white/60 italic mt-1">{log.summary}</p>
+                          </div>
+                          {!isCadet && (
+                            <button
+                              onClick={() => requestDeleteLog(log.id)}
+                              className="ml-2 text-red-500 hover:text-red-400 text-xs p-1"
+                              title="Delete Progress Update"
+                            >
+                              <FaTrash />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
                     return (
                       <div
                         key={log.id}
-                        className="p-2 bg-black/40 rounded shadow border border-white/10 text-xs"
+                        className="p-3 bg-black/50 rounded shadow border border-white/20"
                       >
-                        <p className="text-white/80">
-                          <span className="font-semibold text-[#f3c700]">Progress Update</span>{" "}
-                          by {log.ftoName} on {log.createdAt?.toDate().toLocaleDateString()}
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="text-sm text-white">
+                              <span className="font-semibold">Date:</span>{" "}
+                              {formatDateToMMDDYY(log.date)} |{" "}
+                              <span className="font-semibold">Time:</span>{" "}
+                              {formatTimeString12hr(log.timeStarted)} - {formatTimeString12hr(log.timeEnded)}
+                            </p>
+                            <p className="text-sm text-white">
+                              <span className="font-semibold">Session Hours:</span>{" "}
+                              {log.sessionHours.toFixed(1)} |{" "}
+                              <span className="font-semibold">Cumulative Hours:</span>{" "}
+                              {log.cumulativeHours.toFixed(1)}
+                            </p>
+                            <p className="text-sm text-white">
+                              <span className="font-semibold">FTO:</span> {log.ftoName}
+                            </p>
+                          </div>
+                          {!isCadet && (
+                            <div className="flex space-x-2 flex-shrink-0">
+                              <button
+                                onClick={() => handleEditLogClick(log)}
+                                className="text-xs text-yellow-400 hover:text-yellow-300 p-1"
+                                title="Edit Log"
+                              >
+                                <FaPencilAlt />
+                              </button>
+                              <button
+                                onClick={() => requestDeleteLog(log.id)}
+                                className="text-xs text-red-500 hover:text-red-400 p-1"
+                                title="Delete Log"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-sm text-white mt-2 whitespace-pre-wrap">
+                          <strong className="text-[#f3c700]">Summary:</strong>{" "}
+                          {log.summary || <span className="italic text-white/60">None</span>}
                         </p>
-                        <p className="text-white/60 italic mt-1">{log.summary}</p>
+                        <p className="text-sm text-white mt-2 whitespace-pre-wrap">
+                          <strong className="text-[#f3c700]">Notes:</strong>{" "}
+                          {log.additionalNotes || <span className="italic text-white/60">None</span>}
+                        </p>
+                        <p className="text-xs text-white/60 mt-1">
+                          Logged: {formatTimestampForUserDisplay(log.createdAt)}
+                        </p>
                       </div>
                     );
-                  }
-                  return (
+                  })
+              )}
+            </div>
+          </div>
+
+          {!isCadet && (
+            <div className="border-t border-white/10 pt-4">
+              <h3 className="text-lg font-bold text-[#f3c700] mb-3">
+                Notes for {selectedCadetForLogs.name}
+              </h3>
+              <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                {loadingSelectedCadetNotes ? (
+                  <p className="text-yellow-400 italic">Loading notes...</p>
+                ) : notesForSelectedCadet.length > 0 ? (
+                  notesForSelectedCadet.map((note) => (
                     <div
-                      key={log.id}
-                      className="p-3 bg-black/50 rounded shadow border border-white/20"
+                      key={note.id}
+                      className="p-3 bg-gray-800 rounded border border-gray-600 text-sm flex justify-between items-start"
                     >
-                      <p className="text-sm text-white">
-                        <span className="font-semibold">Date:</span> {log.date} |{" "}
-                        <span className="font-semibold">Time:</span>{" "}
-                        {log.timeStarted} - {log.timeEnded}
-                      </p>
-                      <p className="text-sm text-white">
-                        <span className="font-semibold">Session Hours:</span>{" "}
-                        {log.sessionHours.toFixed(1)} |{" "}
-                        <span className="font-semibold">Cumulative Hours:</span>{" "}
-                        {log.cumulativeHours.toFixed(1)}
-                      </p>
-                      <p className="text-sm text-white">
-                        <span className="font-semibold">FTO:</span> {log.ftoName}
-                      </p>
-                      <p className="text-sm text-white mt-2 whitespace-pre-wrap">
-                        <strong className="text-[#f3c700]">Summary:</strong>{" "}
-                        {log.summary || (
-                          <span className="italic text-white/60">None</span>
-                        )}
-                      </p>
-                      <p className="text-sm text-white mt-2 whitespace-pre-wrap">
-                        <strong className="text-[#f3c700]">Notes:</strong>{" "}
-                        {log.additionalNotes || (
-                          <span className="italic text-white/60">None</span>
-                        )}
-                      </p>
-                      <p className="text-xs text-white/60 mt-1">
-                        Logged:{" "}
-                        {log.createdAt
-                          ? log.createdAt.toDate().toLocaleString()
-                          : "N/A"}
-                      </p>
+                      <div>
+                        <p className="text-gray-200">{note.note}</p>
+                        <p className="text-xs text-yellow-500 mt-1">
+                          - {note.ftoName} ({note.ftoRank}) on {formatTimestampForUserDisplay(note.createdAt)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => requestDeleteNote(note.id)}
+                        className="ml-2 text-red-500 hover:text-red-400 text-xs p-1 flex-shrink-0"
+                        title="Delete Note"
+                      >
+                        <FaTrash />
+                      </button>
                     </div>
-                  );
-                })
-            )}
-          </div>
-          <div className="mt-4 p-4 bg-black/60 rounded-lg border border-white/20">
-            <h3 className="text-lg font-semibold text-[#f3c700] mb-3">
-              Add Note for {selectedCadetForLogs.name}
-            </h3>
-            <textarea
-              value={newNoteForSelectedCadet}
-              onChange={(e) => setNewNoteForSelectedCadet(e.target.value)}
-              className="input w-full bg-black/40 border-white/20 text-white mb-2"
-              rows={3}
-              placeholder={`Enter note for ${selectedCadetForLogs.name}... (Visible to cadet)`}
-            />
-            <button
-              onClick={handleAddNoteForSelectedCadet}
-              className="button-primary"
-            >
-              Add Note
-            </button>
-          </div>
+                  ))
+                ) : (
+                  <p className="text-gray-400 italic">
+                    No FTO notes found for this cadet.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!isCadet && (
+            <div className="mt-4 p-4 bg-black/60 rounded-lg border border-white/20">
+              <h3 className="text-lg font-semibold text-[#f3c700] mb-3">
+                Add Note for {selectedCadetForLogs.name}
+              </h3>
+              <textarea
+                value={newNoteForSelectedCadet}
+                onChange={(e) => setNewNoteForSelectedCadet(e.target.value)}
+                className="input w-full bg-black/40 border-white/20 text-white mb-2"
+                rows={3}
+                placeholder={`Enter note for ${selectedCadetForLogs.name}... (Visible to cadet)`}
+              />
+              <button
+                onClick={handleAddNoteForSelectedCadet}
+                className="button-primary"
+              >
+                Add Note
+              </button>
+            </div>
+          )}
         </div>
       )}
+
+      {isEditLogModalOpen && editingLog && (
+        <Modal isOpen={isEditLogModalOpen} onClose={() => { setIsEditLogModalOpen(false); setEditingLog(null); }}>
+          <div className="p-6 bg-black/80 border border-white/20 rounded-lg text-white max-w-4xl w-full mx-auto shadow-lg">
+            <h2 className="text-xl font-semibold text-[#f3c700] mb-5 border-b border-white/10 pb-2">Edit Training Log</h2>
+            <div className="space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-medium text-white/80">Cadet</label>
+                <input type="text" value={editingLog.cadetName} readOnly className="input w-full bg-black/20 border-white/10 text-white/60" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Date</label>
+                <input
+                  type="date"
+                  value={editingLog.date}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, date: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" style={{ colorScheme: 'dark' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Time Started</label>
+                <input
+                  type="time"
+                  value={editingLog.timeStarted}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, timeStarted: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" style={{ colorScheme: 'dark' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Time Ended</label>
+                <input
+                  type="time"
+                  value={editingLog.timeEnded}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, timeEnded: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" style={{ colorScheme: 'dark' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Summary</label>
+                <textarea
+                  value={editingLog.summary}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, summary: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/80">Additional Notes</label>
+                <textarea
+                  value={editingLog.additionalNotes}
+                  onChange={(e) => setEditingLog(prev => prev ? { ...prev, additionalNotes: e.target.value } : null)}
+                  className="input w-full bg-black/40 border-white/20 text-white" rows={3}
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end space-x-3 border-t border-white/10 pt-4">
+              <button
+                onClick={() => { setIsEditLogModalOpen(false); setEditingLog(null); }}
+                className="button-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateLog}
+                className="button-primary"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      <ConfirmationModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => setIsConfirmModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title={`Confirm Deletion`}
+        message={`Are you sure you want to delete this ${itemToDelete?.type}? This action cannot be undone.`}
+      />
     </div>
   );
 
@@ -1010,7 +1296,6 @@ const FTOPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Training Sessions Logged */}
         <div>
           <h4 className="text-lg font-semibold text-[#f3c700] mb-2 border-b border-white/10 pb-1">Training Sessions Logged</h4>
           <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
@@ -1018,7 +1303,7 @@ const FTOPage: React.FC = () => {
               ftoLogs.map(log => (
                 <div key={log.id} className="p-2 bg-black/30 rounded border border-white/10 text-xs">
                   <p><span className="font-semibold">Cadet:</span> {log.cadetName}</p>
-                  <p><span className="font-semibold">Date:</span> {log.date} | <span className="font-semibold">Hours:</span> {log.sessionHours.toFixed(1)}</p>
+                  <p><span className="font-semibold">Date:</span> {formatDateToMMDDYY(log.date)} | <span className="font-semibold">Hours:</span> {log.sessionHours.toFixed(1)}</p>
                   <p className="mt-1 italic truncate" title={log.summary}>Summary: {log.summary || "N/A"}</p>
                 </div>
               ))
@@ -1028,20 +1313,19 @@ const FTOPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Notes Written to Cadets */}
         <div>
           <h4 className="text-lg font-semibold text-[#f3c700] mb-2 border-b border-white/10 pb-1">Notes Written to Cadets</h4>
-           <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+          <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
             {ftoNotesWritten.length > 0 ? (
               ftoNotesWritten.map(note => (
                 <div key={note.id} className="p-2 bg-black/30 rounded border border-white/10 text-xs">
-                   <p><span className="font-semibold">To Cadet:</span> {note.cadetName}</p>
-                   <p><span className="font-semibold">Date:</span> {note.createdAt.toDate().toLocaleDateString()}</p>
-                   <p className="mt-1 italic truncate" title={note.note}>Note: {note.note}</p>
+                  <p><span className="font-semibold">To Cadet:</span> {note.cadetName}</p>
+                  <p><span className="font-semibold">Date:</span> {formatTimestampForUserDisplay(note.createdAt)}</p>
+                  <p className="mt-1 italic truncate" title={note.note}>Note: {note.note}</p>
                 </div>
               ))
             ) : (
-               <p className="text-white/60 italic text-sm">No notes written to cadets by this FTO.</p>
+              <p className="text-white/60 italic text-sm">No notes written to cadets by this FTO.</p>
             )}
           </div>
         </div>
@@ -1055,8 +1339,6 @@ const FTOPage: React.FC = () => {
         FTO Personnel Activity
       </h2>
 
-      {/* Conditionally render details or table */}
-      {/* Only allow non-cadets to see FTO details */}
       {selectedFtoForDetails && !isCadet ? (
         renderFtoDetails(selectedFtoForDetails)
       ) : (
@@ -1081,25 +1363,23 @@ const FTOPage: React.FC = () => {
                     const hoursLast30 = getFTOHoursLast30Days(fto.name);
                     const lastLog = getFTOLastLog(fto.name);
                     const certification = fto.certifications?.FTO || "N/A";
-                    // Determine if the row should be clickable
                     const isClickable = !isCadet;
                     return (
                       <tr
                         key={fto.id}
                         className={`border-b border-white/20 ${
-                          isClickable ? 'hover:bg-white/10 cursor-pointer' : '' // Conditionally apply hover/cursor
+                          isClickable ? 'hover:bg-white/10 cursor-pointer' : ''
                         }`}
-                        // Conditionally apply onClick
                         onClick={isClickable ? () => setSelectedFtoForDetails(fto) : undefined}
                       >
                         <td className={`px-4 py-2 font-medium text-white ${isClickable ? 'hover:text-[#f3c700]' : ''}`}>
-                           {fto.name}
+                          {fto.name}
                         </td>
                         <td className="px-4 py-2">{fto.badge || "N/A"}</td>
                         <td className="px-4 py-2">{certification}</td>
                         <td className="px-4 py-2">{hoursLast30.toFixed(1)}</td>
                         <td className="px-4 py-2">
-                          {lastLog?.date || (
+                          {formatDateToMMDDYY(lastLog?.date) || (
                             <span className="italic text-white/50">None</span>
                           )}
                         </td>
@@ -1213,7 +1493,7 @@ const FTOPage: React.FC = () => {
               <h3 className="text-lg font-bold text-[#f3c700]">{ann.title}</h3>
               <p className="text-xs text-white/60 mb-2">
                 Posted by {ann.authorRank} {ann.authorName} on{" "}
-                {ann.createdAt.toDate().toLocaleDateString()}
+                {formatTimestampForUserDisplay(ann.createdAt)}
               </p>
               <div
                 className="prose prose-sm prose-invert max-w-none text-white/80"

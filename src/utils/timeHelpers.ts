@@ -121,3 +121,68 @@ export const formatDateToMMDDYY = (
   const year = date.getFullYear().toString().slice(-2); // Get last two digits of the year
   return `${month}/${day}/${year}`;
 };
+
+/**
+ * Formats a Timestamp or Date object into MM/DD/YY HH:MM AM/PM (Timezone Abbr.) format.
+ * @param timestamp - The Timestamp or Date object to format.
+ * @returns A formatted string in the user's local time and timezone, or "N/A".
+ */
+export function formatTimestampForUserDisplay(
+  timestamp: Timestamp | Date | null | undefined
+): string {
+  if (!timestamp) {
+    return "N/A";
+  }
+  const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
+
+  // Check for invalid date
+  if (isNaN(date.getTime())) {
+      return "Invalid Date";
+  }
+
+  // Use Intl.DateTimeFormat for robust formatting
+  const options: Intl.DateTimeFormatOptions = {
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+    hour: 'numeric', // Use numeric for 1-12
+    minute: '2-digit',
+    hour12: true, // Force 12-hour clock
+    timeZoneName: 'short', // Get timezone abbreviation like EST, PST
+  };
+
+  try {
+    // Replace comma with space for better readability if present
+    return new Intl.DateTimeFormat('en-US', options).format(date).replace(',', '');
+  } catch (e) {
+    console.error("Error formatting timestamp:", e);
+    // Fallback to simpler format on error
+    return date.toLocaleDateString('en-US') + ' ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+}
+
+/**
+ * Formats a time string (HH:MM) into 12-hour format (H:MM AM/PM).
+ * @param timeString - The time string in 24-hour HH:MM format.
+ * @returns A formatted string in 12-hour format or the original string if invalid.
+ */
+export function formatTimeString12hr(timeString: string | null | undefined): string {
+    if (!timeString || !/^\d{1,2}:\d{2}$/.test(timeString)) { // Allow H:MM or HH:MM
+        return timeString || "N/A"; // Return original or N/A if invalid/empty
+    }
+    try {
+        const [hours, minutes] = timeString.split(':');
+        const hoursInt = parseInt(hours, 10);
+
+        if (isNaN(hoursInt) || hoursInt < 0 || hoursInt > 23) {
+             return timeString; // Invalid hour
+        }
+
+        const ampm = hoursInt >= 12 ? 'PM' : 'AM';
+        const hours12 = hoursInt % 12 || 12; // Convert 0 to 12 for 12 AM/PM
+        return `${hours12}:${minutes} ${ampm}`;
+    } catch (e) {
+        console.error("Error formatting time string:", e);
+        return timeString; // Return original on error
+    }
+}

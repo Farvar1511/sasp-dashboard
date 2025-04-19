@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import Layout from "./Layout";
-import links from "../data/links"; // Ensure this file exists and is correctly exported
-import classNames from "classnames";
+import links from "../data/links";
 
 interface LinkItem {
   Label: string;
@@ -13,140 +12,127 @@ const Documents: React.FC = () => {
   const [modalLink, setModalLink] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const groupedLinks = useMemo(() => {
-    const filtered = links.filter((link) => {
-      const term = searchTerm.toLowerCase();
-      return (
-        link.Label.toLowerCase().includes(term) ||
-        link.Category.toLowerCase().includes(term)
-      );
-    });
-
-    return filtered.reduce((acc, link) => {
-      const category = link.Category || "Uncategorized";
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(link);
-      return acc;
-    }, {} as { [key: string]: LinkItem[] });
+  const grouped = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return links
+      .filter(
+        (l) =>
+          l.Label.toLowerCase().includes(term) ||
+          l.Category.toLowerCase().includes(term)
+      )
+      .reduce((acc: Record<string, LinkItem[]>, l) => {
+        const cat = l.Category || "Uncategorized";
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(l);
+        return acc;
+      }, {});
   }, [searchTerm]);
 
-  const categoryOrder = [
+  const order = [
     "Standard Operating Procedures",
     "Training",
     "Resources",
     "Department of Justice",
   ];
-
-  const sortedCategories = Object.keys(groupedLinks).sort((a, b) => {
-    const indexA = categoryOrder.indexOf(a);
-    const indexB = categoryOrder.indexOf(b);
-    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-    if (indexA !== -1) return -1;
-    if (indexB !== -1) return 1;
+  const cats = Object.keys(grouped).sort((a, b) => {
+    const ia = order.indexOf(a),
+      ib = order.indexOf(b);
+    if (ia !== -1 || ib !== -1) return ia === -1 ? 1 : ib === -1 ? -1 : ia - ib;
     return a.localeCompare(b);
   });
 
   return (
     <Layout>
-      <div className="min-h-screen bg-cover bg-center bg-no-repeat text-white p-6 md:p-10 relative">
-        {/* Page Content Container */}
-        <div className="bg-black/60 backdrop-blur-sm rounded-xl p-6 md:p-10 max-w-screen-2xl mx-auto shadow-2xl w-full">
-          <h1 className="text-4xl font-extrabold text-[#f3c700] mb-8 text-center">
-            Documents & Resources
-          </h1>
+      <div className="min-h-screen bg-black p-6 lg:p-12 text-white">
+        <h1 className="text-4xl lg:text-5xl font-extrabold text-center text-[#f3c700] mb-8">
+          Documents & Resources
+        </h1>
 
-          {/* Search */}
-          <div className="mb-10 max-w-md mx-auto">
-            <input
-              type="text"
-              placeholder="Search documents..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 rounded bg-black/70 border border-[#f3c700] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#f3c700] transition-all"
-            />
-          </div>
+        <div className="max-w-xl mx-auto mb-12">
+          <input
+            type="text"
+            placeholder="Search documents..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-transparent border-b-2 border-white text-white placeholder-white/60 px-2 py-2 focus:border-[#f3c700] focus:outline-none transition"
+          />
+        </div>
 
-          {/* Modal */}
-          {modalLink && (
-            <div
-              className={classNames(
-                "fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex flex-col animate-fadeIn"
-              )}
-            >
-              <div className="flex justify-between items-center p-4 border-b border-gray-700 bg-black">
-                <h2 className="text-lg font-semibold text-[#f3c700]">
-                  Document Viewer
-                </h2>
-                <button
-                  onClick={() => setModalLink(null)}
-                  className="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-500"
-                >
-                  Close
-                </button>
-              </div>
-              <iframe
-                src={modalLink}
-                className="w-full h-[90vh] border-none"
-                title="Document Viewer"
-              />
-              <div className="flex justify-end p-4 border-t border-gray-700 bg-black">
-                <a
-                  href={modalLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-[#f3c700] hover:bg-yellow-400 text-black font-semibold rounded"
-                >
-                  Open in New Tab
-                </a>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+          {cats.length === 0 && (
+            <p className="col-span-full text-center text-white/60">
+              No documents found
+            </p>
           )}
 
-          {/* Categories & Buttons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {sortedCategories.length === 0 && (
-              <p className="text-center text-gray-400 col-span-full">
-                No documents found.
-              </p>
-            )}
-            {sortedCategories.map((category) => (
-              <div
-                key={category}
-                className="bg-black/60 border border-gray-700 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow duration-200"
-              >
-                <h2 className="text-xl font-bold text-[#f3c700] mb-4 border-b border-yellow-500 pb-2">
-                  {category}
+          {cats.map((cat) => (
+            <div
+              key={cat}
+              className="flex flex-col bg-black bg-opacity-60 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition"
+            >
+              <div className="flex items-center bg-black bg-opacity-80 px-6 py-4 border-l-4 border-[#f3c700]">
+                <h2 className="text-lg lg:text-xl font-semibold text-white">
+                  {cat}
                 </h2>
-                <div className="space-y-3">
-                  {groupedLinks[category].map((link) => (
-                    <button
-                      key={link.Label}
-                      onClick={() => setModalLink(link.Url)}
-                      className="block w-full text-left px-4 py-2 rounded border border-[#f3c700] text-[#f3c700] bg-black/80 hover:bg-[#f3c700] hover:text-black font-semibold text-sm transition-all duration-200"
-                    >
-                      {link.Label}
-                    </button>
-                  ))}
-                </div>
               </div>
-            ))}
-          </div>
+              <div className="flex-1 overflow-y-auto py-4 px-6 space-y-3 max-h-[60vh] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/30 hover:scrollbar-thumb-white/50 transition">
+                {grouped[cat].map(({ Label, Url }) => (
+                  <button
+                    key={Label}
+                    onClick={() => setModalLink(Url)}
+                    className="w-full h-10 flex items-center px-4 border border-[#f3c700] rounded-lg text-sm lg:text-base font-medium uppercase tracking-wider text-white bg-transparent hover:bg-[#f3c700] hover:text-black transition"
+                  >
+                    {Label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
+
+        {modalLink && (
+          <div className="fixed inset-0 z-50 bg-black bg-opacity-95 flex flex-col animate-fadeIn">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-[#f3c700]">
+              <h3 className="text-xl font-semibold text-[#f3c700]">
+                Document Viewer
+              </h3>
+              <button
+                onClick={() => setModalLink(null)}
+                className="px-3 py-1.5 bg-white text-black rounded hover:bg-white/90 transition"
+              >
+                Close
+              </button>
+            </div>
+            <iframe
+              src={modalLink}
+              className="flex-1 w-full border-none"
+              title="Document Viewer"
+            />
+            <div className="flex justify-end px-6 py-4 border-t border-[#f3c700]">
+              <a
+                href={modalLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-[#f3c700] text-black font-semibold rounded hover:bg-yellow-400 transition"
+              >
+                Open in New Tab
+              </a>
+            </div>
+          </div>
+        )}
+
+        <style>
+          {`
+            @keyframes fadeIn {
+              from { opacity: 0; transform: scale(0.98); }
+              to   { opacity: 1; transform: scale(1); }
+            }
+            .animate-fadeIn {
+              animation: fadeIn 0.3s ease-out;
+            }
+          `}
+        </style>
       </div>
-
-      {/* Animation Keyframes */}
-      <style>
-        {`
-          @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.98); }
-            to { opacity: 1; transform: scale(1); }
-          }
-
-          .animate-fadeIn {
-            animation: fadeIn 0.3s ease-out;
-          }
-        `}
-      </style>
     </Layout>
   );
 };
