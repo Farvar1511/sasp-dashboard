@@ -235,3 +235,66 @@ export function formatTimeString12hr(timeString: string | null | undefined): str
         return timeString; // Return original on error
     }
 }
+
+/**
+ * Formats a date string, Timestamp, or Date object for roster display (M/D/YY).
+ * Returns an empty string for invalid or null/undefined inputs.
+ * @param dateValue - The date value (string, Timestamp, Date, null, undefined).
+ * @returns A string in M/D/YY format or "".
+ */
+export const formatDateForRoster = (
+  dateValue: string | Timestamp | Date | null | undefined
+): string => {
+  if (!dateValue) return "";
+
+  let date: Date | null = null;
+
+  try {
+    if (dateValue instanceof Timestamp) {
+      date = dateValue.toDate();
+    } else if (dateValue instanceof Date) {
+      date = dateValue;
+    } else if (typeof dateValue === "string") {
+      // Attempt to parse common formats, prioritizing YYYY-MM-DD then MM/DD/YY(YY)
+      // Add 'T00:00:00Z' to treat date-only strings as UTC to avoid timezone shifts
+      const cleanedString = dateValue.trim();
+      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(cleanedString)) {
+        date = new Date(cleanedString + 'T00:00:00Z');
+      } else if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(cleanedString)) {
+         // For MM/DD/YY or MM/DD/YYYY, JS Date constructor might be unreliable with timezones.
+         // Split and construct UTC date to be safe.
+         const parts = cleanedString.split('/');
+         if (parts.length === 3) {
+            const month = parseInt(parts[0], 10) - 1;
+            const day = parseInt(parts[1], 10);
+            let year = parseInt(parts[2], 10);
+            if (year < 100) { // Handle YY format
+                year += 2000; // Assume 21st century
+            }
+            if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+                 date = new Date(Date.UTC(year, month, day));
+            }
+         }
+      } else {
+         // Fallback for other potential string formats, treat as UTC
+         date = new Date(cleanedString + 'T00:00:00Z');
+      }
+    }
+
+    // Check if date is valid after parsing attempts
+    if (!date || isNaN(date.getTime())) {
+      return "";
+    }
+
+    // Format using UTC methods: M/D/YY (no padding)
+    const displayMonth = date.getUTCMonth() + 1;
+    const displayDay = date.getUTCDate();
+    const displayYear = date.getUTCFullYear() % 100; // Get last two digits
+
+    return `${displayMonth}/${displayDay}/${displayYear}`;
+
+  } catch (error) {
+    console.error("Error formatting date for roster:", error, "Input:", dateValue);
+    return ""; // Return empty string on any error
+  }
+};
