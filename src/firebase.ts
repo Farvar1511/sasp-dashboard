@@ -1,4 +1,3 @@
-// src/firebase.ts
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
@@ -20,7 +19,6 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Set authentication persistence to session-based (clears on browser close)
 setPersistence(auth, browserSessionPersistence).catch((error) => {
   console.error("Error setting auth persistence:", error);
 });

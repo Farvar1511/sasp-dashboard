@@ -219,7 +219,6 @@ const FTOPage: React.FC = () => {
 
       // Check if dates are valid before proceeding
       if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
-        console.error("Invalid date or time input.");
         setNewLog((prev) => ({ ...prev, sessionHours: 0 }));
         return;
       }
@@ -352,20 +351,21 @@ const FTOPage: React.FC = () => {
       // Use the validated calculatedSessionHours for cumulative calculation
       const cumulativeHours = parseFloat(((lastSessionLog?.cumulativeHours || 0) + calculatedSessionHours).toFixed(1));
 
-      const logData: Omit<CadetLog, "id"> = {
+      const logData: Omit<CadetLog, "id" | "progressSnapshot"> & { progressSnapshot?: { [key in ProgressItemKey]: boolean } } = {
         ...newLog,
         sessionHours: calculatedSessionHours, // Save the validated hours
         cumulativeHours,
         ftoName: authUser?.name || "Unknown FTO",
         createdAt: Timestamp.now(),
         type: "session",
-        progressSnapshot: undefined,
       };
 
       const docRef = await addDoc(collection(dbFirestore, "cadetLogs"), logData);
 
       // Add the log with the correct sessionHours to the local state
-      setLogs((prevLogs) => [{ ...logData, id: docRef.id }, ...prevLogs]);
+      const addedLog = { ...logData, id: docRef.id };
+      delete addedLog.progressSnapshot; // Explicitly remove if it somehow got added
+      setLogs((prevLogs) => [addedLog, ...prevLogs]);
 
       // Reset the form
       setNewLog({
@@ -488,11 +488,14 @@ const FTOPage: React.FC = () => {
       const logRef = doc(dbFirestore, "cadetLogs", editingLog.id);
       const { id, createdAt, ...updateData } = editingLog; // Exclude id and createdAt
 
-      await updateDoc(logRef, {
+      const finalUpdateData: Partial<CadetLog> = {
         ...updateData,
         sessionHours: calculatedSessionHours,
-        cumulativeHours: recalculatedCumulativeHours, // Save the recalculated cumulative hours
-      });
+        cumulativeHours: recalculatedCumulativeHours,
+        progressSnapshot: editingLog.type === 'progress_update' ? editingLog.progressSnapshot : undefined, // Set to undefined for session logs
+      };
+
+      await updateDoc(logRef, finalUpdateData);
 
       // --- Local State Update ---
       setLogs((prevLogs) =>
@@ -501,7 +504,8 @@ const FTOPage: React.FC = () => {
             ? {
                 ...editingLog,
                 sessionHours: calculatedSessionHours,
-                cumulativeHours: recalculatedCumulativeHours, // Update local state as well
+                cumulativeHours: recalculatedCumulativeHours,
+                progressSnapshot: finalUpdateData.progressSnapshot,
               }
             : log
         )
@@ -656,8 +660,8 @@ const FTOPage: React.FC = () => {
       timeEnded: "",
       sessionHours: 0,
       cumulativeHours: 0,
-      summary: `Progress updated for item: ${itemKey} to ${isChecked}`,
-      additionalNotes: "",
+      summary: `Progress updated for item: ${progressItems[itemKey]} to ${isChecked ? 'Complete' : 'Incomplete'}`,
+      additionalNotes: `Updated by ${authUser.name}`,
     };
 
     try {
@@ -702,10 +706,8 @@ const FTOPage: React.FC = () => {
           log.createdAt &&
           log.createdAt >= thirtyDaysAgoTimestamp
       )
-      // Ensure sessionHours is treated as a number, default to 0 if invalid
       .reduce((sum, log) => sum + (Number(log.sessionHours) || 0), 0);
 
-    // Return rounded to 1 decimal place
     return parseFloat(totalHours.toFixed(1));
   };
 
@@ -1617,7 +1619,7 @@ const FTOPage: React.FC = () => {
                   className="input w-full bg-black/40 border-white/20 text-white" rows={3}
                 />
               </div>
-            </div> {/* This closes the inner div for textareas */}
+            </div>
             <div className="mt-6 flex justify-end space-x-3 border-t border-white/10 pt-4">
               <button
                 onClick={() => { setIsEditLogModalOpen(false); setEditingLog(null); }}
@@ -1632,7 +1634,7 @@ const FTOPage: React.FC = () => {
                 Save Changes
               </button>
             </div>
-          </div> {/* This closes the main div inside Modal */}
+          </div>
         </Modal>
       )}
 
