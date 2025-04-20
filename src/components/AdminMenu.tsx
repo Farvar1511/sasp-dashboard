@@ -16,7 +16,7 @@ import {
 import { db as dbFirestore } from "../firebase";
 import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime } from "../utils/timeHelpers";
 import { getRandomBackgroundImage } from "../utils/backgroundImage";
-import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash, FaCheckCircle } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { RosterUser, DisciplineEntry, NoteEntry } from "../types/User";
 import EditUserModal from "./EditUserModal";
@@ -167,6 +167,7 @@ export default function AdminMenu(): JSX.Element {
   const [sortBy, setSortBy] = useState<"rank" | "name">("rank");
   const [selectedAssignFilter, setSelectedAssignFilter] = useState<string>("SELECT");
   const [showHiddenCards, setShowHiddenCards] = useState<boolean>(false);
+  const [showOnlyUsersWithCompletedTasks, setShowOnlyUsersWithCompletedTasks] = useState<boolean>(false);
 
   useEffect(() => {
     setBackgroundImage(getRandomBackgroundImage());
@@ -364,8 +365,14 @@ export default function AdminMenu(): JSX.Element {
       });
     }
 
+    if (showOnlyUsersWithCompletedTasks) {
+      filtered = filtered.filter(user =>
+        user.tasks?.some(task => task.completed)
+      );
+    }
+
     return filtered;
-  }, [usersData, sortBy, selectedCategory, searchTerm, showHiddenCards]);
+  }, [usersData, sortBy, selectedCategory, searchTerm, showHiddenCards, showOnlyUsersWithCompletedTasks]);
 
   const buttonPrimary =
     "px-4 py-2 bg-[#f3c700] text-black font-bold rounded hover:bg-yellow-300 transition-colors duration-200";
@@ -592,6 +599,16 @@ export default function AdminMenu(): JSX.Element {
                 {showHiddenCards ? <FaEye size="0.9em"/> : <FaEyeSlash size="0.9em"/>}
                 Show Hidden
               </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-white/80 hover:text-white">
+                <input
+                  type="checkbox"
+                  checked={showOnlyUsersWithCompletedTasks}
+                  onChange={(e) => setShowOnlyUsersWithCompletedTasks(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-green-500 focus:ring-green-500 bg-black/50"
+                />
+                <FaCheckCircle size="0.9em" className="text-green-500"/>
+                Has Completed Tasks
+              </label>
             </div>
           </div>
           {usersLoading && (
@@ -625,6 +642,11 @@ export default function AdminMenu(): JSX.Element {
                         year: "numeric", month: "short", day: "numeric",
                       });
                     }
+
+                    const sortedTasks = [...(userData.tasks || [])].sort((a, b) => {
+                      if (a.completed === b.completed) return 0;
+                      return a.completed ? 1 : -1;
+                    });
 
                     return (
                       <div
@@ -670,22 +692,27 @@ export default function AdminMenu(): JSX.Element {
                             Tasks ({userData.tasks?.length || 0}):
                           </h5>
                           <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 mb-3">
-                            {userData.tasks && userData.tasks.length > 0 ? userData.tasks.map((task) => (
+                            {sortedTasks.length > 0 ? sortedTasks.map((task) => (
                               <div
                                 key={task.id}
-                                className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50 relative group"
+                                className={`p-1.5 rounded border relative group transition-colors duration-200 ${
+                                  task.completed
+                                    ? 'border-green-600/50 bg-green-900/30 opacity-80'
+                                    : 'border-[#f3c700]/40 bg-black/50'
+                                }`}
+                                title={task.completed ? 'Task Completed' : 'Task In Progress'}
                               >
                                 <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                  <FaEdit className="text-[#f3c700] hover:text-yellow-300 cursor-pointer h-3.5 w-3.5 transition-colors duration-150" title="Edit Task" />
+                                  <FaEdit className={`cursor-pointer h-3.5 w-3.5 transition-colors duration-150 ${task.completed ? 'text-green-400 hover:text-green-300' : 'text-[#f3c700] hover:text-yellow-300'}`} title="Edit Task" />
                                   <FaTrash className="text-red-500 hover:text-red-400 cursor-pointer h-3.5 w-3.5 transition-colors duration-150" title="Delete Task" />
                                 </div>
-                                <p className={`inline text-xs pr-10 ${task.completed ? "line-through text-white/50" : "text-white/90"}`}>
+                                <p className={`inline text-xs pr-10 ${task.completed ? "line-through text-white/60" : "text-white/90"}`}>
                                   {task.task}
                                 </p>
                                 <small className="text-white/60 block mt-1 text-[10px]">
                                   Type: {task.type}
                                   {task.type === "goal" && ` | Progress: ${task.progress ?? 0}/${task.goal ?? "N/A"}`}
-                                  | Status: {task.completed ? <span className="text-green-400">Completed</span> : <span className={textAccent}>In Progress</span>}
+                                  | Status: {task.completed ? <span className="text-green-400 font-semibold">Completed</span> : <span className={textAccent}>In Progress</span>}
                                   | Assigned: {formatIssuedAt(task.issueddate, task.issuedtime)} | By: {task.issuedby || "Unknown"}
                                 </small>
                               </div>
