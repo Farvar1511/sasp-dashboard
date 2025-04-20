@@ -213,6 +213,13 @@ const SASPRoster: React.FC = () => {
               acc[key.toUpperCase()] = validStatus;
               return acc;
             }, {} as { [key: string]: CertStatus });
+
+            // Determine isActive status: false if VACANT, otherwise use template value or default
+            const isActive =
+              normalizedTemplateEntry.name === "VACANT"
+                ? false
+                : normalizedTemplateEntry.isActive === true; // Default to false if not explicitly true in template
+
             return {
               id: `template-${templateEntry.callsign || Math.random()}`,
               name: normalizedTemplateEntry.name || "VACANT",
@@ -225,8 +232,7 @@ const SASPRoster: React.FC = () => {
               joinDate: normalizedTemplateEntry.joinDate || null,
               lastPromotionDate:
                 normalizedTemplateEntry.lastPromotionDate || null,
-              isActive:
-                normalizedTemplateEntry.isActive === true ? true : false,
+              isActive: isActive, // Use the determined isActive status
               discordId: normalizedTemplateEntry.discordId || "-",
               email: normalizedTemplateEntry.email || "",
               isPlaceholder: true,
@@ -440,14 +446,14 @@ const SASPRoster: React.FC = () => {
         {error && <p className="text-red-500">{error}</p>}
 
         {!loading && !error && (
-          <div className="rounded-lg border border-[#f3c700] bg-black bg-opacity-80 overflow-x-auto shadow-lg">
-            <table className="min-w-full border-collapse text-sm">
-              <thead className="bg-black bg-opacity-90 text-[#f3c700] font-semibold">
+          <div className="rounded-lg border border-[#f3c700] bg-black bg-opacity-80 overflow-auto max-h-[80vh] shadow-lg">
+            <table className="min-w-full border-separate border-spacing-0 text-sm table-fixed">
+              <thead className="sticky top-0 z-50 bg-gradient-to-b from-black via-black/90 to-black/70 backdrop-blur-sm text-[#f3c700] shadow-[0_2px_4px_rgba(243,199,0,0.4)] font-semibold border-t border-b border-[#f3c700]">
                 <tr>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}></th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>CALLSIGN</th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>BADGE #</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>RANK</th>
+                  <th className="p-2 border border-[#f3c700] bg-black" rowSpan={2}>RANK</th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>NAME</th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>DISCORD</th>
                   <th className="p-2 border border-[#f3c700]" colSpan={divisionKeys.length}>Divisions</th>
@@ -455,15 +461,22 @@ const SASPRoster: React.FC = () => {
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>JOIN</th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>PROMO</th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>ACTIVE</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>INACTIVE / LOA SINCE</th>
-                  {canEditRoster && <th className="p-2 border border-[#f3c700]" rowSpan={2}>EDIT</th>}
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>LOA START</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>LOA END</th>
+                  {canEditRoster && (
+                    <th className="p-2 border border-[#f3c700]" rowSpan={2}>EDIT</th>
+                  )}
                 </tr>
                 <tr>
                   {divisionKeys.map((divKey) => (
-                    <th key={divKey} className="p-2 border border-[#f3c700]">{divKey.toUpperCase()}</th>
+                    <th key={divKey} className="p-2 border border-[#f3c700]">
+                      {divKey.toUpperCase()}
+                    </th>
                   ))}
                   {certificationKeys.map((certKey) => (
-                    <th key={certKey} className="p-2 border border-[#f3c700]">{certKey.toUpperCase()}</th>
+                    <th key={certKey} className="p-2 border border-[#f3c700]">
+                      {certKey.toUpperCase()}
+                    </th>
                   ))}
                 </tr>
               </thead>
