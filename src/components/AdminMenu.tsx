@@ -643,9 +643,10 @@ export default function AdminMenu(): JSX.Element {
                       });
                     }
 
+                    // Sort tasks: completed first, then by issue date descending (implicitly handled by initial fetch)
                     const sortedTasks = [...(userData.tasks || [])].sort((a, b) => {
-                      if (a.completed === b.completed) return 0;
-                      return a.completed ? 1 : -1;
+                      if (a.completed === b.completed) return 0; // Keep original order if completion status is the same
+                      return a.completed ? -1 : 1; // Completed tasks first
                     });
 
                     return (
@@ -692,6 +693,7 @@ export default function AdminMenu(): JSX.Element {
                             Tasks ({userData.tasks?.length || 0}):
                           </h5>
                           <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 mb-3">
+                            {/* Use the newly sortedTasks array */}
                             {sortedTasks.length > 0 ? sortedTasks.map((task) => (
                               <div
                                 key={task.id}
