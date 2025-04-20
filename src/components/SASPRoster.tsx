@@ -256,7 +256,9 @@ const SASPRoster: React.FC = () => {
           u.rank?.toLowerCase().includes(lowerSearchTerm) ||
           u.discordId?.toLowerCase().includes(lowerSearchTerm);
         const matchesRank = selectedRank === "All" || u.rank === selectedRank;
-        return matchesSearch && matchesRank;
+        // Add the hideVacant check: if hideVacant is true, filter out users named "VACANT"
+        const matchesVacant = !hideVacant || u.name !== "VACANT";
+        return matchesSearch && matchesRank && matchesVacant; // Include matchesVacant in the return condition
       });
 
       const { groupedRoster: processedGroupedRoster } =
