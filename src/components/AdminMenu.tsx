@@ -4,14 +4,14 @@ import Layout from "./Layout";
 import {
   collection,
   getDocs,
-  writeBatch,
+  writeBatch, // Import writeBatch
   query,
   orderBy,
   doc,
   deleteDoc,
   updateDoc,
   Timestamp,
-  deleteField,
+  deleteField, // Import deleteField
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime } from "../utils/timeHelpers";
@@ -172,6 +172,7 @@ export default function AdminMenu(): JSX.Element {
   const [showHiddenCards, setShowHiddenCards] = useState<boolean>(false);
   const [showOnlyUsersWithCompletedTasks, setShowOnlyUsersWithCompletedTasks] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for Add User Modal
+  const [showInactiveUsers, setShowInactiveUsers] = useState<boolean>(false); // State for showing inactive users - Default to false
 
   useEffect(() => {
     setBackgroundImage(getRandomBackgroundImage());
@@ -182,11 +183,47 @@ export default function AdminMenu(): JSX.Element {
     setUsersError(null);
     try {
       const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
-      const usersPromises = usersSnapshot.docs.map(async (userDoc) => {
-        const userData = userDoc.data() as Partial<RosterUser & { lastSignInTime?: Timestamp | string | null, promotionStatus?: any }>;
-        const userEmail = userDoc.id; // This is correct, ID can be name or email
-        const name = typeof userData.name === "string" ? userData.name : userEmail; // Fallback to ID if name missing
+      const usersToClearLOA: string[] = []; // Keep track of users needing LOA cleared
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize today's date
 
+      // Helper function to parse LOA dates robustly (can be defined outside or reused)
+      const parseLoaDate = (dateValue: string | Timestamp | null | undefined): Date | null => {
+        if (!dateValue) return null;
+        let date: Date | null = null;
+        try {
+          if (dateValue instanceof Timestamp) {
+            date = dateValue.toDate();
+          } else if (typeof dateValue === 'string') {
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+               date = new Date(dateValue + 'T00:00:00');
+            } else {
+               date = new Date(dateValue);
+            }
+          }
+          if (date && !isNaN(date.getTime())) {
+            date.setHours(0, 0, 0, 0);
+            return date;
+          }
+        } catch (e) { console.error("Error parsing LOA date for cleanup check:", dateValue, e); }
+        return null;
+      };
+
+
+      const usersPromises = usersSnapshot.docs.map(async (userDoc) => {
+        const userData = userDoc.data() as Partial<RosterUser & { lastSignInTime?: Timestamp | string | null, promotionStatus?: any, loaStartDate?: any, loaEndDate?: any }>;
+        const userEmail = userDoc.id;
+        const name = typeof userData.name === "string" ? userData.name : userEmail;
+
+        // --- Check for expired LOA ---
+        const endDate = parseLoaDate(userData.loaEndDate);
+        if (endDate && endDate < today) {
+          // If loaEndDate exists and is in the past, mark for clearing
+          usersToClearLOA.push(userEmail);
+        }
+        // --- End Check ---
+
+        // Fetch tasks
         const tasksSnapshot = await getDocs(
           query(
             collection(dbFirestore, "users", userEmail, "tasks"),
@@ -219,6 +256,7 @@ export default function AdminMenu(): JSX.Element {
           return null;
         }).filter((task): task is UserTask => task !== null);
 
+        // Fetch discipline
         const disciplineSnapshot = await getDocs(
           query(
             collection(dbFirestore, "users", userEmail, "discipline"),
@@ -246,6 +284,7 @@ export default function AdminMenu(): JSX.Element {
           return null;
         }).filter((entry): entry is DisciplineEntry => entry !== null);
 
+        // Fetch notes
         const notesSnapshot = await getDocs(
           query(
             collection(dbFirestore, "users", userEmail, "notes"),
@@ -272,7 +311,7 @@ export default function AdminMenu(): JSX.Element {
         }).filter((note): note is NoteEntry => note !== null);
 
         return {
-          id: userEmail, // Use doc ID
+          id: userEmail,
           email: userData.email || "", // Store email if present, else empty
           name: name,
           rank: userData.rank || "Unranked",
@@ -283,7 +322,7 @@ export default function AdminMenu(): JSX.Element {
           cid: userData.cid || "", // Ensure cid is handled
           joinDate: userData.joinDate || null,
           lastPromotionDate: userData.lastPromotionDate || null,
-          loaStartDate: userData.loaStartDate || null,
+          loaStartDate: userData.loaStartDate || null, // Ensure these are included
           loaEndDate: userData.loaEndDate || null,
           certifications: userData.certifications || {},
           role: userData.role || "", // Ensure role is handled
@@ -303,6 +342,39 @@ export default function AdminMenu(): JSX.Element {
       });
 
       const resolvedUsersData = await Promise.all(usersPromises);
+
+      // --- Perform LOA Cleanup ---
+      if (usersToClearLOA.length > 0) {
+        console.log(`Found ${usersToClearLOA.length} users with expired LOAs. Clearing dates...`);
+        const batch = writeBatch(dbFirestore);
+        usersToClearLOA.forEach(userId => {
+          const userRef = doc(dbFirestore, "users", userId);
+          batch.update(userRef, {
+            loaStartDate: deleteField(), // Use deleteField() to remove the field
+            loaEndDate: deleteField()
+          });
+        });
+        try {
+          await batch.commit();
+          console.log("Successfully cleared expired LOA dates.");
+          // Optionally: Refetch data or update state locally if needed immediately
+          // For simplicity, we'll let the next render cycle use the fetched data (which might be slightly stale regarding LOA)
+          // Or filter the resolvedUsersData locally before setting state:
+          resolvedUsersData.forEach(user => {
+              if (usersToClearLOA.includes(user.id)) {
+                  user.loaStartDate = null;
+                  user.loaEndDate = null;
+              }
+          });
+
+        } catch (updateError) {
+          console.error("Error clearing expired LOA dates:", updateError);
+          toast.error("Failed to automatically clear some expired LOA dates.");
+        }
+      }
+      // --- End LOA Cleanup ---
+
+
       setUsersData(
         resolvedUsersData.filter(
           (user) => user !== null && !user.isPlaceholder
@@ -310,11 +382,11 @@ export default function AdminMenu(): JSX.Element {
       );
     } catch (error) {
       setUsersError("Failed to load user, task, or discipline data.");
-      console.error("Error fetching admin data:", error); // Log the actual error
+      console.error("Error fetching admin data:", error);
     } finally {
       setUsersLoading(false);
     }
-  }, []);
+  }, []); // Keep dependencies as they were
 
   useEffect(() => {
     fetchAdminData();
@@ -345,6 +417,10 @@ export default function AdminMenu(): JSX.Element {
       }
       return a.name.localeCompare(b.name);
     });
+
+    if (!showInactiveUsers) {
+      filtered = filtered.filter(user => user.isActive); // Filter out inactive users
+    }
 
     if (selectedCategory !== "ALL") {
       if (Object.keys(rankCategories).includes(selectedCategory)) {
@@ -377,7 +453,7 @@ export default function AdminMenu(): JSX.Element {
     }
 
     return filtered;
-  }, [usersData, sortBy, selectedCategory, searchTerm, showHiddenCards, showOnlyUsersWithCompletedTasks]);
+  }, [usersData, sortBy, selectedCategory, searchTerm, showHiddenCards, showOnlyUsersWithCompletedTasks, showInactiveUsers]); // Add showInactiveUsers to dependency array
 
   const buttonPrimary =
     "px-4 py-2 bg-[#f3c700] text-black font-bold rounded hover:bg-yellow-300 transition-colors duration-200";
@@ -628,6 +704,15 @@ export default function AdminMenu(): JSX.Element {
               <label className="flex items-center gap-2 cursor-pointer text-xs text-white/80 hover:text-white">
                 <input
                   type="checkbox"
+                  checked={showInactiveUsers}
+                  onChange={(e) => setShowInactiveUsers(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-[#f3c700] focus:ring-[#f3c700] bg-black/50"
+                />
+                Show Inactive
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-white/80 hover:text-white">
+                <input
+                  type="checkbox"
                   checked={showHiddenCards}
                   onChange={(e) => setShowHiddenCards(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-[#f3c700] focus:ring-[#f3c700] bg-black/50"
@@ -663,6 +748,53 @@ export default function AdminMenu(): JSX.Element {
                     const now = Timestamp.now();
                     const isHiddenByRule = userData.promotionStatus?.hideUntil && userData.promotionStatus.hideUntil.toMillis() > now.toMillis();
 
+                    // --- LOA Check ---
+                    let isOnLOA = false;
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); // Normalize today's date to midnight for comparison
+
+                    // Helper function to parse LOA dates robustly
+                    const parseLoaDate = (dateValue: string | Timestamp | null | undefined): Date | null => {
+                      if (!dateValue) return null;
+                      let date: Date | null = null;
+
+                      try {
+                        if (dateValue instanceof Timestamp) {
+                          date = dateValue.toDate();
+                        } else if (typeof dateValue === 'string') {
+                          // Try parsing common formats - JS Date constructor is quite flexible
+                          // Add T00:00:00 for YYYY-MM-DD to hint local time, otherwise let it parse
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+                             date = new Date(dateValue + 'T00:00:00');
+                          } else {
+                             date = new Date(dateValue); // Handles MM/DD/YYYY, M/D/YY etc.
+                          }
+                        }
+
+                        if (date && !isNaN(date.getTime())) {
+                          date.setHours(0, 0, 0, 0); // Normalize to midnight
+                          return date;
+                        }
+                      } catch (e) {
+                         console.error("Error during LOA date parsing:", dateValue, e);
+                      }
+
+                      // console.warn("Could not parse LOA date:", dateValue); // Optional: Log if parsing failed
+                      return null;
+                    };
+
+                    const startDate = parseLoaDate(userData.loaStartDate);
+                    const endDate = parseLoaDate(userData.loaEndDate);
+
+                    if (startDate && endDate) {
+                      // Check if today is within the LOA range (inclusive)
+                      if (today >= startDate && today <= endDate) {
+                        isOnLOA = true;
+                      }
+                    }
+                    // --- End LOA Check ---
+
+
                     function formatDateForDisplay(dateString: string | Timestamp | null | undefined): string {
                       if (!dateString) return "N/A";
                       let date: Date;
@@ -685,24 +817,36 @@ export default function AdminMenu(): JSX.Element {
                       return a.completed ? -1 : 1; // Completed tasks first
                     });
 
+                    // Define LOA specific styles
+                    const loaCardClass = isOnLOA ? 'border-orange-500 bg-orange-900/20' : '';
+                    const loaTextClass = isOnLOA ? 'text-orange-400' : '';
+
                     return (
                       <div
                         key={userData.id}
-                        className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md ${isHiddenByRule && showHiddenCards ? 'opacity-70 border-dashed border-orange-500' : ''}`}
-                        title={isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}
+                        className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md ${isHiddenByRule && showHiddenCards ? 'opacity-70 border-dashed border-orange-500' : ''} ${loaCardClass}`} // Apply LOA card class
+                        title={`${isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}${isOnLOA ? ' User is currently on LOA' : ''}`} // Add LOA to title
                       >
                         <div className="flex-grow">
                           <div className="flex justify-between items-start mb-1">
-                            <h4 className={`font-semibold ${textAccent}`}>
+                            <h4 className={`font-semibold ${textAccent} ${loaTextClass}`}> {/* Apply LOA text class */}
                               {userData.name}
                             </h4>
                             <div className="flex flex-col items-end gap-1">
+                              {/* LOA Badge */}
+                              {isOnLOA && (
+                                <span className="text-xs text-orange-400 bg-orange-900/60 px-1.5 py-0.5 rounded border border-orange-600 flex items-center gap-1">
+                                  On LOA
+                                </span>
+                              )}
+                              {/* Hidden Badge */}
                               {isHiddenByRule && showHiddenCards && (
                                 <span className="text-xs text-orange-400 bg-orange-900/60 px-1.5 py-0.5 rounded border border-orange-600 flex items-center gap-1">
                                   <FaEyeSlash size="0.65rem"/> Hidden
                                 </span>
                               )}
-                              {eligibleForPromotion && !(isHiddenByRule && showHiddenCards) && (
+                              {/* Eligible Badge */}
+                              {eligibleForPromotion && !(isHiddenByRule && showHiddenCards) && !isOnLOA && ( // Hide eligibility if on LOA
                                 <Link
                                   to={`/promotions?focusUser=${userData.id}`}
                                   className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 px-1.5 py-0.5 rounded border border-green-600 hover:bg-green-800/50 transition-colors duration-150"
@@ -712,17 +856,18 @@ export default function AdminMenu(): JSX.Element {
                                   <span>Eligible</span>
                                 </Link>
                               )}
-                              {eligibleForPromotion && needsHCVote && !(isHiddenByRule && showHiddenCards) && (
+                              {/* HC Approval Badge */}
+                              {eligibleForPromotion && needsHCVote && !(isHiddenByRule && showHiddenCards) && !isOnLOA && ( // Hide HC approval if on LOA
                                 <div className="text-xs text-yellow-400/80 italic px-1.5 py-0.5 rounded bg-yellow-900/50 border border-yellow-600/50" title="Promotion to this rank requires High Command review">
                                   Requires HC Approval
                                 </div>
                               )}
                             </div>
                           </div>
-                          <p className={`text-sm ${textSecondary}`}>
+                          <p className={`text-sm ${textSecondary} ${loaTextClass}`}> {/* Apply LOA text class */}
                             {userData.rank} - {userData.callsign || "N/A"}
                           </p>
-                          <p className={`text-sm ${textSecondary} mb-2`}>
+                          <p className={`text-sm ${textSecondary} mb-2 ${loaTextClass}`}> {/* Apply LOA text class */}
                             Badge: {userData.badge}
                           </p>
                           <h5 className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}>
