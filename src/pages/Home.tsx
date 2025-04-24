@@ -485,13 +485,14 @@ const MyDashboard: React.FC = () => {
 
   return (
     <Layout>
-      <div className="relative z-10 space-y-8 px-4 py-8 max-w-7xl mx-auto">
+      {/* Increased responsive side margins: mx-8 lg:mx-16 -> mx-10 lg:mx-20 */}
+      <div className="relative z-10 space-y-8 px-4 py-8 mx-18 lg:mx-48">
         {/* Header */}
-        {/* Changed justify-start to justify-center */}
+        {/* Removed max-w-7xl and mx-auto to allow header to expand with parent padding */}
         <div className="flex flex-row items-center justify-center gap-4 mb-6 bg-black bg-opacity-85 p-4 rounded-lg shadow-lg">
           <img src="/SASPLOGO2.png" alt="SASP" className="w-16 h-16" /> {/* Reduced image size */}
           {/* Added text-center to center the h1 and p elements */}
-          <div className="text-center"> 
+          <div className="text-center">
             <h1 className="text-3xl font-extrabold text-[#f3c700] tracking-tight"> {/* Reduced text size */}
               My Dashboard
             </h1>
@@ -501,7 +502,7 @@ const MyDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Trooper Information & Bulletins */}
+        {/* Trooper Information & Bulletins - This grid will now expand wider */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Trooper Information */}
           <div className="p-6 bg-black bg-opacity-80 border border-[#f3c700] rounded-xl shadow-lg w-full">
@@ -633,7 +634,7 @@ const MyDashboard: React.FC = () => {
           </Modal>
         )}
 
-        {/* Main Grid Layout */}
+        {/* Main Grid Layout - This grid will now expand wider */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left Column Wrapper */}
           <div className="space-y-6">
@@ -856,7 +857,7 @@ const MyDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Assigned Vehicle */}
+        {/* Assigned Vehicle - This section will now expand wider */}
         <div className="p-5 bg-black bg-opacity-80 border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center">
           <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-white pb-2">
             Assigned Vehicle
@@ -870,7 +871,7 @@ const MyDashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Allowed Vehicles */}
+        {/* Allowed Vehicles - This section will now expand wider */}
         <div className="p-5 bg-black bg-opacity-80 border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center">
           <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-white pb-2">
             Allowed Vehicles

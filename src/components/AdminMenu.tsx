@@ -20,13 +20,15 @@ import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash, FaCheckCircle } from "re
 import { useAuth } from "../context/AuthContext";
 import { RosterUser, DisciplineEntry, NoteEntry } from "../types/User";
 import EditUserModal from "./EditUserModal";
+import AddUserModal from "./AddUserModal"; // Import the new modal
 import { UserTask } from "../types/User";
 import { toast } from "react-toastify";
 import ConfirmationModal from "./ConfirmationModal";
 import { where as firestoreWhere, QueryConstraint } from "firebase/firestore";
 import { limit as firestoreLimit } from "firebase/firestore";
 
-const rankCategories = {
+// Export these for use in AddUserModal
+export const rankCategories = {
   CADET: "Cadets",
   TROOPER: "State Troopers",
   SUPERVISOR: "Supervisors",
@@ -67,7 +69,8 @@ const eligibleVoterRanks = [
   "Commissioner",
 ].map(rank => rank.toLowerCase());
 
-const getRankCategory = (rank: string): keyof typeof rankCategories | null => {
+// Export this for use in AddUserModal
+export const getRankCategory = (rank: string): keyof typeof rankCategories | null => {
   const lowerRank = rank.toLowerCase();
   if (lowerRank === "cadet") return "CADET";
   if (["trooper", "trooper first class", "corporal"].includes(lowerRank))
@@ -168,6 +171,7 @@ export default function AdminMenu(): JSX.Element {
   const [selectedAssignFilter, setSelectedAssignFilter] = useState<string>("SELECT");
   const [showHiddenCards, setShowHiddenCards] = useState<boolean>(false);
   const [showOnlyUsersWithCompletedTasks, setShowOnlyUsersWithCompletedTasks] = useState<boolean>(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for Add User Modal
 
   useEffect(() => {
     setBackgroundImage(getRandomBackgroundImage());
@@ -180,8 +184,8 @@ export default function AdminMenu(): JSX.Element {
       const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
       const usersPromises = usersSnapshot.docs.map(async (userDoc) => {
         const userData = userDoc.data() as Partial<RosterUser & { lastSignInTime?: Timestamp | string | null, promotionStatus?: any }>;
-        const userEmail = userDoc.id;
-        const name = typeof userData.name === "string" ? userData.name : "Unknown";
+        const userEmail = userDoc.id; // This is correct, ID can be name or email
+        const name = typeof userData.name === "string" ? userData.name : userEmail; // Fallback to ID if name missing
 
         const tasksSnapshot = await getDocs(
           query(
@@ -268,24 +272,24 @@ export default function AdminMenu(): JSX.Element {
         }).filter((note): note is NoteEntry => note !== null);
 
         return {
-          id: userEmail,
-          email: userEmail,
+          id: userEmail, // Use doc ID
+          email: userData.email || "", // Store email if present, else empty
           name: name,
           rank: userData.rank || "Unranked",
           badge: userData.badge || "N/A",
           callsign: userData.callsign || "",
           isActive: userData.isActive ?? true,
           discordId: userData.discordId || "-",
-          cid: userData.cid,
+          cid: userData.cid || "", // Ensure cid is handled
           joinDate: userData.joinDate || null,
           lastPromotionDate: userData.lastPromotionDate || null,
           loaStartDate: userData.loaStartDate || null,
           loaEndDate: userData.loaEndDate || null,
           certifications: userData.certifications || {},
-          role: userData.role,
+          role: userData.role || "", // Ensure role is handled
           isPlaceholder: userData.isPlaceholder ?? false,
-          category: userData.category,
-          assignedVehicleId: userData.assignedVehicleId,
+          category: userData.category || null, // Ensure category is handled
+          assignedVehicleId: userData.assignedVehicleId || null, // Ensure assignedVehicleId is handled
           tasks: tasks,
           disciplineEntries: disciplineEntries,
           generalNotes: generalNotes,
@@ -306,6 +310,7 @@ export default function AdminMenu(): JSX.Element {
       );
     } catch (error) {
       setUsersError("Failed to load user, task, or discipline data.");
+      console.error("Error fetching admin data:", error); // Log the actual error
     } finally {
       setUsersLoading(false);
     }
@@ -389,6 +394,22 @@ export default function AdminMenu(): JSX.Element {
   const textAccent = "text-[#f3c700]";
   const borderAccent = "border-[#f3c700]";
 
+  const handleOpenAddModal = () => {
+    setIsAddModalOpen(true);
+  };
+
+  const handleCloseAddModal = () => {
+    setIsAddModalOpen(false);
+  };
+
+  const handleSave = () => {
+    // Combined save handler for both modals
+    setEditingUser(null); // Close edit modal if open
+    setIsAddModalOpen(false); // Close add modal if open
+    fetchAdminData(); // Refresh the user list
+  };
+
+
   return (
     <Layout>
       <div
@@ -441,6 +462,19 @@ export default function AdminMenu(): JSX.Element {
             </NavLink>
           </div>
         </div>
+
+        {/* Add Trooper Button */}
+        <div className="mb-4 flex justify-end">
+             <button
+                onClick={handleOpenAddModal}
+                className={`${buttonPrimary}`}
+             >
+                Add Trooper
+             </button>
+        </div>
+
+
+        {/* Assign Task Section */}
         <button
           className={`${buttonPrimary} mb-4`}
           onClick={() => setIsAssignTaskOpen((prev) => !prev)}
@@ -557,6 +591,8 @@ export default function AdminMenu(): JSX.Element {
             </div>
           </div>
         )}
+
+        {/* Users Overview Section */}
         <div className={`${cardBase}`}>
           <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 flex-wrap">
             <h2 className={`section-header text-2xl font-bold ${textAccent} border-none pb-0`}>
@@ -781,6 +817,8 @@ export default function AdminMenu(): JSX.Element {
             </>
           )}
         </div>
+
+        {/* Edit User Modal */}
         {editingUser && (
           <EditUserModal
             user={{
@@ -800,8 +838,8 @@ export default function AdminMenu(): JSX.Element {
               id: editingUser.id || "",
               category: editingUser.category || "Uncategorized",
               cid: editingUser.cid || "Unknown",
-              email: editingUser.email || "Unknown",
-              role: editingUser.role || "Unknown",
+              email: editingUser.email || "", // Ensure email is handled if empty
+              role: editingUser.role || "", // Ensure role is handled
               isPlaceholder: editingUser.isPlaceholder ?? false,
               tasks: editingUser.tasks || [],
               disciplineEntries: editingUser.disciplineEntries || [],
@@ -809,10 +847,15 @@ export default function AdminMenu(): JSX.Element {
               promotionStatus: editingUser.promotionStatus,
             }}
             onClose={() => setEditingUser(null)}
-            onSave={() => {
-              fetchAdminData();
-              setEditingUser(null);
-            }}
+            onSave={handleSave} // Use combined save handler
+          />
+        )}
+
+        {/* Add User Modal */}
+        {isAddModalOpen && (
+          <AddUserModal
+            onClose={handleCloseAddModal}
+            onSave={handleSave} // Use combined save handler
           />
         )}
       </div>

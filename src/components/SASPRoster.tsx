@@ -21,7 +21,11 @@ import {
 } from "../data/rosterConfig";
 import { backgroundImages } from "../data/images";
 import { computeIsAdmin } from "../utils/isadmin";
-import { formatDateForRoster } from "../utils/timeHelpers";
+import {
+  formatTimestampDateTime,
+  formatDateToMMDDYY, // Changed from formatDateForRoster
+  isOlderThanDays,
+} from "../utils/timeHelpers";
 import { toast } from "react-toastify"; // Import toastify
 import "react-toastify/dist/ReactToastify.css"; // Import toastify styles
 
@@ -347,10 +351,10 @@ const SASPRoster: React.FC = () => {
 
       const updatedData = {
         ...editedRowData,
-        joinDate: formatDateForRoster(editedRowData.joinDate),
-        lastPromotionDate: formatDateForRoster(editedRowData.lastPromotionDate),
-        loaStartDate: formatDateForRoster(editedRowData.loaStartDate),
-        loaEndDate: formatDateForRoster(editedRowData.loaEndDate),
+        joinDate: formatDateToMMDDYY(editedRowData.joinDate),
+        lastPromotionDate: formatDateToMMDDYY(editedRowData.lastPromotionDate),
+        loaStartDate: formatDateToMMDDYY(editedRowData.loaStartDate),
+        loaEndDate: formatDateToMMDDYY(editedRowData.loaEndDate),
         certifications: updatedCertifications, // Use the updated certifications map
       };
 
@@ -737,7 +741,7 @@ const SASPRoster: React.FC = () => {
                                   className="input w-full bg-gray-700 border-gray-600 text-white"
                                 />
                               ) : (
-                                formatDateForRoster(u.joinDate) || "-"
+                                formatDateToMMDDYY(u.joinDate) || "-"
                               )}
                             </td>
                             <td className="p-2 border border-[#f3c700]">
@@ -759,7 +763,7 @@ const SASPRoster: React.FC = () => {
                                   className="input w-full bg-gray-700 border-gray-600 text-white"
                                 />
                               ) : (
-                                formatDateForRoster(u.lastPromotionDate) || "-"
+                                formatDateToMMDDYY(u.lastPromotionDate) || "-"
                               )}
                             </td>
                             <td className="p-2 border border-[#f3c700]">
@@ -811,7 +815,7 @@ const SASPRoster: React.FC = () => {
                                   className="input w-full bg-gray-700 border-gray-600 text-white"
                                 />
                               ) : (
-                                formatDateForRoster(u.loaStartDate) || "-"
+                                formatDateToMMDDYY(u.loaStartDate) || "-"
                               )}
                             </td>
                             <td className="p-2 border border-[#f3c700]">
@@ -833,7 +837,7 @@ const SASPRoster: React.FC = () => {
                                   className="input w-full bg-gray-700 border-gray-600 text-white"
                                 />
                               ) : (
-                                formatDateForRoster(u.loaEndDate) || "-"
+                                formatDateToMMDDYY(u.loaEndDate) || "-"
                               )}
                             </td>
                             {canEditRoster && (

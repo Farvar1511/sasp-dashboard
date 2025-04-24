@@ -1,6 +1,42 @@
 import { Timestamp } from "firebase/firestore";
 
 /**
+ * Formats a 24-hour time string (HH:MM) into a 12-hour format (h:mm AM/PM).
+ * Returns "Invalid Time" for invalid input.
+ * @param timeString - The time string in HH:MM format.
+ * @returns A string in h:mm AM/PM format or "Invalid Time".
+ */
+export const formatTime12hr = (timeString: string | null | undefined): string => {
+  if (!timeString || typeof timeString !== 'string' || !/^\d{2}:\d{2}$/.test(timeString)) {
+    // console.warn("Invalid time string format received:", timeString);
+    return ""; // Return empty string for invalid or missing input
+  }
+
+  try {
+    const [hoursStr, minutesStr] = timeString.split(':');
+    let hours = parseInt(hoursStr, 10);
+    const minutes = parseInt(minutesStr, 10);
+
+    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      // console.warn("Invalid time values:", timeString);
+      return ""; // Return empty string for invalid time values
+    }
+
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+
+    const minutesPadded = minutes < 10 ? '0' + minutes : minutes;
+
+    return `${hours}:${minutesPadded} ${ampm}`;
+  } catch (error) {
+    console.error("Error formatting time to 12hr:", error, "Input:", timeString);
+    return ""; // Return empty string on unexpected error
+  }
+};
+
+
+/**
  * Formats a Date object into MM/DD/YY format.
  * @param date - The Date object to format.
  * @returns A string in MM/DD/YY format or null if the input is null.
@@ -166,153 +202,18 @@ export const convertFirestoreDate = (dateString: string): string => {
 };
 
 /**
- * Converts a date string or Timestamp to MM/DD/YY format.
- * Handles 'YYYY-MM-DD' strings or Firestore Timestamps.
- * @param value - The date string ('YYYY-MM-DD'), Timestamp, or null/undefined.
- * @returns A string in MM/DD/YY format or "N/A" if the input is invalid or empty.
+ * Formats a date string (YYYY-MM-DD or MM/DD/YY), Timestamp, or Date object to MM/DD/YY format.
+ * Returns an empty string "" for invalid, null, undefined, or empty inputs.
+ * @param dateValue - The date value (string, Timestamp, Date, null, undefined).
+ * @returns A string in MM/DD/YY format or "".
  */
 export const formatDateToMMDDYY = (
-  dateValue: string | Timestamp | null | undefined
-): string => {
-  let dateString: string | null = null;
-
-  if (!dateValue) return "N/A";
-
-  if (dateValue instanceof Timestamp) {
-    // Convert Timestamp to YYYY-MM-DD string
-    try {
-      dateString = dateValue.toDate().toISOString().split("T")[0];
-    } catch (e) {
-      console.error("Error converting Timestamp to Date:", e);
-      return "Invalid Date";
-    }
-  } else if (typeof dateValue === 'string') {
-    // Assume string is already in YYYY-MM-DD format or similar parseable format
-    dateString = dateValue;
-  } else {
-    return "N/A"; // Should not happen with TS, but good practice
-  }
-
-  // Now dateString is guaranteed to be a string or null (if conversion failed)
-  if (!dateString) return "Invalid Date";
-
-  // Existing logic to parse YYYY-MM-DD string
-  const parts = dateString.split('-');
-  if (parts.length !== 3) {
-    // Attempt to parse other potential string formats if needed, or return invalid
-    const parsedDate = new Date(dateString + 'T00:00:00Z'); // Treat as UTC
-     if (isNaN(parsedDate.getTime())) {
-        return "Invalid Date Format";
-     }
-     // If parseable, extract parts using UTC methods
-     const year = parsedDate.getUTCFullYear();
-     const month = parsedDate.getUTCMonth();
-     const day = parsedDate.getUTCDate();
-     const displayMonth = month + 1;
-     const displayDay = day;
-     const displayYear = year % 100;
-     return `${displayMonth}/${displayDay}/${displayYear < 10 ? '0' + displayYear : displayYear}`;
-  }
-
-  // Create date using UTC values to avoid timezone shifts from YYYY-MM-DD
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
-  const day = parseInt(parts[2], 10);
-
-  // Validate parsed parts
-  if (isNaN(year) || isNaN(month) || isNaN(day)) {
-      return "Invalid Date Parts";
-  }
-
-  const date = new Date(Date.UTC(year, month, day));
-
-  if (isNaN(date.getTime())) {
-    return "Invalid Date";
-  }
-
-  // Use UTC methods for formatting
-  const displayMonth = date.getUTCMonth() + 1;
-  const displayDay = date.getUTCDate();
-  const displayYear = date.getUTCFullYear() % 100;
-
-  return `${displayMonth}/${displayDay}/${displayYear < 10 ? '0' + displayYear : displayYear}`;
-};
-
-/**
- * Formats a Timestamp or Date object into MM/DD/YY HH:MM AM/PM (Timezone Abbr.) format.
- * @param timestamp - The Timestamp or Date object to format.
- * @returns A formatted string in the user's local time and timezone, or "N/A".
- */
-export function formatTimestampForUserDisplay(
-  timestamp: Timestamp | Date | null | undefined
-): string {
-  if (!timestamp) {
-    return "N/A";
-  }
-  const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
-
-  // Check for invalid date
-  if (isNaN(date.getTime())) {
-      return "Invalid Date";
-  }
-
-  // Use Intl.DateTimeFormat for robust formatting
-  const options: Intl.DateTimeFormatOptions = {
-    year: '2-digit',
-    month: '2-digit',
-    day: '2-digit',
-    hour: 'numeric', // Use numeric for 1-12
-    minute: '2-digit',
-    hour12: true, // Force 12-hour clock
-    timeZoneName: 'short', // Get timezone abbreviation like EST, PST
-  };
-
-  try {
-    // Replace comma with space for better readability if present
-    return new Intl.DateTimeFormat('en-US', options).format(date).replace(',', '');
-  } catch (e) {
-    console.error("Error formatting timestamp:", e);
-    // Fallback to simpler format on error
-    return date.toLocaleDateString('en-US') + ' ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  }
-}
-
-/**
- * Formats a time string (HH:MM) into 12-hour format (H:MM AM/PM).
- * @param timeString - The time string in 24-hour HH:MM format.
- * @returns A formatted string in 12-hour format or the original string if invalid.
- */
-export function formatTimeString12hr(timeString: string | null | undefined): string {
-    if (!timeString || !/^\d{1,2}:\d{2}$/.test(timeString)) { // Allow H:MM or HH:MM
-        return timeString || "N/A"; // Return original or N/A if invalid/empty
-    }
-    try {
-        const [hours, minutes] = timeString.split(':');
-        const hoursInt = parseInt(hours, 10);
-
-        if (isNaN(hoursInt) || hoursInt < 0 || hoursInt > 23) {
-             return timeString; // Invalid hour
-        }
-
-        const ampm = hoursInt >= 12 ? 'PM' : 'AM';
-        const hours12 = hoursInt % 12 || 12; // Convert 0 to 12 for 12 AM/PM
-        return `${hours12}:${minutes} ${ampm}`;
-    } catch (e) {
-        console.error("Error formatting time string:", e);
-        return timeString; // Return original on error
-    }
-}
-
-/**
- * Formats a date string, Timestamp, or Date object for roster display (M/D/YY).
- * Returns an empty string for invalid or null/undefined inputs.
- * @param dateValue - The date value (string, Timestamp, Date, null, undefined).
- * @returns A string in M/D/YY format or "".
- */
-export const formatDateForRoster = (
   dateValue: string | Timestamp | Date | null | undefined
 ): string => {
-  if (!dateValue) return "";
+  // Handle null, undefined, or empty/whitespace strings first
+  if (!dateValue || (typeof dateValue === 'string' && !dateValue.trim())) {
+    return "";
+  }
 
   let date: Date | null = null;
 
@@ -321,48 +222,75 @@ export const formatDateForRoster = (
       date = dateValue.toDate();
     } else if (dateValue instanceof Date) {
       date = dateValue;
-    } else if (typeof dateValue === "string") {
-      // Attempt to parse common formats, prioritizing YYYY-MM-DD then MM/DD/YY(YY)
-      // Add 'T00:00:00Z' to treat date-only strings as UTC to avoid timezone shifts
+    } else if (typeof dateValue === 'string') {
       const cleanedString = dateValue.trim();
-      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(cleanedString)) {
-        date = new Date(cleanedString + 'T00:00:00Z');
-      } else if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(cleanedString)) {
-         // For MM/DD/YY or MM/DD/YYYY, JS Date constructor might be unreliable with timezones.
-         // Split and construct UTC date to be safe.
-         const parts = cleanedString.split('/');
-         if (parts.length === 3) {
-            const month = parseInt(parts[0], 10) - 1;
-            const day = parseInt(parts[1], 10);
-            let year = parseInt(parts[2], 10);
-            if (year < 100) { // Handle YY format
-                year += 2000; // Assume 21st century
+
+      // Try parsing YYYY-MM-DD
+      const ymdParts = cleanedString.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (ymdParts) {
+        const year = parseInt(ymdParts[1], 10);
+        const month = parseInt(ymdParts[2], 10) - 1; // Month is 0-indexed
+        const day = parseInt(ymdParts[3], 10);
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          // Use UTC to avoid timezone shifts
+          date = new Date(Date.UTC(year, month, day));
+          // Validate the constructed date
+          if (isNaN(date.getTime()) || date.getUTCFullYear() !== year || date.getUTCMonth() !== month || date.getUTCDate() !== day) {
+            console.warn(`Invalid date parts in YYYY-MM-DD string: ${cleanedString}`);
+            date = null; // Mark as invalid
+          }
+        }
+      }
+
+      // If YYYY-MM-DD parsing failed or wasn't the format, try MM/DD/YY(YY)
+      if (!date) {
+        const mdyParts = cleanedString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+        if (mdyParts) {
+          const month = parseInt(mdyParts[1], 10) - 1; // Month is 0-indexed
+          const day = parseInt(mdyParts[2], 10);
+          let year = parseInt(mdyParts[3], 10);
+          if (year < 100) { year += 2000; } // Handle YY
+
+          if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+            // Use UTC to avoid timezone shifts
+            date = new Date(Date.UTC(year, month, day));
+            // Validate the constructed date
+            if (isNaN(date.getTime()) || date.getUTCFullYear() !== year || date.getUTCMonth() !== month || date.getUTCDate() !== day) {
+              console.warn(`Invalid date parts in MM/DD/YY string: ${cleanedString}`);
+              date = null; // Mark as invalid
             }
-            if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
-                 date = new Date(Date.UTC(year, month, day));
-            }
-         }
-      } else {
-         // Fallback for other potential string formats, treat as UTC
-         date = new Date(cleanedString + 'T00:00:00Z');
+          }
+        }
+      }
+
+      // If still no valid date after trying both formats
+      if (!date) {
+          console.warn(`Unrecognized or invalid date string format: ${cleanedString}`);
+          return ""; // Return empty string for unparseable formats
       }
     }
 
-    // Check if date is valid after parsing attempts
-    if (!date || isNaN(date.getTime())) {
+    // If we have a date object, but it's invalid (e.g., from new Date(invalid_string))
+    if (date && isNaN(date.getTime())) {
+      console.warn(`Invalid Date object received or created.`);
       return "";
     }
 
-    // Format using UTC methods: M/D/YY (no padding)
-    const displayMonth = date.getUTCMonth() + 1;
-    const displayDay = date.getUTCDate();
-    const displayYear = date.getUTCFullYear() % 100; // Get last two digits
+    // If date is null after all checks (e.g., invalid parts), return empty string
+    if (!date) {
+        return "";
+    }
+
+    // Format valid date using UTC methods: MM/DD/YY (with padding for year)
+    const displayMonth = (date.getUTCMonth() + 1).toString();
+    const displayDay = date.getUTCDate().toString();
+    const displayYear = (date.getUTCFullYear() % 100).toString().padStart(2, '0');
 
     return `${displayMonth}/${displayDay}/${displayYear}`;
 
   } catch (error) {
-    console.error("Error formatting date for roster:", error, "Input:", dateValue);
-    return ""; // Return empty string on any error
+    console.error("Error formatting date to MM/DD/YY:", error, "Input:", dateValue);
+    return ""; // Return empty string on any unexpected error
   }
 };
 

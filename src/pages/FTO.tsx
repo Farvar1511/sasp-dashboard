@@ -21,7 +21,7 @@ import TipTapEditor from "../components/TipTapEditor";
 import { computeIsAdmin } from "../utils/isadmin";
 import Modal from "../components/Modal";
 import ConfirmationModal from "../components/ConfirmationModal";
-import { formatDateToMMDDYY, formatTimestampForUserDisplay, formatTimeString12hr } from "../utils/timeHelpers";
+import { formatDateToMMDDYY, formatTimestampForDisplay, formatTime12hr } from "../utils/timeHelpers";
 import { FaPencilAlt, FaTrash } from "react-icons/fa";
 
 interface CadetLog {
@@ -788,7 +788,7 @@ const FTOPage: React.FC = () => {
                       {log.summary ? log.summary : <span className="italic text-white/50">None</span>}
                     </p>
                     <p className="text-white/50">
-                      Logged: {formatTimestampForUserDisplay(log.createdAt)}
+                      Logged: {formatTimestampForDisplay(log.createdAt)}
                     </p>
                   </div>
                 ))
@@ -810,7 +810,7 @@ const FTOPage: React.FC = () => {
                       <span className="font-semibold">Note:</span> {note.note}
                     </p>
                     <p className="text-white/50">
-                      {formatTimestampForUserDisplay(note.createdAt)}
+                      {formatTimestampForDisplay(note.createdAt)}
                     </p>
                   </div>
                 ))
@@ -894,7 +894,7 @@ const FTOPage: React.FC = () => {
                 <p className="text-white/80">{note.note}</p>
                 <p className="text-xs text-[#f3c700] mt-2">
                   — {note.ftoName} <span className="text-white/60">({note.ftoRank})</span>
-                  on <span className="text-white/60">{formatTimestampForUserDisplay(note.createdAt)}</span>
+                  on <span className="text-white/60">{formatTimestampForDisplay(note.createdAt)}</span>
                 </p>
               </div>
             ))
@@ -1075,8 +1075,17 @@ const FTOPage: React.FC = () => {
                 </div>
                 {lastLog ? (
                   <div className="text-xs text-white/60 border-t border-white/20 pt-2 mt-2">
-                    <p><span className="font-semibold">Last Session:</span> {formatDateToMMDDYY(lastLog.date)} ({lastLog.sessionHours.toFixed(1)} hrs)</p>
-                    <p><span className="font-semibold">FTO:</span> {lastLog.ftoName}</p>
+                    <p>
+                      <span className="font-semibold">Last Session:</span>{" "}
+                      {formatDateToMMDDYY(lastLog.date)}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Hours:</span>{" "}
+                      {lastLog.sessionHours.toFixed(1)}
+                    </p>
+                    <p>
+                      <span className="font-semibold">FTO:</span> {lastLog.ftoName}
+                    </p>
                   </div>
                 ) : (
                   <p className="text-xs text-white/50 italic border-t border-white/20 pt-2 mt-2">
@@ -1089,7 +1098,7 @@ const FTOPage: React.FC = () => {
                     <>
                       <p className="italic truncate" title={latestNote.note}>"{latestNote.note}"</p>
                       <p className="text-white/50">
-                        - {latestNote.ftoName} on {formatTimestampForUserDisplay(latestNote.createdAt)}
+                        - {latestNote.ftoName} on {formatTimestampForDisplay(latestNote.createdAt)}
                       </p>
                     </>
                   ) : (
@@ -1372,7 +1381,7 @@ const FTOPage: React.FC = () => {
                 />
                 <p className="text-xs text-white/60 mt-3 pt-2 border-t border-white/10">
                   Posted by {ann.authorRank} {ann.authorName} on{" "}
-                  {formatTimestampForUserDisplay(ann.createdAt)}
+                  {formatTimestampForDisplay(ann.createdAt)}
                 </p>
               </div>
             )
@@ -1430,7 +1439,7 @@ const FTOPage: React.FC = () => {
                           <div>
                             <p className="text-white/80">
                               <span className="font-semibold text-[#f3c700]">Progress Update</span>{" "}
-                              by {log.ftoName} on {formatTimestampForUserDisplay(log.createdAt)}
+                              by {log.ftoName} on {formatTimestampForDisplay(log.createdAt)}
                             </p>
                             <p className="text-white/60 italic mt-1">{log.summary}</p>
                           </div>
@@ -1457,7 +1466,7 @@ const FTOPage: React.FC = () => {
                               <span className="font-semibold">Date:</span>{" "}
                               {formatDateToMMDDYY(log.date)} |{" "}
                               <span className="font-semibold">Time:</span>{" "}
-                              {formatTimeString12hr(log.timeStarted)} - {formatTimeString12hr(log.timeEnded)}
+                              {formatTime12hr(log.timeStarted)} - {formatTime12hr(log.timeEnded)}
                             </p>
                             <p className="text-sm text-white">
                               <span className="font-semibold">Session Hours:</span>{" "}
@@ -1497,7 +1506,7 @@ const FTOPage: React.FC = () => {
                           {log.additionalNotes || <span className="italic text-white/60">None</span>}
                         </p>
                         <p className="text-xs text-white/60 mt-1">
-                          Logged: {formatTimestampForUserDisplay(log.createdAt)}
+                          Logged: {formatTimestampForDisplay(log.createdAt)}
                         </p>
                       </div>
                     );
@@ -1523,7 +1532,7 @@ const FTOPage: React.FC = () => {
                       <div>
                         <p className="text-white/80">{note.note}</p>
                         <p className="text-xs text-[#f3c700] mt-1">
-                          - {note.ftoName} ({note.ftoRank}) on {formatTimestampForUserDisplay(note.createdAt)}
+                          - {note.ftoName} ({note.ftoRank}) on {formatTimestampForDisplay(note.createdAt)}
                         </p>
                       </div>
                       <button

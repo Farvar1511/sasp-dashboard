@@ -58,7 +58,8 @@ const Documents: React.FC = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+        {/* Removed max-w-[95rem] and mx-auto to allow grid to fill parent padding */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 px-4 sm:px-6 lg:px-8">
           {cats.length === 0 && (
             <p className="col-span-full text-center text-white/60">
               No documents found

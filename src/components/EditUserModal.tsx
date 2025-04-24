@@ -56,6 +56,45 @@ interface EditUserModalProps {
 
 const restrictedCertKeys = ["MBU", "HEAT", "ACU"];
 
+// Helper function to parse MM/DD/YY input and return YYYY-MM-DD or null
+const parseMMDDYYToYYYYMMDD = (dateString: string | null | undefined): string | null => {
+  if (!dateString || !dateString.trim()) return null; // Return null for empty/whitespace strings
+  const cleanedString = dateString.trim();
+  // Regex allows M/D/YY, MM/DD/YY, M/D/YYYY, MM/DD/YYYY
+  const parts = cleanedString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (!parts) return null; // Invalid format
+
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+  let year = parseInt(parts[3], 10);
+
+  // Handle YY -> YYYY conversion (assuming 20xx)
+  if (year < 100) {
+    year += 2000;
+  }
+
+  // Basic validation
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+
+  // Format to YYYY-MM-DD
+  const yyyy = year.toString();
+  const mm = month.toString().padStart(2, '0');
+  const dd = day.toString().padStart(2, '0');
+
+  // Final check if the constructed date is valid (e.g., handles Feb 30)
+  // Use UTC to avoid timezone issues during validation
+  const dateObj = new Date(Date.UTC(year, month - 1, day));
+  if (isNaN(dateObj.getTime()) || dateObj.getUTCFullYear() !== year || dateObj.getUTCMonth() + 1 !== month || dateObj.getUTCDate() !== day) {
+      console.warn(`Invalid date constructed: ${yyyy}-${mm}-${dd} from input ${dateString}`);
+      return null; // Invalid date like Feb 30
+  }
+
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+
 const EditUserModal: React.FC<EditUserModalProps> = ({
   user,
   onClose,
@@ -83,10 +122,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     isActive: boolean;
     isPlaceholder: boolean;
     isadmin?: boolean;
-    joinDate: string;
-    lastPromotionDate: string;
-    loaEndDate: string;
-    loaStartDate: string;
+    joinDate: string; // Will hold MM/DD/YY for display
+    lastPromotionDate: string; // Will hold MM/DD/YY for display
+    loaEndDate: string; // Will hold MM/DD/YY for display
+    loaStartDate: string; // Will hold MM/DD/YY for display
     role: string;
     assignedVehicleId?: string;
     tasks: UserTask[];
@@ -99,6 +138,12 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     };
   }>({
     ...user,
+    // Format dates from user prop (likely YYYY-MM-DD or other) to MM/DD/YY for display
+    joinDate: formatDateToMMDDYY(user.joinDate),
+    lastPromotionDate: formatDateToMMDDYY(user.lastPromotionDate),
+    loaStartDate: formatDateToMMDDYY(user.loaStartDate),
+    loaEndDate: formatDateToMMDDYY(user.loaEndDate),
+    // Initialize other state parts
     newTaskDesc: "",
     newTaskType: "normal",
     newTaskGoal: 0,
@@ -184,15 +229,18 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       const { tasks, disciplineEntries, generalNotes, ...rosterData } =
         formData;
 
+      // Parse MM/DD/YY input from form to YYYY-MM-DD (or null) for Firestore storage
       const updateData = {
         ...rosterData,
         assignedVehicleId: rosterData.assignedVehicleId || null, // Ensure no undefined values
-        loaStartDate: formatDateToMMDDYY(rosterData.loaStartDate), // Format to MM/DD/YY or empty string
-        loaEndDate: formatDateToMMDDYY(rosterData.loaEndDate), // Format to MM/DD/YY or empty string
-        joinDate: formatDateToMMDDYY(rosterData.joinDate), // Format to MM/DD/YY or empty string
-        lastPromotionDate: formatDateToMMDDYY(rosterData.lastPromotionDate), // Format to MM/DD/YY or empty string
+        // Use the parser here
+        loaStartDate: parseMMDDYYToYYYYMMDD(rosterData.loaStartDate),
+        loaEndDate: parseMMDDYYToYYYYMMDD(rosterData.loaEndDate),
+        joinDate: parseMMDDYYToYYYYMMDD(rosterData.joinDate),
+        lastPromotionDate: parseMMDDYYToYYYYMMDD(rosterData.lastPromotionDate),
       };
 
+      // Firestore updateDoc handles null values by default (doesn't delete field unless specified)
       await updateDoc(userRef, updateData); // Update Firestore document
       toast.success("Roster changes saved successfully!");
       onSave(); // Trigger the onSave callback
@@ -739,7 +787,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               <input
                 type="text"
                 name="joinDate"
-                value={formData.joinDate || ""}
+                value={formData.joinDate || ""} // Display the formatted MM/DD/YY
                 onChange={handleInputChange}
                 placeholder="MM/DD/YY"
                 className="input w-full bg-gray-700 border-gray-600 text-white"
@@ -752,7 +800,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               <input
                 type="text"
                 name="lastPromotionDate"
-                value={formData.lastPromotionDate || ""}
+                value={formData.lastPromotionDate || ""} // Display the formatted MM/DD/YY
                 onChange={handleInputChange}
                 placeholder="MM/DD/YY"
                 className="input w-full bg-gray-700 border-gray-600 text-white"
@@ -765,7 +813,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               <input
                 type="text"
                 name="loaStartDate"
-                value={formData.loaStartDate || ""}
+                value={formData.loaStartDate || ""} // Display the formatted MM/DD/YY
                 onChange={handleInputChange}
                 placeholder="MM/DD/YY"
                 className="input w-full bg-gray-700 border-gray-600 text-white"
@@ -778,7 +826,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               <input
                 type="text"
                 name="loaEndDate"
-                value={formData.loaEndDate || ""}
+                value={formData.loaEndDate || ""} // Display the formatted MM/DD/YY
                 onChange={handleInputChange}
                 placeholder="MM/DD/YY"
                 className="input w-full bg-gray-700 border-gray-600 text-white"
@@ -1151,10 +1199,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             </div>
             <button
               className="button-primary w-full mt-4"
-              onClick={handleSaveRosterInfo}
+              onClick={handleSaveRosterInfo} // Changed this to save roster info which includes vehicle
               disabled={isSaving}
             >
-              {isSaving ? "Saving..." : "Save Vehicle Changes"}
+              {/* Changed button text for clarity */}
+              {isSaving ? "Saving..." : "Save Vehicle Assignment"}
             </button>
           </div>
         )}
@@ -1218,6 +1267,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 };
 
 export default EditUserModal;
+
 function getCurrentDateTimeStrings(): { date: string; time: string } {
   const now = new Date();
   const date = now.toLocaleDateString("en-US"); // Format: MM/DD/YYYY
