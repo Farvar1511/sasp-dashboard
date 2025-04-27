@@ -170,28 +170,29 @@ export default function PromotionsTab(): JSX.Element {
       }
 
       const unsubVotes = onSnapshot(promotionDocRef, (docSnap) => {
-        console.log(`Snapshot received for user ${eligibleUser.id}:`, docSnap.exists() ? docSnap.data() : 'No data');
-        const rawVoteData = docSnap.exists() ? (docSnap.data() as PromotionVoteData) : { votes: {} };
-        const votesObj = rawVoteData.votes ? { ...rawVoteData.votes } : {};
-        Object.keys(votesObj).forEach(k => {
-          if (votesObj[k] == null) delete votesObj[k];
-        });
-        const safeVoteData: PromotionVoteData = {
-          ...rawVoteData,
-          votes: votesObj,
-          isManuallyHidden: rawVoteData.isManuallyHidden ?? false,
-        };
-        setPromotionData(prev => {
-          const newState = {
-            ...prev,
-            [eligibleUser.id]: {
-              ...(prev[eligibleUser.id] || initialData[eligibleUser.id]),
-              voteData: { ...safeVoteData, votes: { ...safeVoteData.votes } },
-              comments: prev[eligibleUser.id]?.comments ? [...prev[eligibleUser.id].comments] : []
+        // console.log(`Snapshot received for user ${eligibleUser.id}:`, docSnap.exists() ? docSnap.data() : 'No data');
+        const rawVoteData = docSnap.exists() ? (docSnap.data() as PromotionVoteData) : null;
+
+        const safeVoteData: PromotionVoteData | null = rawVoteData
+          ? {
+              votes: rawVoteData.votes || {},
+              hideUntil: rawVoteData.hideUntil,
+              isManuallyHidden: rawVoteData.isManuallyHidden ?? false,
             }
+          : null;
+
+        setPromotionData(prev => {
+          const existingUserPromoData = prev[eligibleUser.id] || initialData[eligibleUser.id];
+          const updatedUserPromoData: EligibleUserPromotionData = {
+            ...existingUserPromoData,
+            voteData: safeVoteData,
+            comments: existingUserPromoData?.comments || [],
           };
-          console.log(`State updated for ${eligibleUser.id}`, newState[eligibleUser.id]?.voteData);
-          return newState;
+
+          // Create a completely new object for the state
+          const newState = { ...prev };
+          newState[eligibleUser.id] = updatedUserPromoData;
+          return newState; // Return the new object reference
         });
       }, (err) => {
         console.error(`Error fetching votes for ${eligibleUser.id}:`, err);
@@ -205,13 +206,20 @@ export default function PromotionsTab(): JSX.Element {
           id: doc.id,
           ...doc.data(),
         })) as PromotionComment[];
-        setPromotionData(prev => ({
-          ...prev,
-          [eligibleUser.id]: {
-            ...(prev[eligibleUser.id] || initialData[eligibleUser.id]),
-            comments: comments,
-          },
-        }));
+
+        setPromotionData(prev => {
+            const existingUserPromoData = prev[eligibleUser.id] || initialData[eligibleUser.id];
+            const updatedUserPromoData: EligibleUserPromotionData = {
+                ...existingUserPromoData,
+                voteData: existingUserPromoData?.voteData || null,
+                comments: comments,
+            };
+
+            // Create a completely new object for the state
+            const newState = { ...prev };
+            newState[eligibleUser.id] = updatedUserPromoData;
+            return newState; // Return the new object reference
+        });
       }, (err) => {
         console.error(`Error fetching comments for ${eligibleUser.id}:`, err);
         setError(prev => `${prev ? prev + '; ' : ''}Failed to load comments for ${eligibleUser.name}`);
@@ -247,7 +255,8 @@ export default function PromotionsTab(): JSX.Element {
   }, [location.search, navigate, promotionData]);
 
   const filteredPromotionData = useMemo(() => {
-    let data = Object.values(promotionData);
+    // Filter out users where promotionData might not be fully populated yet
+    let data = Object.values(promotionData).filter(userPromoData => userPromoData && userPromoData.id);
 
     if (searchTerm) {
       data = data.filter(userPromoData =>
@@ -273,25 +282,45 @@ export default function PromotionsTab(): JSX.Element {
     const promotionDocId = "activePromotion";
     const promotionDocRef = doc(dbFirestore, "users", userId, "promotions", promotionDocId);
     const voterEmail = currentUser.email;
-    const votePath = new FieldPath('votes', voterEmail);
+    const cleanVoterEmail = voterEmail.trim();
+    if (!cleanVoterEmail) {
+        toast.error("Cannot vote. Invalid voter identifier.");
+        console.error("handleVote: currentUser.email is empty or whitespace.");
+        return;
+    }
+    // No longer need FieldPath here, will use direct key in setDoc
 
     try {
+      // We still need to check the current vote to decide if we are removing or setting
       const currentDocSnap = await getDoc(promotionDocRef);
       const currentVotesData = currentDocSnap.exists()
         ? (currentDocSnap.data() as PromotionVoteData)
         : { votes: {} };
-
-      const currentVoteInDb = currentVotesData?.votes?.[voterEmail];
+      const currentVotes = currentVotesData?.votes ?? {};
+      const currentVoteInDb = currentVotes[cleanVoterEmail];
 
       if (currentVoteInDb === vote) {
-        console.log(`Attempting to remove vote for ${userId} at path:`, votePath);
-        await updateDoc(promotionDocRef, votePath, deleteField());
+        // --- Remove Vote ---
+        console.log(`Attempting to remove vote for ${userId} by ${cleanVoterEmail} using setDoc merge.`);
+        // Use setDoc with merge and deleteField()
+        await setDoc(promotionDocRef, {
+            votes: {
+                [cleanVoterEmail]: deleteField() // Use the email string as the key
+            }
+        }, { merge: true }); // Merge ensures other votes and fields are untouched
         console.log(`Firestore vote removal successful for ${userId}.`);
         toast.success(`Vote removed for ${promotionData[userId]?.name || userId}.`);
       } else {
-        console.log(`Attempting to set vote for ${userId} to '${vote}' at path:`, votePath);
-        await updateDoc(promotionDocRef, votePath, vote);
-        console.log(`Firestore vote update successful for ${userId}.`);
+        // --- Add or Change Vote ---
+        console.log(`Attempting to set vote for ${userId} by ${cleanVoterEmail} to '${vote}' using setDoc merge.`);
+        // Use setDoc with merge to add or update the vote
+        await setDoc(promotionDocRef, {
+            votes: {
+                [cleanVoterEmail]: vote // Use the email string as the key
+            }
+        }, { merge: true }); // Merge ensures other votes and fields are untouched
+        console.log(`Firestore vote update/set successful for ${userId}.`);
+
         toast.success(
           currentVoteInDb
             ? `Vote changed for ${promotionData[userId]?.name || userId}.`
@@ -301,10 +330,13 @@ export default function PromotionsTab(): JSX.Element {
 
     } catch (err: any) {
       console.error("Error updating vote:", err);
-      if (err.message && err.message.includes('[object Object]')) {
-          console.error("FieldPath approach still resulted in [object Object] error. VoterEmail:", voterEmail);
+      let errorMessage = "Failed to update vote.";
+      if (err.code === 'permission-denied') {
+          errorMessage = "Permission denied. Check Firestore rules.";
+      } else if (err.message) {
+          errorMessage = `Failed to update vote: ${typeof err.message === 'string' ? err.message : JSON.stringify(err.message)}`;
       }
-      toast.error(`Failed to update vote: ${err.message || 'Unknown error'}`);
+      toast.error(errorMessage);
     }
   };
 
@@ -519,6 +551,12 @@ export default function PromotionsTab(): JSX.Element {
             )}
 
             {filteredPromotionData.map((userPromoData) => {
+              // --- Debug Logs ---
+              console.log(`Rendering card for user: ${userPromoData.name} (ID: ${userPromoData.id})`);
+              console.log(`  Current User Email: ${currentUser?.email}`);
+              console.log(`  Vote Data from State:`, userPromoData.voteData);
+              // --- End Debug Logs ---
+
               const userId = userPromoData.id;
               const voteData = userPromoData.voteData;
               const isManuallyHidden = voteData?.isManuallyHidden ?? false;
@@ -528,7 +566,16 @@ export default function PromotionsTab(): JSX.Element {
               const denyVotes = allVotes.filter(v => v === 'deny').length;
               const needsTimeVotes = allVotes.filter(v => v === 'needs_time').length;
               const totalVotesCast = promoteVotes + denyVotes + needsTimeVotes;
-              const currentUserVote = currentUser?.email ? voteData?.votes[currentUser.email] : undefined;
+
+              const userEmailForLookup = currentUser?.email;
+              const currentUserVote = userEmailForLookup ? voteData?.votes?.[userEmailForLookup] : undefined;
+
+              // --- Debug Log for Vote Lookup ---
+              console.log(`  Lookup Key (Email): ${userEmailForLookup}`);
+              console.log(`  Votes Object:`, voteData?.votes);
+              console.log(`  Current User Vote (Result): ${currentUserVote}`);
+              // --- End Debug Log ---
+
               const comments = userPromoData.comments || [];
               const voteDisplay = getVoteDisplay(currentUserVote);
 
@@ -570,6 +617,7 @@ export default function PromotionsTab(): JSX.Element {
                         <p className="text-green-400 font-bold text-2xl">{promoteVotes}</p>
                         <button
                           onClick={() => handleVote(userId, 'promote')}
+                          // Check currentUserVote directly here
                           className={`mt-1 ${currentUserVote === 'promote' ? 'ring-2 ring-offset-2 ring-offset-black/50 ring-green-400' : ''} bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs transition-all duration-150`}
                         >
                           Promote
@@ -579,6 +627,7 @@ export default function PromotionsTab(): JSX.Element {
                         <p className="text-orange-400 font-bold text-2xl">{needsTimeVotes}</p>
                         <button
                           onClick={() => handleVote(userId, 'needs_time')}
+                           // Check currentUserVote directly here
                           className={`mt-1 ${currentUserVote === 'needs_time' ? 'ring-2 ring-offset-2 ring-offset-black/50 ring-orange-400' : ''} ${buttonWarning} px-3 py-1 rounded text-xs transition-all duration-150`}
                         >
                           Needs Time
@@ -588,6 +637,7 @@ export default function PromotionsTab(): JSX.Element {
                         <p className="text-red-500 font-bold text-2xl">{denyVotes}</p>
                         <button
                           onClick={() => handleVote(userId, 'deny')}
+                           // Check currentUserVote directly here
                           className={`mt-1 ${currentUserVote === 'deny' ? 'ring-2 ring-offset-2 ring-offset-black/50 ring-red-500' : ''} bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs transition-all duration-150`}
                         >
                           Deny
