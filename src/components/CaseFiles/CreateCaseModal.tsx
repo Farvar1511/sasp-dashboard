@@ -131,10 +131,10 @@ const CreateCaseModal: React.FC<CreateCaseModalProps> = ({ onClose, onSuccess, e
             status,
             assignedToId: assignedToId,
             assignedToName: assignedUser?.name || null,
-            createdBy: currentUser.id || 'Unknown',
-            createdByName: currentUser.name || 'Unknown',
+            createdBy: currentUser.id || 'Unknown', // Ensure currentUser.id is used if available
+            createdByName: currentUser.name || 'Unknown', // Ensure currentUser.name is used if available
             createdAt: serverTimestamp() as Timestamp,
-            lastUpdatedAt: serverTimestamp() as Timestamp,
+            updatedAt: serverTimestamp() as Timestamp, // Renamed from lastUpdatedAt
             imageLinks: detailsObject.photos, // Use filtered photos
             details: JSON.stringify(detailsObject),
         };
