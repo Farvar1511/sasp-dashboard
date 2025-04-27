@@ -56,6 +56,12 @@ interface EditUserModalProps {
 
 const restrictedCertKeys = ["MBU", "HEAT", "ACU"];
 
+// Define all possible certification keys
+const ALL_CERTIFICATION_KEYS = [
+  "MBU", "HEAT", "ACU", // Restricted
+  "K9", "FTO", "SWAT", "CIU" // Add all relevant keys here
+].sort(); // Sort alphabetically for consistent display order
+
 // Helper function to parse MM/DD/YY input and return YYYY-MM-DD or null
 const parseMMDDYYToYYYYMMDD = (dateString: string | null | undefined): string | null => {
   if (!dateString || !dateString.trim()) return null; // Return null for empty/whitespace strings
@@ -101,6 +107,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   onSave,
 }) => {
   const { user: currentUser } = useAuth();
+
+  // Initialize certifications ensuring all keys are present
+  const initialCertifications = ALL_CERTIFICATION_KEYS.reduce((acc, key) => {
+    acc[key] = user.certifications?.[key] || null; // Use user's value or default to null
+    return acc;
+  }, {} as { [key: string]: CertStatus | null });
+
   const [formData, setFormData] = useState<{
     newTaskDesc: string;
     newTaskType: "normal" | "goal";
@@ -143,6 +156,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     lastPromotionDate: formatDateToMMDDYY(user.lastPromotionDate),
     loaStartDate: formatDateToMMDDYY(user.loaStartDate),
     loaEndDate: formatDateToMMDDYY(user.loaEndDate),
+    // Initialize certifications with all keys
+    certifications: initialCertifications,
     // Initialize other state parts
     newTaskDesc: "",
     newTaskType: "normal",
@@ -255,9 +270,17 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const handleSaveCertifications = async () => {
     setIsSaving(true);
     try {
-      const userRef = doc(dbFirestore, "users", user.id);
+      const userRef = doc(dbFirestore, "users", user.id); // Assuming user.id is the email/doc ID
+      // Filter out null values before saving to avoid storing unnecessary nulls in Firestore
+      const certsToSave = Object.entries(formData.certifications)
+        .filter(([key, value]) => value !== null)
+        .reduce((acc, [key, value]) => {
+          acc[key] = value;
+          return acc;
+        }, {} as { [key: string]: CertStatus });
+
       const updateData = {
-        certifications: formData.certifications,
+        certifications: certsToSave,
       };
       await updateDoc(userRef, updateData);
       toast.success("Certifications saved successfully!");
@@ -1214,13 +1237,15 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             <h3 className="text-xl font-semibold text-yellow-400 mb-3">
               Certifications & Divisions
             </h3>
-            <div className="space-y-2">
-              {Object.keys(formData.certifications || {}).map((certKey) => (
+            {/* Iterate over ALL_CERTIFICATION_KEYS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
+              {ALL_CERTIFICATION_KEYS.map((certKey) => (
                 <div key={certKey} className="flex items-center gap-2">
-                  <label className="text-sm text-gray-300 w-20 shrink-0">
+                  <label className="text-sm text-gray-300 w-20 shrink-0 truncate" title={certKey}>
                     {certKey}
                   </label>
                   <select
+                    // Use formData.certifications[certKey] which is guaranteed to exist
                     value={formData.certifications[certKey] || ""}
                     onChange={(e) =>
                       handleCertificationChange(certKey, e.target.value || null)
