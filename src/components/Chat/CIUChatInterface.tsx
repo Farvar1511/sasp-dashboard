@@ -760,6 +760,16 @@ export const CIUChatInterface: React.FC = () => {
                                 </div>
                             )}
                             <div className="flex items-center space-x-2">
+                                {/* Add Emoji Button Here */}
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                    title="Toggle Emoji Picker"
+                                    className="text-muted-foreground hover:text-foreground"
+                                >
+                                    <FaSmile className="h-5 w-5" />
+                                </Button>
                                 <ChatInput
                                     value={newMessage}
                                     onChange={(e) => {
