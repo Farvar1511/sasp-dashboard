@@ -67,16 +67,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
     }`;
 
   const NavItem = ({
-    to,
-    icon: Icon,
-    label,
-    title,
-  }: {
-    to: string;
-    icon: React.ElementType;
-    label: string;
-    title: string;
-  }) => (
+      to,
+      icon: Icon,
+      label,
+      title,
+    }: {
+      to: string;
+      icon: React.ComponentType<any>;
+      label: string;
+      title: string;
+    }) => (
     <NavLink to={to} className={getNavLinkClass} title={title}>
       <div className="flex items-center w-full">
         <div className="w-8 h-8 flex items-center justify-center">

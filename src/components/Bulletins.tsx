@@ -453,10 +453,16 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
           setBulletinToDeleteId(null);
         }}
         onConfirm={confirmDelete}
+        onCancel={() => {
+          setIsConfirmModalOpen(false);
+          setBulletinToDeleteId(null);
+        }}
         title="Delete Bulletin"
         message="Are you sure you want to delete this bulletin? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
       />
-    </Layout>
+      </Layout>
   );
 };
 
