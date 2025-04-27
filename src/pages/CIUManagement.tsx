@@ -23,6 +23,9 @@ import CreateCaseModal from '../components/CaseFiles/CreateCaseModal';
 import EditCaseModal from '../components/CaseFiles/CaseDetailsModal';
 // Import Chat components
 import { CIUChatInterface } from '../components/Chat/CIUChatInterface'; // Changed to named import
+// Import Badge component
+import { Badge } from '../components/ui/badge';
+
 
 const CIUManagement: React.FC = () => {
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -33,6 +36,8 @@ const CIUManagement: React.FC = () => {
   const [isCreateCaseModalOpen, setIsCreateCaseModalOpen] = useState(false);
   const [isEditCaseModalOpen, setIsEditCaseModalOpen] = useState(false);
   const [selectedCaseForEdit, setSelectedCaseForEdit] = useState<CaseFile | null>(null);
+  // State for unread chat count
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const canManageCIU = useMemo(() => {
     if (!currentUser) return false;
@@ -88,6 +93,12 @@ const CIUManagement: React.FC = () => {
   // --- End Modal Handlers ---
 
 
+  // --- Callback for Unread Chat Count ---
+  const handleUnreadChatCountChange = useCallback((count: number) => {
+      setUnreadChatCount(count);
+  }, []); // Empty dependency array as setUnreadChatCount is stable
+
+
   if (authLoading) {
     return (
       <Layout>
@@ -124,8 +135,18 @@ const CIUManagement: React.FC = () => {
             <TabsTrigger value="gangs">Gangs</TabsTrigger>
             <TabsTrigger value="cases">Case Files</TabsTrigger>
             <TabsTrigger value="personnel">Personnel</TabsTrigger>
-            {/* Add new Chat trigger */}
-            <TabsTrigger value="chat">Chat</TabsTrigger>
+            {/* Add new Chat trigger with Badge */}
+            <TabsTrigger value="chat" className="relative"> {/* Add relative positioning */}
+              Chat
+              {unreadChatCount > 0 && (
+                <Badge
+                  variant="destructive" // Or "default", "secondary" based on your theme
+                  className="absolute top-1 right-1 h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full" // Adjust positioning and size
+                >
+                  {unreadChatCount > 9 ? '9+' : unreadChatCount}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {/* Gangs Tab */}
@@ -149,8 +170,8 @@ const CIUManagement: React.FC = () => {
 
           {/* Chat Tab */}
           <TabsContent value="chat">
-            {/* Render the new Chat Interface Component */}
-            <CIUChatInterface />
+            {/* Render the Chat Interface Component, passing the callback */}
+            <CIUChatInterface onUnreadCountChange={handleUnreadChatCountChange} />
           </TabsContent>
         </Tabs>
 
