@@ -1,7 +1,6 @@
-import React, { useEffect, useState, useMemo } from "react"; // Added useMemo
+import React, { useEffect, useState, useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { computeIsAdmin } from "../utils/isadmin";
 import { showTime } from "../utils/timeHelpers";
 import { hasCIUPermission } from "../utils/ciuUtils";
 import {
@@ -13,22 +12,34 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaFileAlt,
-  FaUserGraduate, // Added for Cadet FTO icon
-  FaUserShield, // Added for FTO Management icon
-  FaUserSecret, // Added for CIU icon
-  FaArrowUp, // Added for Promotions icon
-  FaBullhorn, // Added for Bulletins icon
-  FaBalanceScale, // Added for Discipline/Notes icon
+  FaUserGraduate,
+  FaUserShield,
+  FaUserSecret,
 } from "react-icons/fa";
 
 const saspLogo = "/SASPLOGO2.png";
 
+// Define the structure for a single nav item prop - EXPORT this type
+export interface NavItemProps { // Added export
+    name: string;
+    href: string;
+    icon: React.ComponentType<any>;
+    showCondition?: 'always' | 'isAdmin' | 'isFTOQualified' | 'isCadet' | 'canAccessCIU' | 'isFTOQualifiedOrCadet';
+    title?: string;
+}
+
+// Updated SidebarProps interface
 interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (isCollapsed: boolean) => void;
+  navItems: NavItemProps[]; // Use the defined structure
+  isAdmin: boolean;
+  isFTOQualified: boolean;
+  canAccessCIU: boolean; // Add this line
+  isCadet: boolean; // Add this line
 }
 
-// Add ClockDisplay component to isolate clock rendering:
+
 const ClockDisplay = React.memo(() => {
   const [clock, setClock] = useState(showTime());
   useEffect(() => {
@@ -49,15 +60,16 @@ const ClockDisplay = React.memo(() => {
   );
 });
 
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
-  const { user: currentUser, logout } = useAuth(); // Renamed user to currentUser for clarity
-  const isAdmin = computeIsAdmin(currentUser);
-  const ftoCertStatus = currentUser?.certifications?.FTO?.toUpperCase(); // Ensure comparison is case-insensitive
-  // Include 'TRAIN' in the check for FTO certification
-  const hasFTOCert = useMemo(() => ["CERT", "LEAD", "SUPER", "TRAIN"].includes(ftoCertStatus || ""), [ftoCertStatus]);
-  const isCadet = useMemo(() => currentUser?.rank === "Cadet", [currentUser?.rank]); // Check if user is a Cadet
-  // Use the correctly imported named function
-  const canAccessCIU = useMemo(() => currentUser ? hasCIUPermission(currentUser) : false, [currentUser]);
+const Sidebar: React.FC<SidebarProps> = ({
+  isCollapsed,
+  setIsCollapsed,
+  navItems, // Use prop
+  isAdmin, // Use prop
+  isFTOQualified, // Use prop
+  canAccessCIU, // Use prop
+  isCadet, // Use prop
+}) => {
+  const { user: currentUser, logout } = useAuth();
 
   const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
     `flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out border border-transparent ${
@@ -67,56 +79,64 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
     }`;
 
   const NavItem = ({
-      to,
+      href,
       icon: Icon,
-      label,
+      name,
       title,
-    }: {
-      to: string;
+    }: { // Use NavItemProps structure
+      href: string;
       icon: React.ComponentType<any>;
-      label: string;
-      title: string;
+      name: string;
+      title?: string;
     }) => (
-    <NavLink to={to} className={getNavLinkClass} title={title}>
+    <NavLink to={href} className={getNavLinkClass} title={title || name}>
       <div className="flex items-center w-full">
         <div className="w-8 h-8 flex items-center justify-center">
           <Icon className="text-[18px]" />
         </div>
         {!isCollapsed && (
-          <span className="ml-3 whitespace-nowrap">{label}</span>
+          <span className="ml-3 whitespace-nowrap">{name}</span>
         )}
       </div>
     </NavLink>
   );
 
-  // Define all potential nav items
-  const allNavItems = [
-    { to: "/home", icon: FaHome, label: "Home", title: "Home", show: true },
-    { to: "/documents", icon: FaFileAlt, label: "Documents", title: "Documents", show: true },
-    { to: "/sasp-roster", icon: FaUsers, label: "Roster", title: "Roster", show: true },
-    { to: "/fleet", icon: FaCar, label: "Fleet", title: "Fleet", show: true },
-    // FTO Link with conditional text and icon
-    {
-      to: "/fto",
-      icon: isCadet ? FaUserGraduate : FaUserShield,
-      label: isCadet ? "My Training Progress" : "FTO Management",
-      title: isCadet ? "My Training Progress" : "FTO Management",
-      show: hasFTOCert || isCadet, // Show if FTO certified OR if user is a Cadet
-    },
-    // CIU Management Link - Conditionally shown
-    {
-      to: "/ciu-management", // Updated route
-      icon: FaUserSecret,
-      label: "CIU Management", // Updated label
-      title: "CIU Management", // Updated title
-      show: canAccessCIU, // Use the permission check result
-    },
-    { to: "/admin", icon: FaTools, label: "Admin Menu", title: "Admin Menu", show: isAdmin },
-  ];
+  // Filter navItems based on props and internal state (isCadet, canAccessCIU)
+  const filteredNavItems = useMemo(() => {
+    return navItems.filter(item => {
+      switch (item.showCondition) {
+        case 'isAdmin':
+          return isAdmin; // Use prop
+        case 'isFTOQualified':
+          return isFTOQualified; // Use prop
+        case 'isCadet':
+          return isCadet; // Use prop
+        case 'canAccessCIU':
+          return canAccessCIU; // Use prop
+        case 'isFTOQualifiedOrCadet':
+          return isFTOQualified || isCadet; // Use props
+        case 'always':
+        default:
+          return true;
+      }
+    }).map(item => {
+        // Dynamically adjust icon/label for FTO based on cadet status
+        if (item.href === '/fto') {
+            return {
+                ...item,
+                icon: isCadet ? FaUserGraduate : FaUserShield, // Use prop isCadet
+                name: isCadet ? "My Training Progress" : "FTO Management", // Use prop isCadet
+                title: isCadet ? "My Training Progress" : "FTO Management", // Use prop isCadet
+            };
+        }
+        return item;
+    });
+  }, [navItems, isAdmin, isFTOQualified, isCadet, canAccessCIU]); // Update dependencies
 
-  // Filter items to show, separating the Admin item
-  const adminItem = allNavItems.find(item => item.to === "/admin");
-  const regularNavItems = allNavItems.filter(item => item.show && item.to !== "/admin");
+
+  // Separate admin item for potential different placement
+  const adminItem = filteredNavItems.find(item => item.href === "/admin");
+  const regularNavItems = filteredNavItems.filter(item => item.href !== "/admin");
 
   return (
     <div
@@ -124,7 +144,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
         isCollapsed ? "w-16" : "w-64"
       } h-screen bg-black/90 text-gray-200 flex flex-col fixed shadow-lg z-50 transition-all duration-300 ease-in-out border-r border-gray-800`}
     >
-      {/* Header */}
+      {/* Header section */}
       <div className="flex items-center justify-between p-4 border-b border-gray-800 h-16">
         <div className="flex items-center">
           <div className="w-10 h-10 flex items-center justify-center">
@@ -149,26 +169,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
         </button>
       </div>
 
-      {/* Navigation */}
+      {/* Navigation section - Use filtered navItems */}
       <nav className="flex-grow px-3 py-4 space-y-2 overflow-y-auto custom-scrollbar">
-        {/* Render regular items */}
+        {/* Map over regularNavItems */}
         {regularNavItems.map((item) => (
-          <NavItem key={item.to} {...item} />
+          <NavItem key={item.href} {...item} />
         ))}
-        {/* Render Admin item last if it should be shown */}
-        {adminItem && adminItem.show && (
-          <NavItem key={adminItem.to} {...adminItem} />
+        {/* Render adminItem if it exists */}
+        {adminItem && (
+          <NavItem key={adminItem.href} {...adminItem} />
         )}
       </nav>
 
-      {/* Clock */}
+      {/* Clock section */}
       {!isCollapsed && (
         <div className="px-6 py-5 border-t border-gray-800">
           <ClockDisplay />
         </div>
       )}
 
-      {/* Footer */}
+      {/* Logout section */}
       <div className="p-4">
         <button
           onClick={logout}

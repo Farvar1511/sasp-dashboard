@@ -15,7 +15,6 @@ import {
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime } from "../utils/timeHelpers";
-import { getRandomBackgroundImage } from "../utils/backgroundImage";
 import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash, FaCheckCircle } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { RosterUser, DisciplineEntry, NoteEntry } from "../types/User";
@@ -164,7 +163,6 @@ export default function AdminMenu(): JSX.Element {
   const [bulkTaskType, setBulkTaskType] = useState<"goal" | "normal">("normal");
   const [bulkTaskGoal, setBulkTaskGoal] = useState<number>(0);
   const [isAssigning, setIsAssigning] = useState(false);
-  const [backgroundImage, setBackgroundImage] = useState<string>("");
   const [editingUser, setEditingUser] = useState<FirestoreUserWithDetails | null>(null);
   const [confirmationModal, setConfirmationModal] = useState<{
     show: boolean;
@@ -180,10 +178,6 @@ export default function AdminMenu(): JSX.Element {
   const [showOnlyUsersWithCompletedTasks, setShowOnlyUsersWithCompletedTasks] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for Add User Modal
   const [showInactiveUsers, setShowInactiveUsers] = useState<boolean>(false); // State for showing inactive users - Default to false
-
-  useEffect(() => {
-    setBackgroundImage(getRandomBackgroundImage());
-  }, []);
 
   const fetchAdminData = useCallback(async () => {
     setUsersLoading(true);
@@ -496,8 +490,7 @@ export default function AdminMenu(): JSX.Element {
   return (
     <Layout>
       <div
-        className="page-content space-y-6 p-6 text-white/80 min-h-screen bg-cover bg-center bg-no-repeat bg-fixed"
-        style={{ backgroundImage: `url(${backgroundImage})`, fontFamily: "'Inter', sans-serif" }}
+        className="relative z-10 page-content space-y-6 p-6 text-white/80 min-h-screen"
       >
         <div className="bg-black/75 text-[#f3c700] font-sans p-4 rounded-lg shadow-lg mb-6">
           <h1 className="text-2xl font-bold text-center mb-4">Admin Management</h1>

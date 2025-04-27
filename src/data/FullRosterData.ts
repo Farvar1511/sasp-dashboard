@@ -1,4 +1,4 @@
-// Define an interface for the template structure
+
 export interface RosterTemplateEntry {
   badge?: string;
   callsign: string;
@@ -6,7 +6,7 @@ export interface RosterTemplateEntry {
     ACU?: string | null;
     CIU?: string | null;
     FTO?: string | null;
-    Heat?: string | null; // Note: Case difference
+    Heat?: string | null; 
     K9?: string | null;
     MBU?: string | null;
     SWAT?: string | null;
@@ -22,12 +22,12 @@ export interface RosterTemplateEntry {
   name?: string;
   rank: string;
   role?: string;
-  notes?: string; // Added optional notes field
-  discipline?: string; // Added optional discipline field
-  notesIssuedAt?: string | null; // Added optional timestamp for notes
-  disciplineIssuedAt?: string | null; // Added optional timestamp for discipline
-  joinDate?: string | null; // Added optional join date
-  lastPromotionDate?: string | null; // Added optional last promotion date
+  notes?: string; 
+  discipline?: string; 
+  notesIssuedAt?: string | null; 
+  disciplineIssuedAt?: string | null; 
+  joinDate?: string | null; 
+  lastPromotionDate?: string | null; 
 }
 
 const fullRosterTemplate: RosterTemplateEntry[] = [
@@ -561,10 +561,10 @@ const fullRosterTemplate: RosterTemplateEntry[] = [
   }
 ];
 
-// Default export for the template array
+
 export default fullRosterTemplate;
 
-// Named export for the normalization function
+
 export const normalizeTemplateCertKeys = (
   templateEntry: RosterTemplateEntry
 ) => ({
@@ -575,10 +575,10 @@ export const normalizeTemplateCertKeys = (
   lastPromotionDate: templateEntry.lastPromotionDate || "N/A",
 });
 
-// Define CertStatus type if not already globally available
+
 type CertStatus = "LEAD" | "SUPER" | "CERT" | "TRAIN" | null;
 
-// Define RosterUser interface
+
 export interface RosterUser {
   id: string;
   name: string;
@@ -586,15 +586,15 @@ export interface RosterUser {
   badge?: string;
   callsign?: string;
   certifications?: { [key: string]: CertStatus };
-  loaStartDate?: string; // Changed to string
-  loaEndDate?: string; // Changed to string
+  loaStartDate?: string; 
+  loaEndDate?: string; 
   isActive?: boolean;
   discordId?: string;
   email?: string;
   isPlaceholder?: boolean;
   category?: string | null;
-  notes?: string; // Notes field
-  discipline?: string; // Discipline field
-  notesIssuedAt?: string | null; // Changed to string
-  disciplineIssuedAt?: string | null; // Changed to string
+  notes?: string; 
+  discipline?: string; 
+  notesIssuedAt?: string | null; 
+  disciplineIssuedAt?: string | null; 
 }

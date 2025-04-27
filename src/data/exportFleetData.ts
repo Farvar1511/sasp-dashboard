@@ -1,7 +1,7 @@
 import { collection, getDocs } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 
-// Define the FleetVehicle type locally to ensure consistency
+
 export interface FleetVehicle {
   id: string;
   plate: string;

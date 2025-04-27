@@ -10,18 +10,69 @@ import { Input } from '../ui/input'; // Ensure Input is imported
 import { Textarea } from '../ui/textarea'; // Ensure Textarea is imported
 import { Label } from '../ui/label'; // Ensure Label is imported
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"; // Ensure Select components are imported
-import { FaTrash } from 'react-icons/fa';
+// Import specific icons for threat levels
+import { FaTrash, FaPencilAlt, FaShieldAlt, FaExclamationTriangle, FaSkullCrossbones, FaBiohazard } from 'react-icons/fa';
 import { FaPlus } from 'react-icons/fa6'; // Use the correct submodule if needed
 import { toast } from 'react-toastify'; // Ensure toast is imported
 import { Skeleton } from '../ui/skeleton'; // Ensure Skeleton is imported
 import ConfirmationModal from '../ConfirmationModal'; // Ensure ConfirmationModal is imported
 import { Gang, GangVehicle, GangNote } from '../../utils/ciuUtils'; // Import types from ciuUtils
 import GangRoster from './GangRoster'; // Import the GangRoster component
+import { cn } from '../../lib/utils'; // Import cn utility
 
 // --- Firestore Collection Constants ---
 const GANGS_COLLECTION = "gangs";
 const VEHICLES_COLLECTION = "vehicles"; // Ensure this matches your Firestore subcollection name
 const NOTES_COLLECTION = "notes"; // Ensure this matches your Firestore subcollection name for individual notes
+
+// --- Helper Function for Threat Level Icon ---
+const ThreatLevelIcon: React.FC<{ level: number | null | undefined }> = ({ level }) => {
+    if (level === null || level === undefined) {
+        return <span className="italic text-muted-foreground text-sm">Not specified</span>;
+    }
+
+    let IconComponent;
+    let colorClass = '';
+    let title = '';
+
+    switch (level) {
+        case 1:
+            IconComponent = FaShieldAlt;
+            colorClass = 'text-green-500';
+            title = 'Threat Level 1: Low';
+            break;
+        case 2:
+            IconComponent = FaExclamationTriangle;
+            colorClass = 'text-yellow-500';
+            title = 'Threat Level 2: Moderate';
+            break;
+        case 3:
+            IconComponent = FaExclamationTriangle;
+            colorClass = 'text-orange-500';
+            title = 'Threat Level 3: Significant';
+            break;
+        case 4:
+            IconComponent = FaSkullCrossbones;
+            colorClass = 'text-red-500';
+            title = 'Threat Level 4: High';
+            break;
+        case 5:
+            IconComponent = FaBiohazard;
+            colorClass = 'text-red-700';
+            title = 'Threat Level 5: Extreme';
+            break;
+        default:
+            return <span className="italic text-muted-foreground text-sm">Unknown Level ({level})</span>;
+    }
+
+    return (
+        <span className={cn("flex items-center gap-2", colorClass)} title={title}>
+            <IconComponent className="h-4 w-4" />
+            <span className="text-sm font-medium">{title}</span>
+        </span>
+    );
+};
+
 
 // --- Component ---
 const GangManagementTab: React.FC = () => {
@@ -588,13 +639,26 @@ const GangManagementTab: React.FC = () => {
 
     // --- Render ---
     return (
-        <div className="space-y-6 bg-black/95 p-4 rounded-lg border border-border">
-            {/* Gang Selection & Add/Delete Buttons */}
+        // Use theme card background, add relative positioning for delete button
+        <div className="space-y-6 bg-card p-4 rounded-lg border border-border relative">
+            {/* Delete Selected Gang Button (Top Right) */}
+            {selectedGangId && (
+                <Button
+                    onClick={() => requestDeleteGang(selectedGangId)}
+                    disabled={isSubmitting || loadingDetails || loadingGangs}
+                    variant="ghost" // Use ghost variant for icon button
+                    size="icon" // Use icon size
+                    className="absolute top-3 right-3 text-destructive hover:bg-destructive/10 h-8 w-8" // Position and style
+                    title="Delete Selected Gang" // Add tooltip
+                >
+                    <FaTrash className="h-4 w-4" />
+                </Button>
+            )}
+
+            {/* Gang Selection & Add Button */}
             <div className="flex flex-wrap gap-4 items-end">
                 <div className="flex-grow max-w-sm">
                     <Label htmlFor="gangSelect" className="text-foreground/80">Select Gang</Label>
-                    {/* Add console log to check gangs state before mapping */}
-                    {/* {console.log("Rendering Select, gangs state:", gangs)} */}
                     <Select
                         value={selectedGangId || "__placeholder__"}
                         onValueChange={(value) => {
@@ -602,20 +666,19 @@ const GangManagementTab: React.FC = () => {
                             const newSelectedId = value === "__placeholder__" ? null : value;
                             setSelectedGangId(newSelectedId);
                         }}
-                        // Disable while loading the list of gangs OR details OR submitting
                         disabled={loadingGangs || loadingDetails || isSubmitting}
                     >
-                        <SelectTrigger id="gangSelect" className="bg-input border-border text-foreground">
-                            {/* Improved Placeholder Logic */}
+                        {/* Ensure theme input style for trigger */}
+                        <SelectTrigger id="gangSelect" className="bg-input border-border text-foreground focus:ring-[#f3c700]"> {/* Use direct color for focus ring */}
                             <SelectValue placeholder={loadingGangs ? "Loading gangs..." : (gangs.length === 0 ? "No gangs found" : "Select a gang")} />
                         </SelectTrigger>
-                        <SelectContent className="bg-black/95 text-popover-foreground border-border shadow-md z-50">
-                            {/* Placeholder Item - Make it clear it's not selectable */}
-                            <SelectItem value="__placeholder__" disabled>-- Select a Gang --</SelectItem>
-                            {/* Map over the fetched gangs */}
+                        {/* Ensure theme popover style for content */}
+                        <SelectContent className="bg-popover text-popover-foreground border-border shadow-md z-50">
+                            <SelectItem value="__placeholder__" disabled className="text-muted-foreground">-- Select a Gang --</SelectItem>
                             {gangs.length > 0 ? (
                                 gangs.map(gang => (
-                                    <SelectItem key={gang.id} value={gang.id}>
+                                    // Ensure theme item style, update focus style
+                                    <SelectItem key={gang.id} value={gang.id} className="focus:bg-[#f3c700] focus:text-black"> {/* Use direct color */}
                                         {gang.name}
                                     </SelectItem>
                                 ))
@@ -626,236 +689,253 @@ const GangManagementTab: React.FC = () => {
                         </SelectContent>
                     </Select>
                 </div>
+                {/* Use direct yellow color for button */}
                 <Button
                     onClick={() => setShowAddGangForm(true)}
-                    disabled={isSubmitting || loadingGangs} // Also disable if loading list
-                    variant="outline"
-                    className="text-accent border-accent hover:bg-accent/10"
+                    disabled={isSubmitting || loadingGangs}
+                    className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black" // Use direct color, black text
                 >
                     <FaPlus className="mr-2 h-4 w-4" /> Add New Gang
                 </Button>
-                {selectedGangId && (
-                    <Button
-                        onClick={() => requestDeleteGang(selectedGangId)}
-                        disabled={isSubmitting || loadingDetails || loadingGangs} // Also disable if loading list/details
-                        variant="destructive"
-                    >
-                        <FaTrash className="mr-2 h-4 w-4" /> Delete Selected Gang
-                    </Button>
-                )}
             </div>
 
-            {/* Add New Gang Form */}
+            {/* Add New Gang Form - Integrated without Card */}
             {showAddGangForm && (
-                <Card className="bg-black/95 border-border mt-4">
-                    <CardHeader>
-                        <CardTitle className="text-accent">Add New Gang</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        <div>
-                            <Label htmlFor="newGangName" className="text-foreground/80">Gang Name *</Label>
-                            <Input
-                                id="newGangName"
-                                value={newGangName}
-                                onChange={e => setNewGangName(e.target.value)}
-                                placeholder="Enter name for the new gang"
-                                className="bg-input border-border text-foreground placeholder:text-muted-foreground"
-                                disabled={isSubmitting}
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="newGangDescription" className="text-foreground/80">Description</Label>
-                            <Input
-                                id="newGangDescription"
-                                value={newGangDescription}
-                                onChange={e => setNewGangDescription(e.target.value)}
-                                placeholder="Short description (e.g., MC in Paleto)"
-                                className="bg-input border-border text-foreground placeholder:text-muted-foreground"
-                                disabled={isSubmitting}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button
-                                variant="outline"
-                                onClick={() => setShowAddGangForm(false)}
-                                disabled={isSubmitting}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={handleAddNewGang}
-                                disabled={isSubmitting || !newGangName.trim()}
-                                className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                            >
-                                {isSubmitting ? 'Adding...' : 'Add Gang'}
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                // Use a subtle background and padding
+                <div className="p-4 border border-border rounded-md bg-muted/30 space-y-3 mt-4">
+                     <h3 className="text-lg font-semibold text-[#f3c700] border-b border-border pb-2 mb-3">Add New Gang</h3> {/* Use direct color */}
+                    <div>
+                        <Label htmlFor="newGangName" className="text-foreground/80">Gang Name *</Label>
+                        <Input
+                            id="newGangName"
+                            value={newGangName}
+                            onChange={e => setNewGangName(e.target.value)}
+                            placeholder="Enter name for the new gang"
+                            className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Use direct color for focus ring
+                            disabled={isSubmitting}
+                        />
+                    </div>
+                    <div>
+                        <Label htmlFor="newGangDescription" className="text-foreground/80">Description</Label>
+                        <Input
+                            id="newGangDescription"
+                            value={newGangDescription}
+                            onChange={e => setNewGangDescription(e.target.value)}
+                            placeholder="Short description (e.g., MC in Paleto)"
+                            className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Use direct color for focus ring
+                            disabled={isSubmitting}
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                        {/* Use theme secondary button */}
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowAddGangForm(false)}
+                            disabled={isSubmitting}
+                            className="border-border text-muted-foreground hover:bg-muted/50"
+                        >
+                            Cancel
+                        </Button>
+                        {/* Use direct yellow color for button */}
+                        <Button
+                            onClick={handleAddNewGang}
+                            disabled={isSubmitting || !newGangName.trim()}
+                            className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black" // Use direct color, black text
+                        >
+                            {isSubmitting ? 'Adding...' : 'Add Gang'}
+                        </Button>
+                    </div>
+                </div>
             )}
 
             {/* Details Section (Tabs) */}
             {selectedGangId && (
                 <Tabs defaultValue="info" className="w-full">
+                    {/* Tab Styles - Use direct color for active state */}
                     <TabsList className="mb-4 grid w-full grid-cols-6 bg-transparent p-0 border-b border-border">
                         {/* Info Tab Trigger */}
                         <TabsTrigger
                             value="info"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
+                            className="bg-transparent text-[#f3c700] px-1 py-2 text-sm data-[state=active]:bg-[#f3c700] data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-[#f3c700] hover:text-black rounded-t-md" // Use direct color
                         >
                             Info
                         </TabsTrigger>
                         {/* Roster Tab Trigger */}
                         <TabsTrigger
                             value="roster"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
+                            className="bg-transparent text-[#f3c700] px-1 py-2 text-sm data-[state=active]:bg-[#f3c700] data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-[#f3c700] hover:text-black rounded-t-md" // Use direct color
                         >
-                            Roster {/* Removed count */}
+                            Roster
                         </TabsTrigger>
                         {/* Clothing Tab Trigger */}
                         <TabsTrigger
                             value="clothing"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
+                            className="bg-transparent text-[#f3c700] px-1 py-2 text-sm data-[state=active]:bg-[#f3c700] data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-[#f3c700] hover:text-black rounded-t-md" // Use direct color
                         >
                             Clothing
                         </TabsTrigger>
                         {/* Location Tab Trigger */}
                         <TabsTrigger
                             value="location"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
+                            className="bg-transparent text-[#f3c700] px-1 py-2 text-sm data-[state=active]:bg-[#f3c700] data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-[#f3c700] hover:text-black rounded-t-md" // Use direct color
                         >
                             Location
                         </TabsTrigger>
                         {/* Vehicles Tab Trigger */}
                         <TabsTrigger
                             value="vehicles"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
+                            className="bg-transparent text-[#f3c700] px-1 py-2 text-sm data-[state=active]:bg-[#f3c700] data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-[#f3c700] hover:text-black rounded-t-md" // Use direct color
                         >
-                            Vehicles ({vehicles.length}) {/* Show count */}
+                            Vehicles ({vehicles.length})
                         </TabsTrigger>
                         {/* Notes Tab Trigger */}
                         <TabsTrigger
                             value="notes"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
+                            className="bg-transparent text-[#f3c700] px-1 py-2 text-sm data-[state=active]:bg-[#f3c700] data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-[#f3c700] hover:text-black rounded-t-md" // Use direct color
                         >
-                            Notes ({notes.length}) {/* Show count */}
+                            Notes ({notes.length})
                         </TabsTrigger>
                     </TabsList>
 
                     {/* Loading state for details */}
                     {loadingDetails ? (
-                        <Skeleton className="h-64 w-full bg-gray-800/95 border border-border mt-4" />
+                        // Use theme skeleton style
+                        <Skeleton className="h-64 w-full bg-muted border border-border mt-4" />
                     ) : (
                         <>
                             {/* Info Tab */}
-                            <TabsContent value="info" className="bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
-                                <Card className="bg-black/95 border-border">
-                                    <CardHeader>
-                                        <CardTitle className="text-accent">Gang Information</CardTitle>
+                            <TabsContent value="info" className="p-4 rounded-b-md">
+                                <Card className="bg-card border-border">
+                                    <CardHeader className="relative border-b border-border pb-3">
+                                        <CardTitle className="text-[#f3c700] text-xl">Gang Information</CardTitle> {/* Use direct color */}
+                                        {/* Edit Info Button */}
+                                        {!infoEditMode && (
+                                            <Button
+                                                onClick={enterInfoEditMode}
+                                                variant="ghost"
+                                                size="icon"
+                                                className="absolute top-3 right-3 text-[#f3c700] hover:bg-[#f3c700]/10 h-8 w-8" // Use direct color
+                                                title="Edit Info"
+                                            >
+                                                <FaPencilAlt className="h-4 w-4" />
+                                            </Button>
+                                        )}
                                     </CardHeader>
-                                    <CardContent className="space-y-4">
+                                    <CardContent className="space-y-5 pt-5">
                                         {!infoEditMode ? (
                                             <>
                                                 {photoUrl && (
                                                     <div>
-                                                        <Label className="text-foreground/80">Photo</Label>
+                                                        {/* Use direct color for label */}
+                                                        <Label className="text-[#f3c700] font-semibold text-sm">Photo</Label>
                                                         <img src={photoUrl} alt="Gang Preview" className="mt-2 max-h-48 rounded border border-border object-contain"/>
                                                     </div>
                                                 )}
                                                 <div>
-                                                    <Label className="text-foreground/80">Gang Name</Label>
-                                                    <div className="text-lg text-foreground font-semibold">{gangName}</div>
+                                                    {/* Use direct color for label */}
+                                                    <Label className="text-[#f3c700] font-semibold text-sm">Gang Name</Label>
+                                                    <div className="text-lg text-foreground font-semibold mt-1">{gangName}</div>
                                                 </div>
                                                 <div>
-                                                    <Label className="text-foreground/80">Description</Label>
-                                                    <div className="text-foreground">{description || <span className="italic text-muted-foreground">No description.</span>}</div>
+                                                    {/* Use direct color for label */}
+                                                    <Label className="text-[#f3c700] font-semibold text-sm">Description</Label>
+                                                    <div className="text-foreground mt-1">{description || <span className="italic text-muted-foreground">No description.</span>}</div>
                                                 </div>
                                                 <div>
-                                                    <Label className="text-foreground/80">Threat Level</Label>
-                                                    <div className="text-foreground">{level ?? <span className="italic text-muted-foreground">Not specified</span>}</div>
-                                                </div>
-                                                {/* Removed general vehicles info from here, moved to Vehicles tab */}
-                                                <div className="flex justify-end">
-                                                    <Button onClick={enterInfoEditMode} className="bg-accent text-accent-foreground">Edit Info</Button>
+                                                    {/* Use direct color for label */}
+                                                    <Label className="text-[#f3c700] font-semibold text-sm">Threat Level</Label>
+                                                    {/* Display Threat Level Icon */}
+                                                    <div className="mt-1">
+                                                        <ThreatLevelIcon level={level} />
+                                                    </div>
                                                 </div>
                                             </>
                                         ) : (
                                             <>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Edit Mode Form */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <Label htmlFor="gangNameEdit" className="text-foreground/80">Gang Name *</Label>
+                                                        <Input
+                                                            id="gangNameEdit"
+                                                            value={infoEditState?.gangName ?? ''}
+                                                            onChange={e => setInfoEditState(s => s ? { ...s, gangName: e.target.value } : s)}
+                                                            className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Use direct color for focus ring
+                                                            disabled={isSubmitting}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <Label htmlFor="level" className="text-foreground/80">Threat Level (1-5)</Label>
+                                                        <Input
+                                                            id="level"
+                                                            type="number"
+                                                            value={infoEditState?.level === null || infoEditState?.level === undefined ? '' : String(infoEditState.level)}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                const num = val === '' ? null : parseInt(val, 10);
+                                                                // Clamp value between 1 and 5, or allow null
+                                                                const clampedNum = num === null ? null : Math.max(1, Math.min(5, num));
+                                                                setInfoEditState(s => s ? { ...s, level: clampedNum } : s);
+                                                            }}
+                                                            placeholder="1 (Low) - 5 (Extreme)"
+                                                            className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Use direct color for focus ring
+                                                            disabled={isSubmitting}
+                                                            min="1" // HTML5 min/max for basic validation
+                                                            max="5"
+                                                        />
+                                                    </div>
+                                                </div>
                                                 <div>
-                                                    <Label htmlFor="gangNameEdit" className="text-foreground/80">Gang Name *</Label>
+                                                    <Label htmlFor="description" className="text-foreground/80">Description</Label>
                                                     <Input
-                                                        id="gangNameEdit"
-                                                        value={infoEditState?.gangName ?? ''}
-                                                        onChange={e => setInfoEditState(s => s ? { ...s, gangName: e.target.value } : s)}
-                                                        className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                                                        id="description"
+                                                        value={infoEditState?.description ?? ''}
+                                                        onChange={e => setInfoEditState(s => s ? { ...s, description: e.target.value } : s)}
+                                                        placeholder="Short description (e.g., MC in Paleto)"
+                                                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Use direct color for focus ring
                                                         disabled={isSubmitting}
                                                     />
                                                 </div>
                                                 <div>
-                                                    <Label htmlFor="level" className="text-foreground/80">Threat Level (Number)</Label>
+                                                    <Label htmlFor="photoUrl" className="text-foreground/80">Photo URL</Label>
                                                     <Input
-                                                        id="level"
-                                                        type="number"
-                                                        value={infoEditState?.level === null || infoEditState?.level === undefined ? '' : String(infoEditState.level)}
-                                                        onChange={e => setInfoEditState(s => s ? { ...s, level: e.target.value === '' ? null : parseInt(e.target.value, 10) } : s)}
-                                                        placeholder="e.g., 1, 2, 3"
-                                                        className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                                                        id="photoUrl"
+                                                        value={infoEditState?.photoUrl ?? ''}
+                                                        onChange={e => setInfoEditState(s => s ? { ...s, photoUrl: e.target.value } : s)}
+                                                        placeholder="Link to gang symbol/photo (Optional)"
+                                                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Use direct color for focus ring
                                                         disabled={isSubmitting}
-                                                        min="0"
                                                     />
+                                                    {infoEditState?.photoUrl && <img src={infoEditState.photoUrl} alt="Gang Preview" className="mt-2 max-h-48 rounded border border-border object-contain"/>}
                                                 </div>
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="description" className="text-foreground/80">Description</Label>
-                                                <Input
-                                                    id="description"
-                                                    value={infoEditState?.description ?? ''}
-                                                    onChange={e => setInfoEditState(s => s ? { ...s, description: e.target.value } : s)}
-                                                    placeholder="Short description (e.g., MC in Paleto)"
-                                                    className="bg-input border-border text-foreground placeholder:text-muted-foreground"
-                                                    disabled={isSubmitting}
-                                                />
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="photoUrl" className="text-foreground/80">Photo URL</Label>
-                                                <Input
-                                                    id="photoUrl"
-                                                    value={infoEditState?.photoUrl ?? ''}
-                                                    onChange={e => setInfoEditState(s => s ? { ...s, photoUrl: e.target.value } : s)}
-                                                    placeholder="Link to gang symbol/photo (Optional)"
-                                                    className="bg-input border-border text-foreground placeholder:text-muted-foreground"
-                                                    disabled={isSubmitting}
-                                                />
-                                                {infoEditState?.photoUrl && <img src={infoEditState.photoUrl} alt="Gang Preview" className="mt-2 max-h-48 rounded border border-border object-contain"/>}
-                                            </div>
-                                            {/* Removed general vehicles info edit from here */}
-                                            <div className="flex justify-end gap-2">
-                                                <Button variant="outline" onClick={cancelInfoEditMode} disabled={isSubmitting}>Cancel</Button>
-                                                <Button onClick={saveInfoEdit} disabled={isSubmitting || !infoEditState?.gangName?.trim()} className="bg-accent hover:bg-accent/90 text-accent-foreground">Save Info</Button>
-                                            </div>
+                                                <div className="flex justify-end gap-2 pt-3">
+                                                    <Button variant="outline" onClick={cancelInfoEditMode} disabled={isSubmitting} className="border-border text-muted-foreground hover:bg-muted/50">Cancel</Button>
+                                                    {/* Use direct yellow color for save button */}
+                                                    <Button onClick={saveInfoEdit} disabled={isSubmitting || !infoEditState?.gangName?.trim()} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">Save Info</Button>
+                                                </div>
                                             </>
                                         )}
-                                    </CardContent>
-                                </Card>
+                                    </CardContent> {/* Corrected closing tag position */}
+                                </Card> {/* Corrected closing tag position */}
                             </TabsContent>
 
                             {/* Roster Tab */}
-                            <TabsContent value="roster" className="space-y-4 bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
-                                {/* Render the GangRoster component */}
+                            <TabsContent value="roster" className="space-y-4 p-4 rounded-b-md">
+                                {/* Render the GangRoster component (styled in its own file) */}
                                 <GangRoster gangId={selectedGangId} />
                             </TabsContent>
 
                             {/* Clothing Tab */}
-                            <TabsContent value="clothing" className="bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
-                                <Card className="bg-black/95 border-border">
-                                    <CardHeader><CardTitle className="text-accent">Clothing / Colors</CardTitle></CardHeader>
+                            <TabsContent value="clothing" className="p-4 rounded-b-md">
+                                <Card className="bg-card border-border">
+                                    <CardHeader><CardTitle className="text-[#f3c700]">Clothing / Colors</CardTitle></CardHeader> {/* Use direct color */}
                                     <CardContent className="space-y-3">
                                         {!clothingEditMode ? (
                                             <>
                                                 <div className="whitespace-pre-wrap text-foreground min-h-[50px]">{clothingInfo || <span className="italic text-muted-foreground">No clothing information available.</span>}</div>
                                                 <div className="flex justify-end">
-                                                    <Button onClick={enterClothingEditMode} className="bg-accent text-accent-foreground">Edit Clothing</Button>
+                                                    {/* Use direct yellow color for edit button */}
+                                                    <Button onClick={enterClothingEditMode} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">Edit Clothing</Button>
                                                 </div>
                                             </>
                                         ) : (
@@ -869,25 +949,27 @@ const GangManagementTab: React.FC = () => {
                                                     disabled={isSubmitting}
                                                 />
                                                 <div className="flex justify-end gap-2">
-                                                    <Button variant="outline" onClick={cancelClothingEditMode} disabled={isSubmitting}>Cancel</Button>
-                                                    <Button onClick={saveClothingEdit} disabled={isSubmitting} className="bg-accent hover:bg-accent/90 text-accent-foreground">Save Clothing</Button>
+                                                    <Button variant="outline" onClick={cancelClothingEditMode} disabled={isSubmitting} className="border-border text-muted-foreground hover:bg-muted/50">Cancel</Button>
+                                                    {/* Use direct yellow color for save button */}
+                                                    <Button onClick={saveClothingEdit} disabled={isSubmitting} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">Save Clothing</Button>
                                                 </div>
                                             </>
                                         )}
-                                    </CardContent>
+                                    </CardContent> {/* Corrected closing tag position */}
                                 </Card>
                             </TabsContent>
 
                             {/* Location Tab */}
-                            <TabsContent value="location" className="bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
-                                <Card className="bg-black/95 border-border">
-                                    <CardHeader><CardTitle className="text-accent">Known Locations / Territory</CardTitle></CardHeader>
+                            <TabsContent value="location" className="p-4 rounded-b-md">
+                                <Card className="bg-card border-border">
+                                    <CardHeader><CardTitle className="text-[#f3c700]">Known Locations / Territory</CardTitle></CardHeader> {/* Use direct color */}
                                     <CardContent className="space-y-3">
                                         {!locationEditMode ? (
                                             <>
                                                 <div className="whitespace-pre-wrap text-foreground min-h-[50px]">{locationInfo || <span className="italic text-muted-foreground">No location information available.</span>}</div>
                                                 <div className="flex justify-end">
-                                                    <Button onClick={enterLocationEditMode} className="bg-accent text-accent-foreground">Edit Location</Button>
+                                                    {/* Use direct yellow color for edit button */}
+                                                    <Button onClick={enterLocationEditMode} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">Edit Location</Button>
                                                 </div>
                                             </>
                                         ) : (
@@ -901,26 +983,28 @@ const GangManagementTab: React.FC = () => {
                                                     disabled={isSubmitting}
                                                 />
                                                 <div className="flex justify-end gap-2">
-                                                    <Button variant="outline" onClick={cancelLocationEditMode} disabled={isSubmitting}>Cancel</Button>
-                                                    <Button onClick={saveLocationEdit} disabled={isSubmitting} className="bg-accent hover:bg-accent/90 text-accent-foreground">Save Location</Button>
+                                                    <Button variant="outline" onClick={cancelLocationEditMode} disabled={isSubmitting} className="border-border text-muted-foreground hover:bg-muted/50">Cancel</Button>
+                                                    {/* Use direct yellow color for save button */}
+                                                    <Button onClick={saveLocationEdit} disabled={isSubmitting} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">Save Location</Button>
                                                 </div>
                                             </>
                                         )}
-                                    </CardContent>
+                                    </CardContent> {/* Corrected closing tag position */}
                                 </Card>
                             </TabsContent>
 
                             {/* Vehicles Tab */}
-                            <TabsContent value="vehicles" className="space-y-4 bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
+                            <TabsContent value="vehicles" className="space-y-4 p-4 rounded-b-md">
                                 {/* General Vehicles Info Section */}
-                                <Card className="bg-black/95 border-border">
-                                    <CardHeader><CardTitle className="text-accent">Known Vehicles (General Info)</CardTitle></CardHeader>
+                                <Card className="bg-card border-border">
+                                    <CardHeader><CardTitle className="text-[#f3c700]">Known Vehicles (General Info)</CardTitle></CardHeader> {/* Use direct color */}
                                     <CardContent className="space-y-3">
                                         {!generalVehiclesInfoEditMode ? (
                                             <>
                                                 <div className="whitespace-pre-wrap text-foreground min-h-[50px]">{vehiclesInfo || <span className="italic text-muted-foreground">No general vehicle information available.</span>}</div>
                                                 <div className="flex justify-end">
-                                                    <Button onClick={enterGeneralVehiclesInfoEditMode} className="bg-accent text-accent-foreground">Edit General Info</Button>
+                                                    {/* Use direct yellow color for edit button - Fixed className */}
+                                                    <Button onClick={enterGeneralVehiclesInfoEditMode} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">Edit General Info</Button>
                                                 </div>
                                             </>
                                         ) : (
@@ -930,38 +1014,44 @@ const GangManagementTab: React.FC = () => {
                                                     onChange={e => setGeneralVehiclesInfoEditState(e.target.value)}
                                                     placeholder="General description of common vehicles used (Optional)"
                                                     rows={3}
-                                                    className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                                                    className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Use direct color for focus ring
                                                     disabled={isSubmitting}
                                                 />
                                                 <div className="flex justify-end gap-2">
-                                                    <Button variant="outline" onClick={cancelGeneralVehiclesInfoEditMode} disabled={isSubmitting}>Cancel</Button>
-                                                    <Button onClick={saveGeneralVehiclesInfoEdit} disabled={isSubmitting} className="bg-accent hover:bg-accent/90 text-accent-foreground">Save General Info</Button>
+                                                    <Button variant="outline" onClick={cancelGeneralVehiclesInfoEditMode} disabled={isSubmitting} className="border-border text-muted-foreground hover:bg-muted/50">Cancel</Button>
+                                                    {/* Use direct yellow color for save button */}
+                                                    <Button onClick={saveGeneralVehiclesInfoEdit} disabled={isSubmitting} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">Save General Info</Button>
                                                 </div>
                                             </>
                                         )}
                                     </CardContent>
                                 </Card>
                                 {/* Specific Vehicles Section */}
-                                <Card className="bg-black/95 border-border">
+                                <Card className="bg-card border-border">
                                     <CardHeader>
-                                        <CardTitle className="text-accent">Specific Vehicles ({vehicles.length})</CardTitle>
+                                        {/* Use direct yellow color for title */}
+                                        <CardTitle className="text-[#f3c700]">Specific Vehicles ({vehicles.length})</CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-3">
                                         {/* Add Vehicle Form */}
-                                        <div className="p-2 border border-border rounded bg-muted/30 space-y-2">
+                                        <div className="p-3 border border-border rounded bg-muted/30 space-y-2"> {/* Slightly increased padding */}
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                                <Input value={newVehiclePlate} onChange={e => setNewVehiclePlate(e.target.value)} placeholder="Plate *" className="bg-input border-border text-foreground placeholder:text-muted-foreground" disabled={isSubmitting}/>
-                                                <Input value={newVehicleModel} onChange={e => setNewVehicleModel(e.target.value)} placeholder="Model (Optional)" className="bg-input border-border text-foreground placeholder:text-muted-foreground" disabled={isSubmitting}/>
-                                                <Input value={newVehicleMember} onChange={e => setNewVehicleMember(e.target.value)} placeholder="Member Seen (Optional)" className="bg-input border-border text-foreground placeholder:text-muted-foreground" disabled={isSubmitting}/>
+                                                {/* Use direct color for focus ring */}
+                                                <Input value={newVehiclePlate} onChange={e => setNewVehiclePlate(e.target.value)} placeholder="Plate *" className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" disabled={isSubmitting}/>
+                                                <Input value={newVehicleModel} onChange={e => setNewVehicleModel(e.target.value)} placeholder="Model (Optional)" className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" disabled={isSubmitting}/>
+                                                <Input value={newVehicleMember} onChange={e => setNewVehicleMember(e.target.value)} placeholder="Member Seen (Optional)" className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" disabled={isSubmitting}/>
                                             </div>
                                             <div className="flex gap-2 items-end">
-                                                <Textarea value={newVehicleActivity} onChange={e => setNewVehicleActivity(e.target.value)} placeholder="Activity / Crime Notes *" rows={2} className="bg-input border-border text-foreground placeholder:text-muted-foreground flex-grow" disabled={isSubmitting}/>
-                                                <Button size="sm" onClick={handleAddVehicle} disabled={isSubmitting || !newVehiclePlate.trim() || !newVehicleActivity.trim()} className="bg-accent hover:bg-accent/90 text-accent-foreground"><FaPlus /></Button>
+                                                {/* Use direct color for focus ring */}
+                                                <Textarea value={newVehicleActivity} onChange={e => setNewVehicleActivity(e.target.value)} placeholder="Activity / Crime Notes *" rows={2} className="bg-input border-border text-foreground placeholder:text-muted-foreground flex-grow focus:ring-[#f3c700]" disabled={isSubmitting}/>
+                                                {/* Use direct yellow color for add button */}
+                                                <Button size="sm" onClick={handleAddVehicle} disabled={isSubmitting || !newVehiclePlate.trim() || !newVehicleActivity.trim()} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black"><FaPlus /></Button>
                                             </div>
                                         </div>
                                         {/* Vehicle List */}
                                         <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
                                             {vehicles.length > 0 ? vehicles.map(vehicle => (
+                                                // Use theme muted background for list items
                                                 <div key={vehicle.id} className="p-2 border border-border rounded bg-muted/50 text-sm group relative">
                                                     <div className="flex justify-between items-start">
                                                         <p><strong className="text-foreground">{vehicle.plate}</strong> {vehicle.model ? `(${vehicle.model})` : ''}</p>
@@ -973,23 +1063,25 @@ const GangManagementTab: React.FC = () => {
                                                         {vehicle.timestamp?.toDate().toLocaleString()} {vehicle.addedByName && `(Added by: ${vehicle.addedByName})`}
                                                     </p>
                                                 </div>
-                                            )) : <p className="italic text-muted-foreground text-sm">No specific vehicles recorded.</p>}
+                                            )) : <p className="italic text-muted-foreground text-sm text-center py-2">No specific vehicles recorded.</p>} {/* Centered text */}
                                         </div>
                                     </CardContent>
                                 </Card>
                             </TabsContent>
 
                             {/* Notes Tab */}
-                            <TabsContent value="notes" className="space-y-4 bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
+                            <TabsContent value="notes" className="space-y-4 p-4 rounded-b-md">
                                 {/* Main Notes Field Section */}
-                                <Card className="bg-black/95 border-border">
-                                    <CardHeader><CardTitle className="text-accent">Main Gang Notes</CardTitle></CardHeader>
+                                <Card className="bg-card border-border">
+                                    {/* Use direct yellow color for title */}
+                                    <CardHeader><CardTitle className="text-[#f3c700]">Main Gang Notes</CardTitle></CardHeader>
                                     <CardContent className="space-y-3">
                                         {!mainNotesEditMode ? (
                                             <>
                                                 <div className="whitespace-pre-wrap text-foreground min-h-[50px]">{generalNotes || <span className="italic text-muted-foreground">No main notes recorded.</span>}</div>
                                                 <div className="flex justify-end">
-                                                    <Button onClick={enterMainNotesEditMode} className="bg-accent text-accent-foreground mt-2">Edit Main Notes</Button>
+                                                    {/* Use direct yellow color for edit button */}
+                                                    <Button onClick={enterMainNotesEditMode} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black mt-2">Edit Main Notes</Button>
                                                 </div>
                                             </>
                                         ) : (
@@ -1000,37 +1092,42 @@ const GangManagementTab: React.FC = () => {
                                                     onChange={e => setMainNotesEditState(e.target.value)}
                                                     placeholder="Overall notes about the gang..."
                                                     rows={4}
-                                                    className="bg-input border-border text-foreground placeholder:text-muted-foreground mt-1"
+                                                    className="bg-input border-border text-foreground placeholder:text-muted-foreground mt-1 focus:ring-[#f3c700]" // Use direct color for focus ring
                                                     disabled={isSubmitting}
                                                 />
                                                 <div className="flex justify-end gap-2 mt-2">
-                                                    <Button variant="outline" onClick={cancelMainNotesEditMode} disabled={isSubmitting}>Cancel</Button>
-                                                    <Button onClick={saveMainNotesEdit} disabled={isSubmitting} className="bg-accent hover:bg-accent/90 text-accent-foreground">Save Main Notes</Button>
+                                                    <Button variant="outline" onClick={cancelMainNotesEditMode} disabled={isSubmitting} className="border-border text-muted-foreground hover:bg-muted/50">Cancel</Button>
+                                                    {/* Use direct yellow color for save button */}
+                                                    <Button onClick={saveMainNotesEdit} disabled={isSubmitting} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">Save Main Notes</Button>
                                                 </div>
                                             </>
                                         )}
                                     </CardContent>
                                 </Card>
                                 {/* Individual Notes Section */}
-                                <Card className="bg-black/95 border-border">
+                                <Card className="bg-card border-border">
                                     <CardHeader>
-                                        <CardTitle className="text-accent">Individual Notes / Updates ({notes.length})</CardTitle>
+                                        {/* Use direct yellow color for title */}
+                                        <CardTitle className="text-[#f3c700]">Individual Notes / Updates ({notes.length})</CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-3">
                                         {/* Add Note Form */}
-                                        <div className="flex gap-2 items-end p-2 border border-border rounded bg-muted/30">
-                                            <Textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)} placeholder="Add an individual note or update..." rows={2} className="bg-input border-border text-foreground placeholder:text-muted-foreground flex-grow" disabled={isSubmitting}/>
-                                            <Button size="sm" onClick={handleAddNote} disabled={isSubmitting || !newNoteText.trim()} className="bg-accent hover:bg-accent/90 text-accent-foreground"><FaPlus /></Button>
+                                        <div className="flex gap-2 items-end p-3 border border-border rounded bg-muted/30"> {/* Slightly increased padding */}
+                                            {/* Use direct color for focus ring */}
+                                            <Textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)} placeholder="Add an individual note or update..." rows={2} className="bg-input border-border text-foreground placeholder:text-muted-foreground flex-grow focus:ring-[#f3c700]" disabled={isSubmitting}/>
+                                            {/* Use direct yellow color for add button */}
+                                            <Button size="sm" onClick={handleAddNote} disabled={isSubmitting || !newNoteText.trim()} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black"><FaPlus /></Button>
                                         </div>
                                         {/* Note List */}
                                         <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
                                             {notes.length > 0 ? notes.map(note => (
+                                                // Use theme muted background for list items
                                                 <div key={note.id} className="p-2 border border-border rounded bg-muted/50 text-sm group relative">
                                                     <p className="whitespace-pre-wrap text-foreground/90">{note.note}</p>
                                                     <p className="text-xs text-muted-foreground text-right mt-1">- {note.author} on {note.timestamp?.toDate().toLocaleString()}</p>
                                                     <Button variant="ghost" size="icon" className="absolute top-1 right-1 text-destructive h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => requestDeleteNote(note.id)} disabled={isSubmitting}><FaTrash className="h-3 w-3" /></Button>
                                                 </div>
-                                            )) : <p className="italic text-muted-foreground text-sm">No individual notes recorded.</p>}
+                                            )) : <p className="italic text-muted-foreground text-sm text-center py-2">No individual notes recorded.</p>} {/* Centered text */}
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -1051,6 +1148,7 @@ const GangManagementTab: React.FC = () => {
                     onClose={() => setConfirmationModal(null)} // Ensure onClose is handled
                     confirmText="Confirm"
                     cancelText="Cancel"
+                    // ConfirmationModal should use theme styles internally
                 />
             )}
         </div>

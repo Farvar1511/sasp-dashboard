@@ -10,24 +10,24 @@ import {
   addDoc,
   limit,
 } from "firebase/firestore";
-import { db as dbFirestore } from "../firebase"; // Removed Timestamp
+import { db as dbFirestore } from "../firebase"; 
 import { useAuth } from "../context/AuthContext";
 import Layout from "../components/Layout";
-import Modal from "../components/Modal"; // Import a modal component
-import Bulletins from "../components/Bulletins"; // Import Bulletins component
+import Modal from "../components/Modal"; 
+import Bulletins from "../components/Bulletins"; 
 import {
   RosterUser,
   FleetVehicle as Vehicle,
   UserTask,
   DisciplineEntry,
   NoteEntry,
-  BulletinEntry, // Import BulletinEntry type
+  BulletinEntry, 
 } from "../types/User";
 import { CertStatus } from "../types/User";
 import { formatIssuedAt, convertFirestoreDate } from "../utils/timeHelpers";
-import { toast } from "react-toastify"; // Add toast import
+import { toast } from "react-toastify"; 
 
-// Define rank ordering
+
 const rankOrder: { [key: string]: number } = {
   Commissioner: 1,
   "Assistant Deputy Commissioner": 2,
@@ -61,15 +61,15 @@ const MyDashboard: React.FC = () => {
   );
   const [generalNotes, setGeneralNotes] = useState<NoteEntry[]>([]);
   const [tasks, setTasks] = useState<UserTask[]>([]);
-  const [bulletins, setBulletins] = useState<BulletinEntry[]>([]); // Add state for bulletins
+  const [bulletins, setBulletins] = useState<BulletinEntry[]>([]); 
   const [selectedBulletin, setSelectedBulletin] =
-    useState<BulletinEntry | null>(null); // State for modal
+    useState<BulletinEntry | null>(null); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Define specific keys for rendering based on user request
-  const displayDivisionKeys = ["K9", "SWAT", "CIU", "FTO"]; // Divisions
-  const displayCertificationKeys = ["HEAT", "MBU", "ACU"]; // Certifications
+  
+  const displayDivisionKeys = ["K9", "SWAT", "CIU", "FTO"]; 
+  const displayCertificationKeys = ["HEAT", "MBU", "ACU"]; 
 
   const formatCreatedAt = (timestamp: any): string => {
     const date = timestamp.toDate();
@@ -86,10 +86,10 @@ const MyDashboard: React.FC = () => {
     return formattedDate;
   };
 
-  // Task Handlers
+  
   const handleToggleCompleteTask = async (
     taskId: string,
-    currentCompletedStatus: boolean | undefined // Allow undefined
+    currentCompletedStatus: boolean | undefined 
   ) => {
     if (!authUser?.email) {
       console.error("User email is missing.");
@@ -98,23 +98,23 @@ const MyDashboard: React.FC = () => {
     }
     try {
       console.debug(`Attempting to update task with ID: ${taskId}`);
-      // Directly reference the document by its ID
+      
       const taskDocRef = doc(dbFirestore, "users", authUser.email, "tasks", taskId);
-      const taskDocSnap = await getDoc(taskDocRef); // Check if it exists
+      const taskDocSnap = await getDoc(taskDocRef); 
 
       if (!taskDocSnap.exists()) {
         console.warn(`Task with ID ${taskId} does not exist.`);
-        // Attempt to refetch tasks in case the local state is stale
-        // (Consider adding a specific refetch function if needed)
+        
+        
         toast.error("Task not found. It might have been deleted.");
-        setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId)); // Remove from local state
+        setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId)); 
         return;
       }
 
-      // Determine the new status, defaulting current to false if undefined
+      
       const newCompletedStatus = !(currentCompletedStatus ?? false);
       console.debug(`Updating task ${taskDocRef.id} completed status to: ${newCompletedStatus}`);
-      // Ensure the 'completed' field is set or updated
+      
       await updateDoc(taskDocRef, { completed: newCompletedStatus });
 
       setTasks((prevTasks) =>
@@ -141,14 +141,14 @@ const MyDashboard: React.FC = () => {
     }
     try {
       console.debug(`Attempting to adjust progress for task with ID: ${taskId}`);
-      // Directly reference the document by its ID
+      
       const taskDocRef = doc(dbFirestore, "users", authUser.email, "tasks", taskId);
-      const taskDocSnap = await getDoc(taskDocRef); // Check if it exists
+      const taskDocSnap = await getDoc(taskDocRef); 
 
       if (!taskDocSnap.exists()) {
         console.warn(`Task with ID ${taskId} does not exist.`);
         toast.error("Task not found. It might have been deleted.");
-        setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId)); // Remove from local state
+        setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId)); 
         return;
       }
 
@@ -166,7 +166,7 @@ const MyDashboard: React.FC = () => {
         Math.max(0, currentProgress + adjustment)
       );
       console.debug(`Adjusting progress for task ${taskDocRef.id}: ${currentProgress} -> ${newProgress}`);
-      await updateDoc(taskDocRef, { progress: newProgress }); // Update using the direct reference
+      await updateDoc(taskDocRef, { progress: newProgress }); 
 
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
@@ -193,18 +193,18 @@ const MyDashboard: React.FC = () => {
 
     try {
       const now = new Date();
-      const createdAt = now.toISOString(); // Use ISO string for timestamp
+      const createdAt = now.toISOString(); 
 
       await addDoc(collection(dbFirestore, "bulletins"), {
         title: title.trim(),
         content: content.trim(),
         postedByName: authUser.name,
         postedByRank: authUser.rank,
-        createdAt, // Store the timestamp
+        createdAt, 
       });
 
       toast.success("Bulletin added successfully!");
-      // Optionally, refresh bulletins or reset form state here
+      
     } catch (error) {
       console.error("Error adding bulletin:", error);
       toast.error(
@@ -215,7 +215,7 @@ const MyDashboard: React.FC = () => {
     }
   };
 
-  // Fetch Dashboard Data
+  
   useEffect(() => {
     const fetchData = async () => {
       if (!authUser || !authUser.email) {
@@ -226,7 +226,7 @@ const MyDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        // User Data
+        
         const userDocRef = doc(dbFirestore, "users", authUser.email);
         const userDocSnap = await getDoc(userDocRef);
         if (!userDocSnap.exists()) {
@@ -238,7 +238,7 @@ const MyDashboard: React.FC = () => {
         } as RosterUser;
         setUserData(parsedUser);
 
-        // Tasks - Modified Fetching Logic
+        
         const tasksCollectionRef = collection(
           dbFirestore,
           "users",
@@ -247,14 +247,14 @@ const MyDashboard: React.FC = () => {
         );
         const tasksQuery = query(
           tasksCollectionRef,
-          orderBy("issueddate", "desc") // Keep ordering if desired
+          orderBy("issueddate", "desc") 
         );
         const tasksSnapshot = await getDocs(tasksQuery);
         setTasks(
           tasksSnapshot.docs
             .map((doc) => {
               const data = doc.data();
-              // Basic validation for essential fields
+              
               if (
                 typeof data.task === "string" &&
                 (data.type === "goal" || data.type === "normal") &&
@@ -263,25 +263,25 @@ const MyDashboard: React.FC = () => {
                 typeof data.issuedtime === "string"
               ) {
                 return {
-                  id: doc.id, // Use the Firestore document ID
+                  id: doc.id, 
                   task: data.task,
                   type: data.type,
                   issuedby: data.issuedby,
                   issueddate: data.issueddate,
                   issuedtime: data.issuedtime,
-                  // Default 'completed' to false if it's missing or not a boolean
+                  
                   completed: typeof data.completed === "boolean" ? data.completed : false,
                   progress: data.type === "goal" ? (typeof data.progress === "number" ? data.progress : 0) : undefined,
                   goal: data.type === "goal" ? (typeof data.goal === "number" ? data.goal : undefined) : undefined,
                 } as UserTask;
               }
-              console.warn("Skipping invalid task data:", doc.id, data); // Log skipped tasks
+              console.warn("Skipping invalid task data:", doc.id, data); 
               return null;
             })
             .filter((task): task is UserTask => task !== null)
         );
 
-        // Discipline Entries
+        
         const disciplineCollectionRef = collection(
           dbFirestore,
           "users",
@@ -318,7 +318,7 @@ const MyDashboard: React.FC = () => {
             .filter((entry): entry is DisciplineEntry => entry !== null)
         );
 
-        // Notes
+        
         const notesQuery = query(
           collection(dbFirestore, "users", authUser.email, "notes"),
           orderBy("issueddate", "desc")
@@ -331,12 +331,12 @@ const MyDashboard: React.FC = () => {
           })) as NoteEntry[]
         );
 
-        // Fetch Bulletins
+        
         const bulletinsCollectionRef = collection(dbFirestore, "bulletins");
         const bulletinsQuery = query(
           bulletinsCollectionRef,
           orderBy("createdAt", "desc"),
-          limit(2) // Fetch only the most recent 2 bulletins
+          limit(2) 
         );
         const bulletinsSnapshot = await getDocs(bulletinsQuery);
         setBulletins(
@@ -351,19 +351,19 @@ const MyDashboard: React.FC = () => {
               contentFull: data.content || "No content available.",
               postedByName: data.postedByName || "Unknown",
               postedByRank: data.postedByRank || "Unknown",
-              createdAt: data.createdAt, // Firestore timestamp
+              createdAt: data.createdAt, 
             };
           }) as BulletinEntry[]
         );
 
-        // Vehicles
+        
         const vehicleSnap = await getDocs(collection(dbFirestore, "fleet"));
         const allVehicles = vehicleSnap.docs.map((d) => ({
           id: d.id,
           ...d.data(),
         })) as Vehicle[];
 
-        // Determine Assigned Vehicle
+        
         let assigned: Vehicle | null = null;
         const userNameUpper = parsedUser.name.toUpperCase();
         const nameParts = parsedUser.name.split(" ").filter(Boolean);
@@ -390,7 +390,7 @@ const MyDashboard: React.FC = () => {
         }
         setAssignedVehicle(assigned);
 
-        // Determine allowed communal vehicles
+        
         const rankValue = rankOrder[parsedUser.rank] ?? rankOrder.Unknown;
         const userCerts = parsedUser.certifications || {};
         const hasCertAccess = (requiredCertKey: string | null): boolean => {
@@ -402,7 +402,7 @@ const MyDashboard: React.FC = () => {
         };
 
         let allowed: Vehicle[] = [];
-        if (parsedUser.rank !== "Cadet") { // Prevent cadets from seeing allowed vehicles
+        if (parsedUser.rank !== "Cadet") { 
           allowed = allVehicles.filter((v) => {
             if (
               v.assignee &&
@@ -415,10 +415,10 @@ const MyDashboard: React.FC = () => {
               return false;
             }
             const restrictions = (v.restrictions || "").toLowerCase();
-            // Calculate canonical division: treat MOTO as MBU
+            
             let division = (v.division || "").toUpperCase();
             if (division === "MOTO") {
-              division = "MBU"; // Connect MOTO division to MBU cert logic
+              division = "MBU"; 
             }
             let requiredRankLevel = Infinity;
             if (restrictions.includes("high command"))
@@ -458,7 +458,7 @@ const MyDashboard: React.FC = () => {
     return (
       <Layout>
         <div className="flex justify-center items-center h-screen">
-          <p className="text-yellow-400 text-xl">Loading dashboard...</p>
+          <p className="text-yellow-400 text-xl bg-black/50 p-4 rounded">Loading dashboard...</p>
         </div>
       </Layout>
     );
@@ -467,7 +467,7 @@ const MyDashboard: React.FC = () => {
     return (
       <Layout>
         <div className="flex justify-center items-center h-screen">
-          <p className="text-red-400 text-center text-xl">{error}</p>
+          <p className="text-red-400 text-center text-xl bg-black/50 p-4 rounded">{error}</p>
         </div>
       </Layout>
     );
@@ -476,7 +476,7 @@ const MyDashboard: React.FC = () => {
     return (
       <Layout>
         <div className="flex justify-center items-center h-screen">
-          <p className="text-red-400 text-center text-xl">
+          <p className="text-red-400 text-center text-xl bg-black/50 p-4 rounded">
             User data could not be loaded.
           </p>
         </div>
@@ -485,32 +485,33 @@ const MyDashboard: React.FC = () => {
 
   return (
     <Layout>
-      {/* Increased responsive side margins: mx-8 lg:mx-16 -> mx-10 lg:mx-20 */}
-      <div className="relative z-10 space-y-8 px-4 py-8 mx-18 lg:mx-48">
-        {/* Header */}
-        {/* Removed max-w-7xl and mx-auto to allow header to expand with parent padding */}
+      <div
+        className="relative z-10 space-y-8 px-4 py-8 mx-18 lg:mx-48"
+      >
+        {}
         <div className="flex flex-row items-center justify-center gap-4 mb-6 bg-black bg-opacity-85 p-4 rounded-lg shadow-lg">
-          <img src="/SASPLOGO2.png" alt="SASP" className="w-16 h-16" /> {/* Reduced image size */}
-          {/* Added text-center to center the h1 and p elements */}
+          <img src="/SASPLOGO2.png" alt="SASP" className="w-16 h-16" /> {}
+          {}
           <div className="text-center">
-            <h1 className="text-3xl font-extrabold text-[#f3c700] tracking-tight"> {/* Reduced text size */}
+            <h1 className="text-3xl font-extrabold text-[#f3c700] tracking-tight"> {}
               My Dashboard
             </h1>
-            <p className="text-lg text-white"> {/* Reduced text size */}
+            <p className="text-lg text-white"> {}
               Welcome back, {userData.rank} {userData.name}!
             </p>
           </div>
         </div>
 
-        {/* Trooper Information & Bulletins - This grid will now expand wider */}
+        {}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Trooper Information */}
+          {}
+          {}
           <div className="p-6 bg-black bg-opacity-80 border border-[#f3c700] rounded-xl shadow-lg w-full">
             <h2 className="text-2xl font-extrabold text-[#f3c700] border-b border-white pb-2 mb-4">
               Trooper Information
             </h2>
             <div className="grid grid-cols-2 gap-4">
-              {/* Name */}
+              {}
               <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
                 <span className="text-base font-bold text-[#f3c700]">
                   Name:
@@ -519,7 +520,7 @@ const MyDashboard: React.FC = () => {
                   {userData.name}
                 </span>
               </div>
-              {/* Callsign */}
+              {}
               <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
                 <span className="text-base font-bold text-[#f3c700]">
                   Callsign:
@@ -528,7 +529,7 @@ const MyDashboard: React.FC = () => {
                   {userData.callsign || "N/A"}
                 </span>
               </div>
-              {/* Badge */}
+              {}
               <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
                 <span className="text-base font-bold text-[#f3c700]">
                   Badge:
@@ -537,7 +538,7 @@ const MyDashboard: React.FC = () => {
                   {userData.badge || "N/A"}
                 </span>
               </div>
-              {/* Status */}
+              {}
               <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
                 <span className="text-base font-bold text-[#f3c700]">
                   Status:
@@ -550,7 +551,7 @@ const MyDashboard: React.FC = () => {
                   {userData.isActive ? "Active" : "Inactive / LOA"}
                 </span>
               </div>
-              {/* Join Date */}
+              {}
               <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
                 <span className="text-base font-bold text-[#f3c700]">
                   Join Date:
@@ -561,7 +562,7 @@ const MyDashboard: React.FC = () => {
                     : "N/A"}
                 </span>
               </div>
-              {/* Last Promotion */}
+              {}
               <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
                 <span className="text-base font-bold text-[#f3c700]">
                   Last Promotion:
@@ -575,7 +576,8 @@ const MyDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Bulletins */}
+          {}
+          {}
           <div className="p-6 bg-black bg-opacity-80 border border-[#f3c700] rounded-xl shadow-lg w-full">
             <h2 className="text-2xl font-extrabold text-[#f3c700] border-b border-white pb-2 mb-4">
               Recent Bulletins
@@ -615,7 +617,7 @@ const MyDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Modal for Full Bulletin */}
+        {}
         {selectedBulletin && (
           <Modal isOpen={!!selectedBulletin} onClose={() => setSelectedBulletin(null)}>
             <div className="p-6 bg-black bg-opacity-90 rounded-lg shadow-lg max-w-7xl w-full max-h-[80vh] overflow-y-auto mx-auto">
@@ -634,17 +636,18 @@ const MyDashboard: React.FC = () => {
           </Modal>
         )}
 
-        {/* Main Grid Layout - This grid will now expand wider */}
+        {}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Left Column Wrapper */}
+          {}
           <div className="space-y-6">
-            {/* Certifications & Divisions */}
+            {}
+            {}
             <div className="p-6 bg-black bg-opacity-80 border border-[#f3c700] rounded-xl shadow-lg w-full">
               <h2 className="text-2xl font-extrabold text-[#f3c700] border-b border-white pb-2 mb-4">
                 Certifications & Divisions
               </h2>
               <div className="grid sm:grid-cols-2 gap-4">
-                {/* Certifications */}
+                {}
                 <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
                   <h3 className="text-lg font-semibold text-[#f3c700] mb-2 border-b border-white pb-2">
                     Certifications
@@ -683,7 +686,7 @@ const MyDashboard: React.FC = () => {
                   )}
                 </div>
 
-                {/* Divisions */}
+                {}
                 <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
                   <h3 className="text-lg font-semibold text-[#f3c700] mb-2 border-b border-white pb-2">
                     Divisions
@@ -724,7 +727,8 @@ const MyDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Discipline */}
+            {}
+            {}
             <div className="p-5 bg-black bg-opacity-80 border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center">
               <h2 className="section-header text-xl font-bold mb-4 text-[#f3c700] border-b-2 border-white pb-2">
                 Discipline
@@ -761,7 +765,8 @@ const MyDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Assigned Tasks */}
+          {}
+          {}
           <div className="p-5 bg-black bg-opacity-80 border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center">
             <h2 className="section-header text-xl font-bold mb-4 text-[#f3c700] border-b-2 border-white pb-2">
               Assigned Tasks
@@ -770,14 +775,14 @@ const MyDashboard: React.FC = () => {
               <div className="flex-grow overflow-y-auto custom-scrollbar space-y-3 pr-2 max-h-[calc(100vh-300px)] w-full">
                 {tasks.map((task) => (
                   <div
-                    key={task.id} // Ensure key is the unique Firestore doc ID
+                    key={task.id} 
                     className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg shadow-sm text-left"
                   >
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                       <div className="flex-grow">
                         <p
                           className={`text-sm font-medium ${
-                            // Use the potentially defaulted 'completed' status
+                            
                             task.completed
                               ? "line-through text-gray-500"
                               : "text-white"
@@ -819,7 +824,7 @@ const MyDashboard: React.FC = () => {
                         )}
                         <button
                           onClick={() =>
-                            // Pass the potentially defaulted 'completed' status
+                            
                             handleToggleCompleteTask(task.id, task.completed)
                           }
                           className={`px-2.5 py-1 ${
@@ -857,7 +862,8 @@ const MyDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Assigned Vehicle - This section will now expand wider */}
+        {}
+        {}
         <div className="p-5 bg-black bg-opacity-80 border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center">
           <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-white pb-2">
             Assigned Vehicle
@@ -871,7 +877,8 @@ const MyDashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Allowed Vehicles - This section will now expand wider */}
+        {}
+        {}
         <div className="p-5 bg-black bg-opacity-80 border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center">
           <h2 className="section-header text-2xl font-bold mb-4 text-[#f3c700] border-b-2 border-white pb-2">
             Allowed Vehicles
@@ -916,7 +923,7 @@ const MyDashboard: React.FC = () => {
   );
 };
 
-// Helper: determine the color for note type text
+
 const getNoteTypeColor = (type: string | undefined): string => {
   switch (type?.toLowerCase()) {
     case "commendation":
@@ -934,7 +941,7 @@ const getNoteTypeColor = (type: string | undefined): string => {
   }
 };
 
-// Helper: get certification style
+
 const getCertStyle = (status: CertStatus | null) => {
   switch (status) {
     case "LEAD":

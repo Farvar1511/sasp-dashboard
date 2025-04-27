@@ -1,27 +1,27 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-    collection, // Firestore
-    query, // Firestore
-    where, // Firestore
-    orderBy, // Firestore
-    onSnapshot, // Firestore (real-time listener)
-    addDoc, // Firestore (write)
-    serverTimestamp, // Firestore (write)
-    getDocs, // Firestore (read)
-    limit, // Firestore
-    doc, // Firestore
-    getDoc, // Firestore (read)
-    updateDoc, // Firestore (write)
-    setDoc, // Firestore (write - for creating/overwriting)
-    arrayUnion, // Firestore (write)
-    arrayRemove, // Firestore (write)
-    Timestamp, // Firestore
-    QuerySnapshot, // Firestore
-    DocumentData, // Firestore
+    collection,
+    query,
+    where,
+    orderBy,
+    onSnapshot,
+    addDoc,
+    serverTimestamp,
+    getDocs,
+    limit,
+    doc,
+    getDoc,
+    updateDoc,
+    setDoc,
+    arrayUnion,
+    arrayRemove,
+    Timestamp,
+    QuerySnapshot,
+    DocumentData,
 } from 'firebase/firestore';
-import { db as dbFirestore } from '../../firebase'; // Firestore database instance
+import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
-import { User } from '../../types/User'; // Ensure User type includes cid: string;
+import { User } from '../../types/User';
 import { ChatGroup } from '../../types/ChatGroup';
 import { Button } from '../ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from '../ui/dropdown-menu';
@@ -33,53 +33,45 @@ import { ChatInput } from '../ui/chat/chat-input';
 import { toast } from 'react-toastify';
 import { hasCIUPermission } from '../../utils/ciuUtils';
 import { cn } from '../../lib/utils';
-// Add FaTimes for the close button
-import { FaUsers, FaUser, FaPlus, FaSmile, FaTimes, FaEyeSlash, FaUserPlus } from 'react-icons/fa'; // Add FaImage
+import { FaUsers, FaUser, FaPlus, FaSmile, FaTimes, FaEyeSlash, FaUserPlus } from 'react-icons/fa';
 import CreateGroupModal from './CreateGroupModal';
 import { formatUserName, getAvatarFallback } from './utils';
-import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'; // Import picker
+import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
-// --- Moved outside component ---
-// Generate a consistent chat ID for 1-on-1 chats (using CIDs)
 const getDirectChatId = (cid1: string, cid2: string): string => {
     if (!cid1 || !cid2) {
         console.error("Cannot generate direct chat ID with invalid CIDs:", cid1, cid2);
         return '';
     }
-    // CIDs are likely safe, but basic sanitization might still be good practice
-    const sanitize = (cid: string) => cid.replace(/[^a-zA-Z0-9_-]/g, '_'); // Allow alphanumeric, underscore, hyphen
-    return [sanitize(cid1), sanitize(cid2)].sort().join('--'); // Use double hyphen to reduce collision risk with sanitized emails if migrating
+    const sanitize = (cid: string) => cid.replace(/[^a-zA-Z0-9_-]/g, '_');
+    return [sanitize(cid1), sanitize(cid2)].sort().join('--');
 };
 
 
 interface Message {
     id: string;
-    senderId: string; // Sender's CID
-    receiverId?: string; // Receiver's CID (for 1-on-1) or Group ID (optional)
-    text?: string; // Make text optional
-    imageUrl?: string; // Add optional imageUrl
+    senderId: string;
+    receiverId?: string;
+    text?: string;
+    imageUrl?: string;
     timestamp: Timestamp | null;
-    senderName?: string; // Keep senderName for display
+    senderName?: string;
 }
 
-// Interface for combined chat data used for sorting/display
 interface DisplayChat {
-    id: string; // Firestore document ID (chatId)
+    id: string;
     type: 'group' | 'direct';
-    target: ChatGroup | User; // The actual group or the other user
-    lastMessageTimestamp: Timestamp | null; // For sorting
+    target: ChatGroup | User;
+    lastMessageTimestamp: Timestamp | null;
     isUnread: boolean;
 }
 
-// Props interface for CIUChatInterface
 interface CIUChatInterfaceProps {
-    onUnreadCountChange: (count: number) => void; // Callback to report unread count
+    onUnreadCountChange: (count: number) => void;
 }
 
-// Increase timeout to reduce write frequency
-const TYPING_TIMEOUT_MS = 3000; // 3 seconds (previously 2000)
+const TYPING_TIMEOUT_MS = 3000;
 
-// Add props to the component definition
 export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCountChange }) => {
     const { user: currentUser } = useAuth();
     const [ciuPersonnel, setCiuPersonnel] = useState<User[]>([]);
@@ -101,16 +93,22 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
     const [allUserChats, setAllUserChats] = useState<DocumentData[]>([]);
 
 
-    // Function to scroll to the bottom of the message list container
     const scrollToBottom = () => {
         if (messageContainerRef.current) {
-            // Use 'auto' behavior for immediate scroll after receiving/sending messages
             messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
         }
     };
 
-    // Fetch CIU Personnel (Direct Chats)
     useEffect(() => {
+        if (!currentUser?.cid) {
+             console.log("CIUChat: Current user or CID not available yet.");
+             setLoadingUsers(false);
+             setCiuPersonnel([]);
+             return;
+        }
+        console.log("CIUChat: Current User CID:", currentUser.cid);
+
+        setLoadingUsers(true);
         // Use CID for the check now
         if (!currentUser?.cid) {
              console.log("CIUChat: Current user or CID not available yet.");
@@ -866,63 +864,93 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
 
 
     return (
-        <div className="flex h-[calc(100vh-220px)] border border-border rounded-lg bg-card text-card-foreground overflow-hidden">
+        <div
+            className="flex h-[calc(100vh-220px)] border rounded-lg overflow-hidden"
+            style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-background)',
+                color: 'var(--color-foreground)',
+            }}
+        >
             {/* User List Sidebar */}
-            <div className="w-1/4 border-r border-border p-2 flex flex-col">
+            <div
+                className="w-1/4 border-r p-2 flex flex-col"
+                style={{
+                    borderColor: 'var(--color-border)',
+                    backgroundColor: 'var(--color-background)', // Or potentially --color-card if desired
+                }}
+            >
                 {/* Sidebar Header */}
                 <div className="flex justify-between items-center mb-2 px-2">
-                    <h3 className="text-lg font-semibold text-foreground">Chats</h3>
+                    <h3 className="text-lg font-semibold" style={{ color: 'var(--color-foreground)' }}>Chats</h3>
                     <div className="flex items-center space-x-1">
-                        {/* Create Group Button (Now handles both) */}
-                        <Button variant="ghost" size="icon" onClick={handleOpenCreateGroupModal} title="New Chat / Group">
+                        {/* Create Group Button - Keep variant/size, adjust color if needed */}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleOpenCreateGroupModal}
+                            title="New Chat / Group"
+                            className="text-muted-foreground hover:text-foreground" // Keep hover class for interaction
+                            // style={{ color: 'var(--color-muted-foreground)' }} // Base color set by variant/class
+                        >
                             <FaPlus className="h-4 w-4" />
                         </Button>
                     </div>
                 </div>
 
                 {isLoading ? (
-                    <p className="text-muted-foreground px-2">Loading chats...</p>
+                    <p className="px-2" style={{ color: 'var(--color-muted-foreground)' }}>Loading chats...</p>
                 ) : error ? (
-                     <p className="text-destructive px-2">{error}</p>
-                ) : sortedDisplayChats.length === 0 ? ( // Check derived list
-                     <p className="text-muted-foreground px-2">No chats available.</p>
+                     <p className="px-2" style={{ color: 'var(--color-destructive)' }}>{error}</p>
+                ) : sortedDisplayChats.length === 0 ? (
+                     <p className="px-2" style={{ color: 'var(--color-muted-foreground)' }}>No chats available.</p>
                 ): (
-                    <ScrollArea className="h-full">
+                    <ScrollArea className="h-full custom-scrollbar">
                         {/* Render Groups */}
                         {sortedDisplayChats.some(c => c.type === 'group' && !hiddenChatIds.has(c.id)) && (
                             <div className="mb-3">
-                                <h4 className="text-xs font-semibold uppercase text-muted-foreground px-2 mb-1">Groups</h4>
+                                <h4 className="text-xs font-semibold uppercase px-2 mb-1" style={{ color: 'var(--color-muted-foreground)' }}>Groups</h4>
                                 {sortedDisplayChats
                                     .filter(chat => chat.type === 'group' && !hiddenChatIds.has(chat.id))
                                     .map(displayChat => {
                                         const group = displayChat.target as ChatGroup;
-                                        const isUnread = displayChat.isUnread; // Use pre-calculated unread status
+                                        const isUnread = displayChat.isUnread;
+                                        const isSelected = selectedChatId === group.id;
                                         return (
                                             <div
                                                 key={group.id}
                                                 className={cn(
-                                                    "w-full flex items-center p-2 rounded cursor-pointer transition-colors duration-150 hover:bg-muted relative group",
-                                                    selectedChatId === group.id ? "bg-muted font-semibold" : "",
-                                                    isUnread && selectedChatId !== group.id ? "font-bold" : "" // Style unread chats differently
+                                                    "w-full flex items-center p-2 rounded cursor-pointer transition-colors duration-150 hover:bg-muted relative group", // Keep hover
+                                                    isSelected ? "font-semibold" : "" // Keep font weight change
                                                 )}
+                                                style={{
+                                                    backgroundColor: isSelected ? 'var(--color-muted)' : undefined,
+                                                    color: isUnread && !isSelected ? 'var(--color-foreground)' : 'var(--color-muted-foreground)',
+                                                }}
                                                 onClick={() => handleChatSelect(group)}
                                             >
-                                                {/* Optional: Add a visual indicator for unread */}
-                                                {isUnread && selectedChatId !== group.id && (
-                                                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-2 w-2 bg-primary rounded-full ml-[-4px]"></span>
+                                                {isUnread && !isSelected && (
+                                                    <span
+                                                        className="absolute left-0 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full ml-[-4px]"
+                                                        style={{ backgroundColor: 'var(--color-primary)' }} // Use primary for indicator
+                                                    ></span>
                                                 )}
                                                 <Avatar className="h-8 w-8 mr-3 flex-shrink-0">
                                                     <AvatarFallback><FaUsers /></AvatarFallback>
                                                 </Avatar>
                                                 <div className="flex-grow overflow-hidden">
-                                                    <span className="truncate font-medium text-sm text-foreground">{group.groupName}</span>
+                                                    <span
+                                                        className={cn("truncate font-medium text-sm")}
+                                                        style={{ color: isSelected || (isUnread && !isSelected) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}
+                                                    >
+                                                        {group.groupName}
+                                                    </span>
                                                 </div>
-                                                {/* Hide Button - Appears on hover */}
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={(e) => { e.stopPropagation(); handleHideChat(group.id); }}
-                                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity" // Keep hover/group-hover
                                                     title="Hide Chat"
                                                 >
                                                     <FaEyeSlash className="h-3.5 w-3.5" />
@@ -936,40 +964,50 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                         {/* Render Direct Messages */}
                          {sortedDisplayChats.some(c => c.type === 'direct' && !hiddenChatIds.has(c.id)) && (
                             <div>
-                                <h4 className="text-xs font-semibold uppercase text-muted-foreground px-2 mb-1">Direct Messages</h4>
+                                <h4 className="text-xs font-semibold uppercase px-2 mb-1" style={{ color: 'var(--color-muted-foreground)' }}>Direct Messages</h4>
                                 {sortedDisplayChats
                                     .filter(chat => chat.type === 'direct' && !hiddenChatIds.has(chat.id))
                                     .map(displayChat => {
                                         const user = displayChat.target as User;
-                                        const directChatId = displayChat.id; // This is the actual chat doc ID
-                                        const isUnread = displayChat.isUnread; // Use pre-calculated unread status
+                                        const directChatId = displayChat.id;
+                                        const isUnread = displayChat.isUnread;
+                                        const isSelected = selectedChatId === user.cid;
                                         return (
                                             <div
-                                                key={user.id} // Use user ID for React key
+                                                key={user.id}
                                                 className={cn(
-                                                    "w-full flex items-center p-2 rounded cursor-pointer transition-colors duration-150 hover:bg-muted relative group",
-                                                    selectedChatId === user.cid ? "bg-muted font-semibold" : "", // Compare with user CID
-                                                    isUnread && selectedChatId !== user.cid ? "font-bold" : "" // Style unread
+                                                    "w-full flex items-center p-2 rounded cursor-pointer transition-colors duration-150 hover:bg-muted relative group", // Keep hover
+                                                    isSelected ? "font-semibold" : "" // Keep font weight
                                                 )}
+                                                style={{
+                                                    backgroundColor: isSelected ? 'var(--color-muted)' : undefined,
+                                                    color: isUnread && !isSelected ? 'var(--color-foreground)' : 'var(--color-muted-foreground)',
+                                                }}
                                                 onClick={() => handleChatSelect(user)}
                                             >
-                                                {/* Optional: Add a visual indicator for unread */}
-                                                {isUnread && selectedChatId !== user.cid && (
-                                                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-2 w-2 bg-primary rounded-full ml-[-4px]"></span>
+                                                {isUnread && !isSelected && (
+                                                    <span
+                                                        className="absolute left-0 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full ml-[-4px]"
+                                                        style={{ backgroundColor: 'var(--color-primary)' }} // Use primary for indicator
+                                                    ></span>
                                                 )}
                                                 <Avatar className="h-8 w-8 mr-3 flex-shrink-0">
                                                     <AvatarImage src={user.photoURL || undefined} alt={formatUserName(user)} />
                                                     <AvatarFallback>{getAvatarFallback(user)}</AvatarFallback>
                                                 </Avatar>
                                                 <div className="flex-grow overflow-hidden">
-                                                    <span className="truncate font-medium text-sm text-foreground">{formatUserName(user)}</span>
+                                                    <span
+                                                        className={cn("truncate font-medium text-sm")}
+                                                        style={{ color: isSelected || (isUnread && !isSelected) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}
+                                                    >
+                                                        {formatUserName(user)}
+                                                    </span>
                                                 </div>
-                                                {/* Hide Button - Appears on hover */}
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={(e) => { e.stopPropagation(); handleHideChat(directChatId); }} // Use chat ID for hiding
-                                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={(e) => { e.stopPropagation(); handleHideChat(directChatId); }}
+                                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity" // Keep hover/group-hover
                                                     title="Hide Chat"
                                                     disabled={!directChatId} // Disable if ID couldn't be generated
                                                 >
@@ -986,12 +1024,20 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
 
 
             {/* Chat Area */}
-            <div className="w-3/4 flex flex-col bg-background">
+            <div
+                className="w-3/4 flex flex-col"
+                style={{ backgroundColor: 'var(--color-background)' }} // Keep background
+            >
                 {selectedChat ? (
                     <>
                         {/* Chat Header */}
-                        <div className="border-b border-border p-3 flex items-center bg-card space-x-2">
-                             {/* Main Avatar (Group or User) */}
+                        <div
+                            className="border-b p-3 flex items-center space-x-2"
+                            style={{
+                                borderColor: 'var(--color-border)',
+                                backgroundColor: 'var(--color-muted)', // Use muted for header bg
+                            }}
+                        >
                              <Avatar className="h-8 w-8 flex-shrink-0">
                                 {'groupName' in selectedChat ? (
                                     <AvatarFallback><FaUsers /></AvatarFallback> // Group Icon
@@ -1002,11 +1048,9 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                     </>
                                 )}
                             </Avatar>
-                            {/* Chat Name */}
-                            <h3 className="text-lg font-semibold text-foreground truncate flex-grow"> {/* Add flex-grow */}
+                            <h3 className="text-lg font-semibold truncate flex-grow" style={{ color: 'var(--color-foreground)' }}>
                                 {'groupName' in selectedChat ? selectedChat.groupName : formatUserName(selectedChat)}
                             </h3>
-                            {/* Member Avatars for Groups (find members by CID) */}
                             {'groupName' in selectedChat && (
                                 <div className="flex items-center space-x-1 overflow-hidden ml-auto pl-2">
                                   {selectedChat.members // Contains CIDs
@@ -1017,18 +1061,18 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                     // Limit the number of avatars shown (e.g., first 4)
                                     .slice(0, 4)
                                     .map((member: User) => ( // member is guaranteed to be User here due to filter
-                                      <Avatar key={member.id} className="h-6 w-6 border-2 border-card" title={formatUserName(member)}>
+                                      <Avatar key={member.id} className="h-6 w-6 border-2" title={formatUserName(member)} style={{ borderColor: 'var(--color-muted)' }}> {/* Use muted for border */}
                                         <AvatarImage src={member.photoURL || undefined} alt={formatUserName(member)} />
                                         <AvatarFallback className="text-xs">{getAvatarFallback(member)}</AvatarFallback>
                                       </Avatar>
                                     ))
                                   }
-                                  {/* Optional: Show "+X more" (filter by CID) */}
+                                  {/* Optional: Show "+X more" - Use theme muted colors */}
                                   {selectedChat.members.filter((cid: string): boolean => { // Filter by CID
                                     const member = ciuPersonnel.find((p: User) => p.cid === cid); // Find by CID
                                     return !!member && member.cid !== currentUser?.cid; // Check CID
                                   }).length > 4 && (
-                                    <div className="flex items-center justify-center h-6 w-6 rounded-full bg-muted text-muted-foreground text-xs border-2 border-card">
+                                    <div className="flex items-center justify-center h-6 w-6 rounded-full text-xs border-2" style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-foreground)', borderColor: 'var(--color-muted)' }}>
                                       +{selectedChat.members.filter((cid: string): boolean => {
                                         const member = ciuPersonnel.find((p: User) => p.cid === cid); // Find by CID
                                         return !!member && member.cid !== currentUser?.cid; // Check CID
@@ -1037,13 +1081,12 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                   )}
                                 </div>
                             )}
-                            {/* Add Close Chat Button */}
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={handleCloseChat}
                                 title="Close Chat"
-                                className="text-muted-foreground hover:text-destructive ml-2 flex-shrink-0" // Added margin and shrink
+                                className="text-muted-foreground hover:text-destructive ml-2 flex-shrink-0" // Keep hover
                             >
                                 <FaTimes className="h-5 w-5" />
                             </Button>
@@ -1051,7 +1094,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
 
 
                         {/* Scrollable Message Container */}
-                        <div ref={messageContainerRef} className="flex-grow p-4 overflow-y-auto space-y-3 relative">
+                        <div ref={messageContainerRef} className="flex-grow p-4 overflow-y-auto space-y-3 relative custom-scrollbar">
                             <ChatMessageList className="space-y-3">
                                 {messages.map(msg => {
                                     const isSent = msg.senderId === currentUser?.cid;
@@ -1069,11 +1112,13 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                             key={msg.id}
                                             variant={isSent ? 'sent' : 'received'}
                                             className={cn(
-                                                "px-3 py-2 rounded-lg shadow-sm max-w-[75%]", // Keep max-width for text
-                                                isSent
-                                                    ? 'bg-primary text-primary-foreground self-end'
-                                                    : 'bg-muted text-muted-foreground self-start'
+                                                "px-3 py-2 rounded-lg shadow-sm max-w-[75%]",
+                                                isSent ? 'self-end' : 'self-start' // Keep alignment classes
                                             )}
+                                            style={{
+                                                backgroundColor: isSent ? 'var(--color-primary)' : 'var(--color-muted)',
+                                                color: isSent ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)',
+                                            }}
                                         >
                                             {!isSent && (
                                                 <ChatBubbleAvatar
@@ -1084,7 +1129,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                             )}
                                             <div className="flex flex-col">
                                                 {showSenderName && (
-                                                    <p className="text-xs text-muted-foreground/80 mb-0.5 font-medium">{senderName}</p>
+                                                    <p className="text-xs mb-0.5 font-medium" style={{ color: 'var(--color-muted-foreground)', opacity: 0.8 }}>{senderName}</p>
                                                 )}
                                                 {/* Conditionally render Image or Text */}
                                                 {msg.imageUrl ? (
@@ -1095,20 +1140,15 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                                         // Add loading state?
                                                     />
                                                 ) : (
-                                                    <ChatBubbleMessage className={cn(
-                                                        "text-sm leading-snug",
-                                                        isSent ? 'text-primary-foreground' : 'text-foreground'
-                                                    )}>
+                                                    <ChatBubbleMessage className="text-sm leading-snug">
                                                         {msg.text}
                                                     </ChatBubbleMessage>
                                                 )}
                                                 {timestamp && (
                                                     <ChatBubbleTimestamp
                                                         timestamp={timestamp}
-                                                        className={cn(
-                                                            "text-xs mt-1 opacity-70",
-                                                            isSent ? "text-primary-foreground/80" : "text-muted-foreground/80"
-                                                        )}
+                                                        className="text-xs mt-1 opacity-70"
+                                                        style={{ color: isSent ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)', opacity: 0.8 }}
                                                     />
                                                 )}
                                             </div>
@@ -1116,37 +1156,26 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                     );
                                 })}
 
-                                {/* Loading Indicator */}
+                                {/* Loading Indicator - Use theme muted */}
                                 {loadingMessages && (
-                                    <ChatBubble variant="received" className="self-start bg-muted px-3 py-2 rounded-lg shadow-sm">
+                                     <ChatBubble variant="received" className="self-start px-3 py-2 rounded-lg shadow-sm" style={{ backgroundColor: 'var(--color-muted)'}}>
                                          <ChatBubbleAvatar fallback="?" className="h-6 w-6 mr-2" />
-                                         <ChatBubbleMessage isLoading={true} className="text-sm text-foreground">&nbsp;</ChatBubbleMessage>
-                                    </ChatBubble>
+                                         <ChatBubbleMessage isLoading={true} className="text-sm" style={{ color: 'var(--color-foreground)' }}>&nbsp;</ChatBubbleMessage>
+                                     </ChatBubble>
                                 )}
 
-                                {/* Typing Indicator (uses CIDs internally via getTypingUserNames) */}
+                                {/* Typing Indicator - Use theme muted */}
                                 {typingIndicatorUsers.length > 0 && (
-                                    <ChatBubble variant="received" className="self-start bg-muted px-3 py-2 rounded-lg shadow-sm max-w-[75%]">
-                                        {/* Find avatar for the first typing user (by CID) */}
-                                        {(() => {
-                                            const firstTyper = ciuPersonnel.find(p => p.cid === typingIndicatorUsers[0]); // Find by CID
-                                            return (
-                                                <ChatBubbleAvatar
-                                                    src={firstTyper?.photoURL || undefined}
-                                                    fallback={getAvatarFallback(firstTyper || null)}
-                                                    className="h-6 w-6 mr-2"
-                                                />
-                                            );
-                                        })()}
+                                    <ChatBubble variant="received" className="self-start px-3 py-2 rounded-lg shadow-sm max-w-[75%]" style={{ backgroundColor: 'var(--color-muted)'}}>
+                                        {/* ... avatar logic ... */}
                                         <div className="flex flex-col">
-                                             <p className="text-xs text-muted-foreground/80 mb-0.5 font-medium">
+                                             <p className="text-xs mb-0.5 font-medium" style={{ color: 'var(--color-muted-foreground)', opacity: 0.8 }}>
                                                 {getTypingUserNames()} {typingIndicatorUsers.length === 1 ? 'is' : 'are'} typing...
                                              </p>
-                                             {/* Optional: Add animated dots */}
                                              <div className="flex space-x-1 items-center h-4">
-                                                <span className="h-1.5 w-1.5 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                                <span className="h-1.5 w-1.5 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                                <span className="h-1.5 w-1.5 bg-muted-foreground/60 rounded-full animate-bounce"></span>
+                                                <span className="h-1.5 w-1.5 rounded-full animate-bounce [animation-delay:-0.3s]" style={{ backgroundColor: 'var(--color-muted-foreground)', opacity: 0.6 }}></span>
+                                                <span className="h-1.5 w-1.5 rounded-full animate-bounce [animation-delay:-0.15s]" style={{ backgroundColor: 'var(--color-muted-foreground)', opacity: 0.6 }}></span>
+                                                <span className="h-1.5 w-1.5 rounded-full animate-bounce" style={{ backgroundColor: 'var(--color-muted-foreground)', opacity: 0.6 }}></span>
                                              </div>
                                         </div>
                                     </ChatBubble>
@@ -1156,21 +1185,31 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                         </div>
 
                         {/* Message Input Area */}
-                        <div className="border-t border-border p-3 bg-card relative">
-                            {/* Emoji Picker Popover */}
+                        <div
+                            className="border-t p-3 relative"
+                            style={{
+                                borderColor: 'var(--color-border)',
+                                backgroundColor: 'var(--color-muted)', // Use muted for input area bg
+                            }}
+                        >
                             {showEmojiPicker && (
-                                <div className="absolute bottom-full right-2 mb-2 z-10">
-                                    <EmojiPicker onEmojiClick={onEmojiClick} />
+                                <div
+                                    className="absolute bottom-full right-2 mb-2 z-10 border rounded-lg shadow-lg"
+                                    style={{
+                                        backgroundColor: 'var(--color-background)', // Use background for picker popover
+                                        borderColor: 'var(--color-border)',
+                                    }}
+                                >
+                                    <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.DARK} /> {/* Use DARK theme for picker on dark background */}
                                 </div>
                             )}
                             <div className="flex items-center space-x-2">
-                                {/* Emoji Button */}
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                                     title="Toggle Emoji Picker"
-                                    className="text-muted-foreground hover:text-foreground"
+                                    className="text-muted-foreground hover:text-foreground" // Keep hover
                                 >
                                     <FaSmile className="h-5 w-5" />
                                 </Button>
@@ -1183,19 +1222,24 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
-                                            handleSendMessage(); // Call without arg for text message
+                                            handleSendMessage();
                                         }
                                     }}
                                     placeholder="Type your message here..."
-                                    className="rounded-md flex-grow"
-                                    disabled={!selectedChat} // Only disable if no chat selected
+                                    className="rounded-md flex-grow border placeholder:text-muted-foreground" // Keep placeholder class
+                                    style={{
+                                        backgroundColor: 'var(--color-background)', // Use background for input itself
+                                        borderColor: 'var(--color-border)',
+                                        color: 'var(--color-foreground)',
+                                    }}
+                                    disabled={!selectedChat}
                                 />
                             </div>
                         </div>
                     </>
                 ) : (
                      <div className="flex-grow flex items-center justify-center">
-                         <p className="text-muted-foreground">Select a chat to start messaging</p>
+                         <p style={{ color: 'var(--color-muted-foreground)' }}>Select a chat to start messaging</p>
                      </div>
                 )}
             </div>

@@ -5,7 +5,14 @@ import React, {
   useState,
   useMemo,
 } from "react";
-import { onAuthStateChanged, signOut, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signOut,
+  signInWithEmailAndPassword,
+  updateProfile,
+  setPersistence, // Import setPersistence
+  browserLocalPersistence, // Import browserLocalPersistence
+} from "firebase/auth";
 import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore"; // Re-import Timestamp
 import { auth, db } from "../firebase";
 import { User } from "../types/User";
@@ -47,8 +54,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const navigate = useNavigate(); // Ensure useNavigate is used correctly
 
   useEffect(() => {
+    console.log("Auth listener attached."); // Log listener attachment
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log("onAuthStateChanged triggered. firebaseUser:", firebaseUser); // Log when listener fires and the user object
       if (firebaseUser?.email) {
+        console.log(`Firebase user found: ${firebaseUser.email}. Fetching Firestore data...`); // Log if Firebase user exists
         try {
           const userDocRef = doc(db, "users", firebaseUser.email);
           const userSnap = await getDoc(userDocRef);
@@ -67,6 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               id: userSnap.id,
               isAdmin,
             };
+            console.log(`Firestore data found for ${firebaseUser.email}. Setting user state.`); // Log Firestore success
             setUser(fullUser);
           } else {
             console.warn(
@@ -79,12 +90,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           setUser(null);
         }
       } else {
+        console.log("No Firebase user found or email missing. Setting user state to null."); // Log if no Firebase user
         setUser(null);
       }
+      console.log("Auth loading state set to false."); // Log loading state change
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log("Auth listener detached."); // Log listener detachment
+      unsubscribe();
+    };
   }, []); // Ensure this effect runs only once on mount
 
   const isAdmin = useMemo(() => {
@@ -106,8 +122,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const login = async (email: string, password: string) => {
     try {
+      // Set persistence to local (keeps user signed in across browser sessions)
+      console.log("Setting auth persistence to local."); // Log persistence setting
+      await setPersistence(auth, browserLocalPersistence);
+
+      // Proceed with sign-in
+      console.log(`Attempting sign-in for ${email}...`); // Log sign-in attempt
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
+      console.log(`Sign-in successful for ${firebaseUser?.email}`); // Log sign-in success
 
       // Update Firestore with lastSignInTime using server timestamp
       if (firebaseUser && firebaseUser.email) {
@@ -157,9 +180,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, logout, login, updateUserProfilePhoto }}> {/* Add updateUserProfilePhoto here */}
+    <AuthContext.Provider value={{ user, loading, isAdmin, logout, login, updateUserProfilePhoto }}>
       {children}
     </AuthContext.Provider>
   );

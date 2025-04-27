@@ -1,58 +1,58 @@
 @import "tailwindcss";
 
 @theme {
-  /* Define brand colors as theme variables */
+  
   --color-brand: #f3c700;
   --color-brand-dark: #eab308;
-  /* Add other custom theme variables here if needed */
+  
 }
 
 @layer base {
   body {
-    background-color: #111827; /* Equivalent to bg-gray-900 */
-    color: #e5e7eb; /* Equivalent to text-gray-200 */
+    background-color: #111827; 
+    color: #e5e7eb; 
     font-family: Inter, ui-sans-serif, system-ui, -apple-system,
       BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
       "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-      "Segoe UI Symbol", "Noto Color Emoji"; /* Equivalent to font-sans with Inter */
+      "Segoe UI Symbol", "Noto Color Emoji"; 
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 }
 @layer components {
   .button-primary {
-    /* Use brand color from config */
+    
     @apply bg-brand text-black font-bold py-2 px-4 rounded hover:bg-brand-dark transition duration-150;
   }
   .button-secondary {
     @apply bg-gray-600 text-white font-bold py-2 px-4 rounded hover:bg-gray-500 transition duration-150;
   }
   .input {
-    /* Use brand color for focus states */
+    
     @apply block w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-gray-200 focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand;
   }
   .admin-section {
     @apply bg-black/70 border border-gray-700 rounded-lg shadow-lg;
   }
   .section-header {
-    /* Use brand color for text */
+    
     @apply font-bold text-brand border-b border-gray-700 pb-2;
   }
-  /* ... other component styles ... */
+  
 }
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
-    @apply w-2 h-2; /* Use Tailwind classes if possible */
+    @apply w-2 h-2; 
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     @apply bg-gray-800 rounded-lg;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    /* Use brand color for scrollbar thumb */
+    
     @apply bg-brand rounded-lg border-2 border-solid border-gray-800;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    /* Use darker brand color for hover */
+    
     @apply bg-brand-dark;
   }
 }

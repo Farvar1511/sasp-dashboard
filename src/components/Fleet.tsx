@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { useAuth } from "../context/AuthContext";
-import { FaPlus } from "react-icons/fa"; // Modified
+import { FaPlus, FaTrash } from "react-icons/fa"; 
 import { computeIsAdmin } from "../utils/isadmin";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -42,19 +42,17 @@ const divisions = [
 
 const Fleet: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const isAdmin = computeIsAdmin(currentUser); // Use centralized admin check
+  const isAdmin = computeIsAdmin(currentUser); 
   const [fleetData, setFleetData] = useState<FleetVehicle[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<FleetVehicle | null>(
     null
   );
-  const [newVehicle, setNewVehicle] = useState<Partial<FleetVehicle> | null>(
-    null
-  );
+  const [newVehicles, setNewVehicles] = useState<Partial<FleetVehicle>[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDivision, setFilterDivision] = useState("All");
-  const [hideOutOfService, setHideOutOfService] = useState(true); // New state
+  const [hideOutOfService, setHideOutOfService] = useState(true); 
 
   const fetchFleetData = useCallback(async () => {
     setLoading(true);
@@ -70,7 +68,7 @@ const Fleet: React.FC = () => {
           ({
             id: doc.id,
             ...doc.data(),
-            division: doc.data().division === "MOTO" ? "MBU" : doc.data().division, // Treat MOTO as MBU
+            division: doc.data().division === "MOTO" ? "MBU" : doc.data().division, 
           } as FleetVehicle)
       );
       setFleetData(vehicles);
@@ -115,7 +113,7 @@ const Fleet: React.FC = () => {
         position: "top-right",
         style: { backgroundColor: "black", color: "#f3c700" },
       });
-      // Refresh fleet data after update
+      
       fetchFleetData();
     } catch (error) {
       console.error("Error saving vehicle:", error);
@@ -129,22 +127,52 @@ const Fleet: React.FC = () => {
     }
   };
 
-  const handleAddVehicle = async () => {
-    if (!newVehicle) return;
-    try {
-      const vehicleRef = collection(dbFirestore, "fleet");
-      await addDoc(vehicleRef, newVehicle);
-      setNewVehicle(null);
-      toast.success("Vehicle added successfully!", {
+  const handleAddVehicles = async () => {
+    if (!newVehicles || newVehicles.length === 0) return;
+
+    // Basic validation: Ensure required fields are present for each vehicle
+    const validVehicles = newVehicles.filter(
+      (vehicle) => vehicle.plate && vehicle.vehicle
+    );
+
+    if (validVehicles.length !== newVehicles.length) {
+      toast.error("Please fill in Plate and Vehicle Model for all rows.", {
         position: "top-right",
         style: { backgroundColor: "black", color: "#f3c700" },
       });
-      // Refresh fleet data after adding
-      fetchFleetData();
+      return;
+    }
+
+    try {
+      const vehicleRef = collection(dbFirestore, "fleet");
+      // Add each vehicle individually (consider batch writes for large numbers)
+      for (const vehicle of validVehicles) {
+        await addDoc(vehicleRef, {
+          ...vehicle,
+          // Ensure defaults if not set
+          division: vehicle.division || "Patrol",
+          inService: vehicle.inService ?? true,
+          assignee: vehicle.assignee || "COMMUNAL",
+          restrictions: vehicle.restrictions || "",
+        });
+      }
+
+      setNewVehicles([]); // Clear the form
+      toast.success(
+        `${validVehicles.length} vehicle(s) added successfully!`,
+        {
+          position: "top-right",
+          style: { backgroundColor: "black", color: "#f3c700" },
+        }
+      );
+
+      fetchFleetData(); // Refresh the list
     } catch (error) {
-      console.error("Error adding vehicle:", error);
+      console.error("Error adding vehicles:", error);
       toast.error(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Error adding vehicles: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
         {
           position: "top-right",
           style: { backgroundColor: "black", color: "#f3c700" },
@@ -163,7 +191,7 @@ const Fleet: React.FC = () => {
         position: "top-right",
         style: { backgroundColor: "black", color: "#f3c700" },
       });
-      // Refresh fleet data after deletion
+      
       fetchFleetData();
     } catch (error) {
       console.error("Error deleting vehicle:", error);
@@ -179,15 +207,51 @@ const Fleet: React.FC = () => {
 
   const openAddVehicleForm = () => {
     if (!isAdmin) return;
-    setNewVehicle({
-      plate: "",
-      vehicle: "",
-      division: "Patrol",
-      inService: true,
-      assignee: "COMMUNAL",
-      restrictions: "",
-    });
+    setNewVehicles([
+      {
+        plate: "",
+        vehicle: "",
+        division: "Patrol",
+        inService: true,
+        assignee: "COMMUNAL",
+        restrictions: "",
+      },
+    ]);
   };
+
+  // Helper function to update a specific vehicle in the newVehicles array
+  const handleNewVehicleChange = (
+    index: number,
+    field: keyof FleetVehicle,
+    value: any
+  ) => {
+    setNewVehicles((prev) =>
+      prev.map((vehicle, i) =>
+        i === index ? { ...vehicle, [field]: value } : vehicle
+      )
+    );
+  };
+
+  // Helper function to add a new row to the form
+  const addNewVehicleRow = () => {
+    setNewVehicles((prev) => [
+      ...prev,
+      {
+        plate: "",
+        vehicle: "",
+        division: "Patrol",
+        inService: true,
+        assignee: "COMMUNAL",
+        restrictions: "",
+      },
+    ]);
+  };
+
+  // Helper function to remove a row from the form
+  const removeNewVehicleRow = (index: number) => {
+    setNewVehicles((prev) => prev.filter((_, i) => i !== index));
+  };
+
 
   return (
     <Layout>
@@ -426,114 +490,178 @@ const Fleet: React.FC = () => {
           </div>
         )}
 
-        {newVehicle && (
+        {/* Modify the Add New Vehicle Modal */}
+        {newVehicles.length > 0 && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
-            <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md">
-              <h2 className="text-xl font-bold text-yellow-400 mb-4">
-                Add New Vehicle
+            {/* Increase max-w and padding */}
+            <div className="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <h2 className="text-xl font-bold text-yellow-400 mb-6"> {/* Increased mb */}
+                Add New Vehicle(s)
               </h2>
-              <label className="block text-xs font-medium text-gray-400 mb-1">
-                Plate
-              </label>
-              <input
-                type="text"
-                placeholder="Plate"
-                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
-                value={newVehicle.plate || ""}
-                onChange={(e) =>
-                  setNewVehicle((prev) =>
-                    prev
-                      ? { ...prev, plate: e.target.value.toUpperCase() }
-                      : null
-                  )
-                }
-              />
-              <label className="block text-xs font-medium text-gray-400 mb-1">
-                Vehicle Model
-              </label>
-              <input
-                type="text"
-                placeholder="Vehicle Model"
-                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
-                value={newVehicle.vehicle || ""}
-                onChange={(e) =>
-                  setNewVehicle((prev) =>
-                    prev ? { ...prev, vehicle: e.target.value } : null
-                  )
-                }
-              />
-              <label className="block text-xs font-medium text-gray-400 mb-1">
-                Division
-              </label>
-              <select
-                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
-                value={newVehicle.division || "Patrol"}
-                onChange={(e) =>
-                  setNewVehicle((prev) =>
-                    prev ? { ...prev, division: e.target.value } : null
-                  )
-                }
-              >
-                {divisions.map((div) => (
-                  <option key={div} value={div}>
-                    {div}
-                  </option>
-                ))}
-              </select>
-              <label className="block text-xs font-medium text-gray-400 mb-1">
-                Assignee
-              </label>
-              <input
-                type="text"
-                placeholder="Assignee Name or COMMUNAL"
-                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full"
-                value={newVehicle.assignee || "COMMUNAL"}
-                onChange={(e) =>
-                  setNewVehicle((prev) =>
-                    prev ? { ...prev, assignee: e.target.value } : null
-                  )
-                }
-              />
-              <label className="block text-xs font-medium text-gray-400 mb-1">
-                Restrictions
-              </label>
-              <textarea
-                placeholder="Restrictions (e.g., Supervisor, HEAT)"
-                className="input bg-gray-700 border-gray-600 text-white mb-3 w-full text-sm"
-                rows={2}
-                value={newVehicle.restrictions || ""}
-                onChange={(e) =>
-                  setNewVehicle((prev) =>
-                    prev ? { ...prev, restrictions: e.target.value } : null
-                  )
-                }
-              />
-              <label className="flex items-center gap-2 text-gray-300 mb-4">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500"
-                  checked={newVehicle.inService ?? true}
-                  onChange={(e) =>
-                    setNewVehicle((prev) =>
-                      prev ? { ...prev, inService: e.target.checked } : null
-                    )
-                  }
-                />
-                In Service
-              </label>
-              <div className="flex justify-end gap-4">
-                <button
-                  className="button-secondary px-4 py-2"
-                  onClick={() => setNewVehicle(null)}
+
+              {/* Iterate over newVehicles array to create rows */}
+              {newVehicles.map((vehicle, index) => (
+                <div
+                  key={index}
+                  // Increased gap and mb
+                  className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-6 border-b border-gray-700 pb-6 items-end" 
                 >
-                  Cancel
-                </button>
+                  {/* Plate Input */}
+                  <div>
+                    {/* Increased mb */}
+                    <label className="block text-xs font-medium text-gray-400 mb-2">
+                      Plate
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Plate"
+                      // Added padding py-2
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2" 
+                      value={vehicle.plate || ""}
+                      onChange={(e) =>
+                        handleNewVehicleChange(
+                          index,
+                          "plate",
+                          e.target.value.toUpperCase()
+                        )
+                      }
+                    />
+                  </div>
+                  {/* Vehicle Model Input */}
+                  <div>
+                    {/* Increased mb */}
+                    <label className="block text-xs font-medium text-gray-400 mb-2">
+                      Vehicle Model
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Vehicle Model"
+                      // Added padding py-2
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2" 
+                      value={vehicle.vehicle || ""}
+                      onChange={(e) =>
+                        handleNewVehicleChange(index, "vehicle", e.target.value)
+                      }
+                    />
+                  </div>
+                  {/* Division Select */}
+                  <div>
+                    {/* Increased mb */}
+                    <label className="block text-xs font-medium text-gray-400 mb-2">
+                      Division
+                    </label>
+                    <select
+                      // Added padding py-2
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2" 
+                      value={vehicle.division || "Patrol"}
+                      onChange={(e) =>
+                        handleNewVehicleChange(index, "division", e.target.value)
+                      }
+                    >
+                      {divisions.map((div) => (
+                        <option key={div} value={div}>
+                          {div}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Assignee Input */}
+                  <div>
+                    {/* Increased mb */}
+                    <label className="block text-xs font-medium text-gray-400 mb-2">
+                      Assignee
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Assignee or COMMUNAL"
+                      // Added padding py-2
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2" 
+                      value={vehicle.assignee || "COMMUNAL"}
+                      onChange={(e) =>
+                        handleNewVehicleChange(index, "assignee", e.target.value)
+                      }
+                    />
+                  </div>
+                  {/* Restrictions Textarea */}
+                  <div className="md:col-span-2">
+                    {/* Increased mb */}
+                    <label className="block text-xs font-medium text-gray-400 mb-2">
+                      Restrictions
+                    </label>
+                    <textarea
+                      placeholder="Restrictions"
+                      // Added padding py-2
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full text-xs py-2" 
+                      rows={1} // Keep rows small
+                      value={vehicle.restrictions || ""}
+                      onChange={(e) =>
+                        handleNewVehicleChange(
+                          index,
+                          "restrictions",
+                          e.target.value
+                        )
+                      }
+                    />
+                  </div>
+                  {/* In Service Checkbox & Remove Button */}
+                  {/* Adjusted alignment and spacing */}
+                  <div className="flex items-center justify-between h-full pt-4 pb-1"> 
+                    <label className="flex items-center gap-2 text-gray-300 text-sm whitespace-nowrap"> {/* Increased gap and text size */}
+                      <input
+                        type="checkbox"
+                        // Increased size
+                        className="h-5 w-5 rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500" 
+                        checked={vehicle.inService ?? true}
+                        onChange={(e) =>
+                          handleNewVehicleChange(
+                            index,
+                            "inService",
+                            e.target.checked
+                          )
+                        }
+                      />
+                      In Svc
+                    </label>
+                    {/* Show remove button only if more than one row exists */}
+                    {newVehicles.length > 1 && (
+                      <button
+                        onClick={() => removeNewVehicleRow(index)}
+                        // Added padding for easier clicking
+                        className="text-red-500 hover:text-red-400 ml-3 p-1" 
+                        title="Remove Row"
+                      >
+                        <FaTrash />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Action Buttons */}
+              {/* Increased mt */}
+              <div className="flex justify-between items-center mt-8"> 
                 <button
-                  className="button-primary px-4 py-2"
-                  onClick={handleAddVehicle}
+                  // Adjusted padding/text size
+                  className="button-secondary flex items-center gap-2 px-4 py-2 text-base" 
+                  onClick={addNewVehicleRow}
                 >
-                  Add Vehicle
+                  <FaPlus /> Add Row
                 </button>
+                {/* Increased gap */}
+                <div className="flex gap-5"> 
+                  <button
+                    className="button-secondary px-4 py-2"
+                    onClick={() => setNewVehicles([])} // Clear form on cancel
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="button-primary px-4 py-2"
+                    onClick={handleAddVehicles} // Call the updated handler
+                  >
+                    Add Vehicle(s)
+                  </button>
+                </div>
               </div>
             </div>
           </div>

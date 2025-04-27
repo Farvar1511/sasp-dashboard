@@ -120,8 +120,7 @@ const DraggableMemberRow: React.FC<DraggableMemberRowProps> = ({
       style={{ opacity }}
       key={member.id}
       className={cn(
-          // Use black background, adjust hover and dragging styles
-          `border-b border-border hover:bg-gray-800/95 ${isDragging ? 'bg-gray-700/95 cursor-grabbing' : 'bg-black/95 cursor-grab'}`
+          `border-b border-border hover:bg-muted/50 ${isDragging ? 'bg-muted cursor-grabbing' : 'bg-card cursor-grab'}`
       )}
       data-handler-id={handlerId}
     >
@@ -138,11 +137,11 @@ const DraggableMemberRow: React.FC<DraggableMemberRowProps> = ({
         {formatTimestampDateTime(member.addedAt)} {/* Display addedAt */}
       </TableCell>
       <TableCell className="text-center px-4 py-2">
-        {/* Use theme-style icon buttons */}
+        {/* Use direct yellow color for edit icon */}
         <Button
             variant="ghost" size="icon"
             onClick={() => openEditModal(member)}
-            className="text-accent hover:text-accent/80 h-7 w-7 mr-1" // Theme edit color
+            className="text-[#f3c700] hover:text-[#f3c700]/80 h-7 w-7 mr-1" // Use direct color
             title="Edit Member"
             disabled={isImporting || isDragging}
         >
@@ -151,7 +150,7 @@ const DraggableMemberRow: React.FC<DraggableMemberRowProps> = ({
         <Button
             variant="ghost" size="icon"
             onClick={() => handleDeleteMember(member.id)}
-            className="text-destructive hover:text-destructive/80 h-7 w-7" // Theme delete color
+            className="text-destructive hover:text-destructive/80 h-7 w-7" // Keep destructive for delete
             title="Delete Member"
             disabled={isImporting || isDragging}
         >
@@ -220,7 +219,6 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
     fetchMembers();
   }, [gangId, fetchMembers]); // Simplified dependencies
 
-  // ... (handleAddMemberSuccess, handleEditMemberSuccess, openEditModal, handleDeleteMember, closeModal, handleFileChange, deleteAllExistingMembers, addMembersToFirestore, handleImportCSV, moveRow, triggerFirestoreUpdate - all remain the same) ...
   const handleAddMemberSuccess = () => {
     fetchMembers();
     setIsAddMemberModalOpen(false);
@@ -426,41 +424,39 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
   // Always render the roster display
   return (
     <DndProvider backend={HTML5Backend}>
-      {/* Use black background for main container */}
-      <div className="space-y-6 bg-black/95 p-4 rounded-lg border border-border">
+      {/* Use theme card background */}
+      <div className="space-y-6 bg-card p-4 rounded-lg border border-border">
         {/* Header for adding members/importing */}
-        {/* ... existing JSX ... */}
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div className="flex gap-2">
-              {/* Use theme primary button style */}
+              {/* Use direct yellow color for Add Member button */}
               <Button
                 size="sm"
                 onClick={() => { setEditingMember(null); setIsAddMemberModalOpen(true); }}
                 disabled={isImporting || loading}
-                className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black" // Use direct color, black text
               >
                 <FaPlus className="mr-2 h-4 w-4" /> Add Member
               </Button>
           </div>
           <div className="flex items-center gap-2">
-               {/* Use theme input style */}
                <Input
                   ref={fileInputRef}
                   type="file"
                   accept=".csv"
                   onChange={handleFileChange}
-                  // Theme input style + file button style
-                  className="text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-accent file:text-accent-foreground hover:file:bg-accent/90 w-auto max-w-[200px] h-9 cursor-pointer bg-input border-border text-foreground"
+                  // Use direct yellow color for file button background
+                  className="text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#f3c700] file:text-black hover:file:bg-[#f3c700]/90 w-auto max-w-[200px] h-9 cursor-pointer bg-input border-border text-foreground" // Use direct color, black text
                   disabled={isImporting || loading}
               />
-              {/* Use theme secondary button style (outline) */}
+              {/* Use direct yellow color for Import CSV outline button */}
               <Button
                   size="sm"
                   variant="outline"
                   onClick={handleImportCSV}
                   disabled={!selectedFile || isImporting || loading}
-                  // Theme outline button with accent
-                  className="border-accent text-accent hover:bg-accent/10 hover:text-accent"
+                  // Use direct color for border/text, hover background
+                  className="border-[#f3c700] text-[#f3c700] hover:bg-[#f3c700]/10 hover:text-[#f3c700]" // Use direct color
               >
                   <FaUpload className="mr-2 h-4 w-4" /> {isImporting ? 'Importing...' : 'Import CSV'}
               </Button>
@@ -469,13 +465,12 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
 
 
         {/* Loading/Error state for members */}
-        {/* ... existing JSX ... */}
         {loading && (
             <div className="space-y-2">
-                {/* Use black background for skeleton */}
-                <Skeleton className="h-10 w-full bg-gray-800/95 border border-border" />
-                <Skeleton className="h-10 w-full bg-gray-800/95 border border-border" />
-                <Skeleton className="h-10 w-full bg-gray-800/95 border border-border" />
+                {/* Use theme skeleton style */}
+                <Skeleton className="h-10 w-full bg-muted border border-border" />
+                <Skeleton className="h-10 w-full bg-muted border border-border" />
+                <Skeleton className="h-10 w-full bg-muted border border-border" />
             </div>
         )}
         {error && <p className="text-destructive text-sm">{error}</p>}
@@ -487,20 +482,20 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
             {members.length === 0 ? (
               <p className="text-sm text-muted-foreground italic text-center py-4">No members recorded for this gang.</p>
             ) : (
-              // Use black background for table container
-              <div className="rounded-lg border border-border overflow-hidden shadow-lg bg-black/95">
+              // Use theme card background for table container
+              <div className="rounded-lg border border-border overflow-hidden shadow-sm bg-card">
                 <Table>
-                  {/* Use black background for table header */}
+                  {/* Use theme secondary background for table header */}
                   <TableHeader>
-                    <TableRow className="border-b-border hover:bg-black/95"> {/* Prevent hover on header row */}
-                      {/* Use black background for header cells */}
-                      <TableHead className="w-[40px] px-2 py-2 text-xs text-accent uppercase bg-black/95"></TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-accent uppercase bg-black/95">Name</TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-accent uppercase bg-black/95">Rank/Job</TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-accent uppercase bg-black/95">Phone</TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-accent uppercase bg-black/95">Notes</TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-accent uppercase bg-black/95">Added</TableHead>
-                      <TableHead className="text-center px-4 py-2 text-xs text-accent uppercase bg-black/95">Actions</TableHead>
+                    <TableRow className="border-b-border hover:bg-secondary"> {/* Prevent hover on header row, use secondary bg */}
+                      {/* Use theme secondary background for header cells */}
+                      <TableHead className="w-[40px] px-2 py-2 text-xs text-muted-foreground uppercase bg-secondary"></TableHead>
+                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Name</TableHead>
+                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Rank/Job</TableHead>
+                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Phone</TableHead>
+                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Notes</TableHead>
+                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Added</TableHead>
+                      <TableHead className="text-center px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -524,7 +519,7 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
           </>
         )}
 
-        {/* Add/Edit Member Modal - Ensure AddGangMemberForm uses bg-black/95 */}
+        {/* Add/Edit Member Modal - Ensure AddGangMemberForm uses bg-card */}
         {/* Ensure AddGangMemberForm also writes to the correct top-level 'gangMembers' collection */}
         {isAddMemberModalOpen && currentUser && gangId && ( // Ensure gangId is passed
             <AddGangMemberForm

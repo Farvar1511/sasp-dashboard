@@ -1,40 +1,38 @@
-import React, { useState, useEffect } from 'react'; // Import React
-import { collection, query, orderBy, onSnapshot, where, getDocs } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { collection, query, orderBy, onSnapshot, where, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
-import { CaseFile, CaseStatus } from '../../utils/ciuUtils'; // Import types
-import { User } from '../../types/User'; // Import User type
+import { CaseFile, CaseStatus } from '../../utils/ciuUtils';
+import { User } from '../../types/User';
 import { Button } from '../ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
-// Removed Modal imports as they are handled by the parent (CIUManagement)
-// import CreateCaseModal from './CreateCaseModal';
-// import EditCaseModal from './CaseDetailsModal';
+import ConfirmationModal from '../ConfirmationModal';
+import { FaTrash } from 'react-icons/fa';
 
-// Add props to receive modal control functions and assignee loading state from parent
+
 interface CaseFilesTabProps {
     openCreateModal: () => void;
     openEditModal: (caseFile: CaseFile) => void;
-    loadingAssignees: boolean; // Receive loading state for assignees
+    loadingAssignees: boolean;
 }
 
+interface ConfirmationModalState {
+    show: boolean;
+    message: string;
+    onConfirm: () => void;
+}
 
 const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditModal, loadingAssignees }) => {
   const { user: currentUser } = useAuth();
   const [cases, setCases] = useState<CaseFile[]>([]);
-  // Removed users state as assignees are passed via props or fetched in parent
   const [loadingCases, setLoadingCases] = useState(true);
-  // Removed loadingUsers state
   const [error, setError] = useState<string | null>(null);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedCase, setSelectedCase] = useState<CaseFile | null>(null);
+  const [confirmationModal, setConfirmationModal] = useState<ConfirmationModalState | null>(null);
 
-  // Removed Modal State as it's handled by parent
-  // const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  // const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false); // Keep for later
-  const [selectedCase, setSelectedCase] = useState<CaseFile | null>(null); // Use this for Assign Modal
-
-  // Fetch Cases (Keep this logic)
   useEffect(() => {
     setLoadingCases(true);
     const q = query(collection(dbFirestore, 'caseFiles'), orderBy('createdAt', 'desc'));
@@ -51,34 +49,48 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
     return () => unsubscribe();
   }, []);
 
-  // Removed Fetch Users effect as assignees come from parent
 
-  // --- Modal Handlers ---
-  // Use handlers passed from props
   const handleOpenCreateModal = () => openCreateModal();
-  // Removed handleCloseCreateModal and handleCreateSuccess
 
-  // Update handlers for Edit Modal - use prop function
   const handleOpenEditModal = (caseFile: CaseFile) => {
-    // No need to set local state for edit modal, just call parent's handler
     openEditModal(caseFile);
   };
-  // Removed handleCloseEditModal and handleEditSaveSuccess
 
 
-  // Placeholder handlers for assign modal (keep for now)
   const handleOpenAssignModal = (caseFile: CaseFile) => {
     setSelectedCase(caseFile);
     setIsAssignModalOpen(true);
   };
   const handleCloseAssignModal = () => {
     setIsAssignModalOpen(false);
-    setSelectedCase(null); // Clear selected case when closing assign modal
+    setSelectedCase(null);
   };
-  // --- End Modal Handlers ---
+
+  const requestDeleteCase = (caseFile: CaseFile) => {
+    if (!caseFile || !caseFile.id) {
+        toast.error("Invalid case selected for deletion.");
+        return;
+    }
+    setConfirmationModal({
+        show: true,
+        message: `Are you sure you want to delete the case "${caseFile.title}"? This action cannot be undone.`,
+        onConfirm: () => confirmDeleteCase(caseFile.id!), // Added non-null assertion as ID is checked above
+    });
+  };
+
+  const confirmDeleteCase = async (caseId: string) => {
+    setConfirmationModal(null);
+    try {
+        const caseRef = doc(dbFirestore, 'caseFiles', caseId);
+        await deleteDoc(caseRef);
+        toast.success("Case file deleted successfully.");
+    } catch (err) {
+        console.error("Error deleting case file:", err);
+        toast.error("Failed to delete case file.");
+    }
+  };
 
 
-  // Filter cases by status/assignment (Keep this logic)
   const unassignedCases = cases.filter(c => c.status === 'Open - Unassigned');
   const assignedCases = cases.filter(c => c.status === 'Open - Assigned' || c.status === 'Under Review');
   const myCases = cases.filter(c => c.assignedToId === currentUser?.id);
@@ -93,15 +105,15 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
       {loadingCases ? (
         <div className="space-y-2">
           {/* Use theme skeleton style */}
-          <Skeleton className="h-12 w-full bg-black/95 border border-border" />
-          <Skeleton className="h-12 w-full bg-black/95 border border-border" />
+          <Skeleton className="h-12 w-full bg-secondary border border-border" />
+          <Skeleton className="h-12 w-full bg-secondary border border-border" />
         </div>
       ) : caseList.length === 0 ? (
         <p className="text-muted-foreground italic text-sm">No cases in this category.</p>
       ) : (
         caseList.map(caseFile => (
-          // Use black background with opacity, adjust hover
-          <div key={caseFile.id} className="p-3 border border-border rounded-md bg-black/95 flex justify-between items-center hover:bg-gray-800/95 transition-colors">
+          // Use secondary background, adjust hover
+          <div key={caseFile.id} className="p-3 border border-border rounded-md bg-secondary flex justify-between items-center hover:bg-muted/50 transition-colors group">
             <div>
               {/* Use theme text color */}
               <p className="font-medium cursor-pointer hover:underline text-foreground" onClick={() => handleOpenEditModal(caseFile)}>
@@ -111,12 +123,24 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
                 Status: {caseFile.status} {caseFile.assignedToName ? `(Assigned: ${caseFile.assignedToName})` : ''}
               </p>
             </div>
-            {canAssign && caseFile.status === 'Open - Unassigned' && (
-              // Use theme outline button style with accent
-              <Button size="sm" variant="outline" onClick={() => handleOpenAssignModal(caseFile)} disabled={loadingAssignees} className="border-accent text-accent hover:bg-accent/10">
-                Assign
-              </Button>
-            )}
+            <div className="flex items-center space-x-2">
+                {canAssign && caseFile.status === 'Open - Unassigned' && (
+                <Button size="sm" variant="outline" onClick={() => handleOpenAssignModal(caseFile)} disabled={loadingAssignees} className="border-accent text-accent hover:bg-accent/10">
+                    Assign
+                </Button>
+                )}
+                {canAssign && (
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => requestDeleteCase(caseFile)}
+                        className="text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                        title="Delete Case"
+                    >
+                        <FaTrash className="h-4 w-4" />
+                    </Button>
+                )}
+            </div>
           </div>
         ))
       )}
@@ -125,13 +149,13 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
 
 
   return (
-    // Use black background with opacity for main container
-    <div className="space-y-6 bg-black/95 p-4 rounded-lg border border-border">
+    // Use bg-card for the main container
+    <div className="space-y-6 bg-card p-4 rounded-lg border border-border">
       <div className="flex justify-between items-center">
         {/* Use theme text color */}
         <h2 className="text-xl font-semibold text-foreground">Case Files Dashboard</h2>
         {/* Use theme primary button style */}
-        <Button onClick={handleOpenCreateModal} disabled={loadingAssignees} className="bg-accent hover:bg-accent/90 text-accent-foreground">Create New Case</Button>
+        <Button onClick={handleOpenCreateModal} disabled={loadingAssignees} className="bg-brand hover:bg-brand-dark text-black font-semibold">Create New Case</Button>
       </div>
 
       {error && <p className="text-destructive">{error}</p>}
@@ -139,29 +163,42 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
       <Tabs defaultValue="unassigned" className="w-full">
         {/* Use theme tab styles */}
         <TabsList className="bg-transparent p-0 border-b border-border">
-          <TabsTrigger value="unassigned" className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Unassigned</TabsTrigger>
-          <TabsTrigger value="assigned" className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Assigned</TabsTrigger>
-          <TabsTrigger value="myCases" className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">My Cases</TabsTrigger>
-          <TabsTrigger value="closed" className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Closed/Archived</TabsTrigger>
+          {/* Update active and hover states: yellow background, black text */}
+          <TabsTrigger value="unassigned" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">Unassigned</TabsTrigger>
+          <TabsTrigger value="assigned" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">Assigned</TabsTrigger>
+          <TabsTrigger value="myCases" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">My Cases</TabsTrigger>
+          <TabsTrigger value="closed" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">Closed/Archived</TabsTrigger>
         </TabsList>
-        {/* Use black background with opacity for TabsContent */}
-        <TabsContent value="unassigned" className="bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
+        {/* Use secondary background for TabsContent */}
+        <TabsContent value="unassigned" className="bg-secondary p-4 rounded-b-md border border-t-0 border-border">
           {renderCaseList(unassignedCases, "Open Unassigned Cases")}
         </TabsContent>
-        <TabsContent value="assigned" className="bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
+        <TabsContent value="assigned" className="bg-secondary p-4 rounded-b-md border border-t-0 border-border">
           {renderCaseList(assignedCases, "Open Assigned Cases")}
         </TabsContent>
-        <TabsContent value="myCases" className="bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
+        <TabsContent value="myCases" className="bg-secondary p-4 rounded-b-md border border-t-0 border-border">
           {renderCaseList(myCases, "My Assigned Cases")}
         </TabsContent>
-        <TabsContent value="closed" className="bg-black/95 p-4 rounded-b-md border border-t-0 border-border">
+        <TabsContent value="closed" className="bg-secondary p-4 rounded-b-md border border-t-0 border-border">
           {renderCaseList(closedCases, "Closed & Archived Cases")}
         </TabsContent>
       </Tabs>
 
       {/* ... (Assign Modal placeholder) ... */}
-       {isAssignModalOpen && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div className="bg-black/95 p-6 rounded border border-border text-foreground">Assign Modal for {selectedCase?.title} <Button onClick={handleCloseAssignModal}>Close</Button></div></div>}
+      {isAssignModalOpen && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div className="bg-black/95 p-6 rounded border border-border text-foreground">Assign Modal for {selectedCase?.title} <Button onClick={handleCloseAssignModal}>Close</Button></div></div>}
 
+       {confirmationModal?.show && (
+            <ConfirmationModal
+                isOpen={confirmationModal.show}
+                title="Confirm Deletion"
+                message={confirmationModal.message}
+                onConfirm={confirmationModal.onConfirm}
+                onCancel={() => setConfirmationModal(null)}
+                onClose={() => setConfirmationModal(null)}
+                confirmText="Delete"
+                cancelText="Cancel"
+            />
+        )}
     </div>
   );
 };

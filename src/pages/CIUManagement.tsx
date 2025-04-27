@@ -7,53 +7,45 @@ import {
 import { db as dbFirestore } from '../firebase';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
-import { hasCIUPermission, CaseFile } from '../utils/ciuUtils'; // Import CaseFile type
-import { User } from '../types/User'; // Corrected path to User type
+import { hasCIUPermission, CaseFile } from '../utils/ciuUtils'; 
+import { User } from '../types/User'; 
 import { Button } from '../components/ui/button';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { toast } from 'react-toastify';
-// Import Tab components
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-// Import the new Tab content components
-import GangManagementTab from '../components/Gangs/GangManagementTab'; // Assuming this handles gang listing/editing now
+import GangManagementTab from '../components/Gangs/GangManagementTab'; 
 import CaseFilesTab from '../components/CaseFiles/CaseFilesTab';
 import CIUPersonnelTab from '../components/CIUPersonnel/CIUPersonnelTab';
-// Import Modals used by CaseFilesTab
 import CreateCaseModal from '../components/CaseFiles/CreateCaseModal';
 import EditCaseModal from '../components/CaseFiles/CaseDetailsModal';
-// Import Chat components
-import { CIUChatInterface } from '../components/Chat/CIUChatInterface'; // Changed to named import
-// Import Badge component
+import { CIUChatInterface } from '../components/Chat/CIUChatInterface'; 
 import { Badge } from '../components/ui/badge';
 
 
-const CIUManagement: React.FC = () => {
+export default function CIUManagement() {
   const { user: currentUser, loading: authLoading } = useAuth();
-  const [eligibleAssignees, setEligibleAssignees] = useState<User[]>([]); // State for users eligible to be assigned cases
+  const [eligibleAssignees, setEligibleAssignees] = useState<User[]>([]); 
   const [loadingUsers, setLoadingUsers] = useState(true);
-
-  // State for Case Modals (managed here, passed to CaseFilesTab)
   const [isCreateCaseModalOpen, setIsCreateCaseModalOpen] = useState(false);
   const [isEditCaseModalOpen, setIsEditCaseModalOpen] = useState(false);
   const [selectedCaseForEdit, setSelectedCaseForEdit] = useState<CaseFile | null>(null);
-  // State for unread chat count
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0); 
 
   const canManageCIU = useMemo(() => {
     if (!currentUser) return false;
     return hasCIUPermission(currentUser);
   }, [currentUser]);
 
-  // Fetch Users (for assignee list in modals)
+  
   useEffect(() => {
-    if (!canManageCIU) return; // Don't fetch if no permission
+    if (!canManageCIU) return; 
 
     setLoadingUsers(true);
     const fetchUsers = async () => {
       try {
         const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
         const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as User[];
-        // Filter for users with relevant CIU certs (TRAIN, CERT, LEAD, SUPER)
+        
         const filteredUsers = usersData.filter(u => {
             const cert = u.certifications?.CIU?.toUpperCase();
             return ["TRAIN", "CERT", "LEAD", "SUPER"].includes(cert || "");
@@ -67,15 +59,15 @@ const CIUManagement: React.FC = () => {
       }
     };
     fetchUsers();
-  }, [canManageCIU]); // Re-fetch if permission changes (e.g., on login)
+  }, [canManageCIU]); 
 
 
-  // --- Modal Handlers (for Case Modals) ---
+  
   const handleOpenCreateCaseModal = () => setIsCreateCaseModalOpen(true);
   const handleCloseCreateCaseModal = () => setIsCreateCaseModalOpen(false);
   const handleCreateCaseSuccess = () => {
       console.log("CIUManagement: Case created successfully.");
-      // Data should refresh via CaseFilesTab's snapshot listener
+      
   };
 
   const handleOpenEditCaseModal = (caseFile: CaseFile) => {
@@ -88,60 +80,60 @@ const CIUManagement: React.FC = () => {
   };
    const handleEditCaseSaveSuccess = () => {
       console.log("CIUManagement: Case updated successfully.");
-      // Data should refresh via CaseFilesTab's snapshot listener
+      
   };
-  // --- End Modal Handlers ---
+  
 
 
-  // --- Callback for Unread Chat Count ---
+  
   const handleUnreadChatCountChange = useCallback((count: number) => {
       setUnreadChatCount(count);
-  }, []); // Empty dependency array as setUnreadChatCount is stable
+  }, []);
 
 
   if (authLoading) {
     return (
       <Layout>
-        <div className="text-center p-8 text-[#f3c700]">Loading Authentication...</div>
+        {/* Use text-brand for loading text */}
+        <div className="text-center p-8 text-brand">Loading Authentication...</div>
       </Layout>
     );
   }
 
-  // Use canManageCIU derived from useMemo
+
   if (!canManageCIU) {
     return (
       <Layout>
-        <div className="text-center p-8 text-red-500">You do not have permission to access CIU Management.</div>
+        {/* Use text-destructive for error text */}
+        <div className="text-center p-8 text-destructive">You do not have permission to access CIU Management.</div>
       </Layout>
     );
   }
 
-  // Main component structure with Tabs
-  return (
-    <Layout>
-      <div className="p-4 md:p-6 space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-          <h1 className="text-3xl font-bold text-[#f3c700]">CIU Management</h1>
-          <Link to="/" className="text-sm text-[#f3c700] hover:underline">
-            &larr; Back to Dashboard
-          </Link>
-        </div>
 
-        {/* Tabs for different CIU sections */}
-        <Tabs defaultValue="gangs" className="w-full">
-          {/* Update grid columns to 4 */}
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="gangs">Gangs</TabsTrigger>
-            <TabsTrigger value="cases">Case Files</TabsTrigger>
-            <TabsTrigger value="personnel">Personnel</TabsTrigger>
-            {/* Add new Chat trigger with Badge */}
-            <TabsTrigger value="chat" className="relative"> {/* Add relative positioning */}
+  return (
+    <Layout unreadChatCount={unreadChatCount}> {}
+      {}
+      {/* Change background to dark black */}
+      <div className="p-4 sm:p-6 bg-black/90 border border-border rounded-lg shadow-md min-h-[calc(100vh-100px)]">
+        {}
+        {/* Use text-brand for the main heading */}
+        <h1 className="text-3xl font-bold text-brand pb-4">CIU Management Dashboard</h1>
+
+        {}
+        <Tabs defaultValue="cases" className="w-full">
+          {/* Apply consistent TabsList styling */}
+          <TabsList className="bg-transparent p-0 border-b border-border grid w-full grid-cols-4 mb-4">
+            {/* Update active and hover states: yellow background, black text */}
+            <TabsTrigger value="cases" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">Case Files</TabsTrigger>
+            <TabsTrigger value="gangs" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">Gangs</TabsTrigger>
+            <TabsTrigger value="personnel" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">Personnel</TabsTrigger>
+            <TabsTrigger value="chat" className="relative bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black"> {}
               Chat
               {unreadChatCount > 0 && (
                 <Badge
-                  variant="destructive" // Or "default", "secondary" based on your theme
-                  className="absolute top-1 right-1 h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full" // Adjust positioning and size
+                  variant="destructive"
+                  className="absolute top-1 right-1 h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full"
                 >
                   {unreadChatCount > 9 ? '9+' : unreadChatCount}
                 </Badge>
@@ -149,13 +141,13 @@ const CIUManagement: React.FC = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Gangs Tab */}
-          <TabsContent value="gangs">
+          {/* Remove bg-secondary to make transparent */}
+          <TabsContent value="gangs" className="p-4 rounded-b-md border border-t-0 border-border">
             <GangManagementTab />
           </TabsContent>
 
-          {/* Case Files Tab */}
-          <TabsContent value="cases">
+          {/* Remove bg-secondary to make transparent */}
+          <TabsContent value="cases" className="p-4 rounded-b-md border border-t-0 border-border">
             <CaseFilesTab
               openCreateModal={handleOpenCreateCaseModal}
               openEditModal={handleOpenEditCaseModal}
@@ -163,25 +155,25 @@ const CIUManagement: React.FC = () => {
             />
           </TabsContent>
 
-          {/* Personnel Tab */}
-          <TabsContent value="personnel">
+          {/* Remove bg-secondary to make transparent */}
+          <TabsContent value="personnel" className="p-4 rounded-b-md border border-t-0 border-border">
             <CIUPersonnelTab />
           </TabsContent>
 
-          {/* Chat Tab */}
-          <TabsContent value="chat">
-            {/* Render the Chat Interface Component, passing the callback */}
+          {/* Remove bg-secondary to make transparent */}
+          <TabsContent value="chat" className="p-4 rounded-b-md border border-t-0 border-border">
+            {}
             <CIUChatInterface onUnreadCountChange={handleUnreadChatCountChange} />
           </TabsContent>
         </Tabs>
 
-        {/* Render Case Modals (controlled by state in this component) */}
+        {}
         {isCreateCaseModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                 <CreateCaseModal
                     onClose={handleCloseCreateCaseModal}
                     onSuccess={handleCreateCaseSuccess}
-                    eligibleAssignees={eligibleAssignees} // Pass fetched users
+                    eligibleAssignees={eligibleAssignees} 
                 />
             </div>
         )}
@@ -192,13 +184,11 @@ const CIUManagement: React.FC = () => {
                     caseData={selectedCaseForEdit}
                     onClose={handleCloseEditCaseModal}
                     onSaveSuccess={handleEditCaseSaveSuccess}
-                    eligibleAssignees={eligibleAssignees} // Pass fetched users
+                    eligibleAssignees={eligibleAssignees} 
                 />
             </div>
         )}
       </div>
     </Layout>
   );
-};
-
-export default CIUManagement;
+}

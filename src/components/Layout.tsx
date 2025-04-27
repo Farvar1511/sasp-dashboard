@@ -1,137 +1,159 @@
-import React, { useState, useEffect } from "react";
-import Sidebar from "./Sidebar";
-import { backgroundImages } from "../data/images";
-import { FaChalkboardTeacher } from "react-icons/fa";
+import React, { useState, useEffect, useMemo } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
+import Sidebar, { NavItemProps } from "./Sidebar";
+import { getRandomBackgroundImage } from "../utils/backgroundImage";
 import { useAuth } from "../context/AuthContext";
 import { computeIsAdmin } from "../utils/isadmin";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"; // Import Avatar components
-import ProfileModal from "./ProfileModal"; // Import the new modal
-import { getInitials } from "../utils/getInitials"; // Helper to get initials
+import { hasCIUPermission } from "../utils/ciuUtils";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import ProfileModal from "./ProfileModal";
+import { getInitials } from "../utils/getInitials";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import {
+  FaHome,
+  FaUsers,
+  FaCar,
+  FaTools,
+  FaFileAlt,
+  FaChalkboardTeacher,
+  FaUserSecret,
+  FaBell,
+} from "react-icons/fa";
 
 interface LayoutProps {
-  children: React.ReactNode;
+  unreadChatCount?: number;
+  children?: React.ReactNode;    // ← allow children
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const Layout: React.FC<LayoutProps> = ({
+  unreadChatCount = 0,
+  children,                      // ← destructure it
+}) => {
   const { user, loading } = useAuth();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [currentBgImage, setCurrentBgImage] = useState<string>("");
+  const navigate = useNavigate();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [bgImage, setBgImage] = useState("");
   const [bgOpacity, setBgOpacity] = useState(0);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isFTOQualified, setIsFTOQualified] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // State for modal
+  const [profileOpen, setProfileOpen] = useState(false);
 
+  // Derived flags
+  const isAdmin = useMemo(() => computeIsAdmin(user), [user]);
+  const isCadet = useMemo(() => user?.rank === "Cadet", [user?.rank]);
+  const ftoCert = user?.certifications?.FTO?.toUpperCase() ?? "";
+  const isFTOQualified = useMemo(
+    () => ["CERT", "LEAD", "SUPER", "TRAIN"].includes(ftoCert),
+    [ftoCert]
+  );
+  const canAccessCIU = useMemo(() => !!user && hasCIUPermission(user), [user]);
+
+  // Random background
   useEffect(() => {
-    const randomIndex = Math.floor(Math.random() * backgroundImages.length);
+    const url = getRandomBackgroundImage();
+    if (!url) return;
     const img = new Image();
     img.onload = () => {
-      setCurrentBgImage(backgroundImages[randomIndex]);
-      // Use a short timeout to ensure the image is set before starting the transition
+      setBgImage(url);
       setTimeout(() => setBgOpacity(1), 50);
     };
-    img.src = backgroundImages[randomIndex];
-
-    // Optional: Cleanup function in case the component unmounts before load
-    return () => {
-      img.onload = null;
-    };
+    img.src = url;
+    return () => { img.onload = null; };
   }, []);
 
-  useEffect(() => {
-    if (user) {
-      const adminStatus = computeIsAdmin(user);
-      setIsAdmin(adminStatus);
-
-      const ftoCert = user.certifications?.FTO;
-      const qualified =
-        adminStatus ||
-        ftoCert === "CERT" ||
-        ftoCert === "LEAD" ||
-        ftoCert === "SUPER" ||
-        ftoCert === "TRAIN";
-      setIsFTOQualified(qualified);
-    } else {
-      setIsAdmin(false);
-      setIsFTOQualified(false);
-    }
-  }, [user]);
-
-  const navItems = [
+  // Build nav items
+  const navItems: NavItemProps[] = useMemo(() => [
+    { name: "Home", href: "/home", icon: FaHome, showCondition: "always" },
+    { name: "Documents", href: "/documents", icon: FaFileAlt, showCondition: "always" },
+    { name: "Roster", href: "/sasp-roster", icon: FaUsers, showCondition: "always" },
+    { name: "Fleet", href: "/fleet", icon: FaCar, showCondition: "always" },
     {
-      name: "FTO Management",
+      name: "FTO",
       href: "/fto",
       icon: FaChalkboardTeacher,
-      show: !loading && isFTOQualified,
+      showCondition: "isFTOQualifiedOrCadet",
     },
-  ];
+    {
+      name: "CIU Management",
+      href: "/ciu-management",
+      icon: FaUserSecret,
+      showCondition: "canAccessCIU",
+    },
+    { name: "Admin Menu", href: "/admin", icon: FaTools, showCondition: "isAdmin" },
+  ], []);
 
-  const handleAvatarClick = () => {
-    setIsProfileModalOpen(true);
-  };
-
-  const closeProfileModal = () => {
-    setIsProfileModalOpen(false);
-  };
-
-  // Get user initials for fallback
-  const userInitials = user?.name ? getInitials(user.name) : "?";
+  const initials = user?.name ? getInitials(user.name) : "?";
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
+    <div className="relative flex h-screen bg-background text-foreground">
+      {/* Background */}
+      <div
+        className="absolute inset-0 z-[-1] bg-cover bg-center transition-opacity duration-500 ease-in-out"
+        style={{ backgroundImage: `url(${bgImage})`, opacity: bgOpacity }}
+      />
+
+      {/* SINGLE Sidebar */}
       <Sidebar
-        isCollapsed={isSidebarCollapsed}
-        setIsCollapsed={setIsSidebarCollapsed}
-        // @ts-ignore - Ignoring potential mismatch in SidebarProps definition in Sidebar.tsx
+        isCollapsed={sidebarCollapsed}
+        setIsCollapsed={setSidebarCollapsed}
         navItems={navItems}
         isAdmin={isAdmin}
         isFTOQualified={isFTOQualified}
+        canAccessCIU={canAccessCIU}
+        isCadet={isCadet}
       />
-      <div
-        className={`page-background transition-opacity duration-1000 ${
-          bgOpacity === 1 ? "opacity-100" : "opacity-0"
-        }`}
-        style={{ backgroundImage: `url(${currentBgImage})` }}
-      ></div>
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-[-1]"></div>
 
+      {/* Main */}
       <main
         className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${
-          isSidebarCollapsed ? "ml-16" : "ml-64"
+          sidebarCollapsed ? "ml-16" : "ml-64"
         }`}
       >
-        {/* Optional Header Bar */}
+        {/* Header */}
         <header className="bg-background/80 backdrop-blur-sm border-b border-border h-16 flex items-center justify-between px-6 sticky top-0 z-10">
-          {/* Placeholder for potential header content like breadcrumbs or search */}
-          <div></div>
-          {/* User Avatar/Menu */}
+          <div />
           {!loading && user && (
             <div className="flex items-center gap-4">
+              {canAccessCIU && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate("/ciu-management", { state: { focusTab: "chat" } })}
+                  title={unreadChatCount > 0 ? `${unreadChatCount} unread` : "CIU Chat"}
+                  className="relative text-muted-foreground hover:text-foreground"
+                >
+                  <FaBell className="h-5 w-5" />
+                  {unreadChatCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] rounded-full"
+                    >
+                      {unreadChatCount > 9 ? "9+" : unreadChatCount}
+                    </Badge>
+                  )}
+                </Button>
+              )}
               <span className="text-sm text-muted-foreground hidden sm:inline">
                 {user.rank} {user.name}
               </span>
               <Avatar
                 className="h-9 w-9 cursor-pointer hover:ring-2 hover:ring-ring"
-                onClick={handleAvatarClick} // Open modal on click
+                onClick={() => setProfileOpen(true)}
               >
                 <AvatarImage src={user.photoURL ?? undefined} alt={user.name ?? "User"} />
-                <AvatarFallback>{userInitials}</AvatarFallback>
+                <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
             </div>
           )}
         </header>
 
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto p-6">{children}</div>
+        {/* ← now render whatever children you passed in (your <Outlet/>) */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {children}
+        </div>
       </main>
 
       {/* Profile Modal */}
-      {user && (
-          <ProfileModal
-            isOpen={isProfileModalOpen}
-            onClose={closeProfileModal}
-            user={user}
-          />
-      )}
+      {user && <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} user={user} />}
     </div>
   );
 };

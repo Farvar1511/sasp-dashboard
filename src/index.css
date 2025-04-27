@@ -9,12 +9,12 @@
   --color-background: rgba(0, 0, 0, 0.8);
   --color-foreground: #ffffff;
   --color-brand: #f3c700;
-  --color-brand-light: rgba(243, 199, 0, 0.5);
-  --color-brand-dark: rgba(243, 199, 0, 0.8);
+  --color-brand-light: oklch(0.84 0.1726 92.66);
+  --color-brand-dark: oklch(0.84 0.1726 92.66);
   --color-neutral: #111827;
   --color-neutral-light: #374151;
   --color-neutral-dark: #1f2937;
-  --color-accent: #f3c700;
+  --color-accent: oklch(0.84 0.1726 92.66);
   --color-accent-light: rgba(243, 199, 0, 0.5);
   --color-accent-dark: rgba(243, 199, 0, 0.8);
   --color-error: #ef4444;
@@ -28,84 +28,24 @@
   --color-warning-dark: rgba(245, 158, 11, 0.8);
 
   /* Shadcn UI Variables (Add --border) */
-  --border: 220 13% 91%; /* Light theme border color (e.g., gray-200) */
+  --border: oklch(0.488 0.243 264.376); 
 }
 
-@layer base {
-  body {
-    @apply font-sans bg-background text-foreground min-h-screen;
-  }
-}
-
-@layer utilities {
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar {
-    @apply w-2;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-neutral-700 rounded-full;
-  }
-
-  @keyframes glow {
-    from {
-      text-shadow: 0 0 2px #f3c700, 0 0 4px #f3c700;
-    }
-
-    to {
-      text-shadow: 0 0 5px #f3c700, 0 0 8px #f3c700;
-    }
-  }
-
-  .glow {
-    animation: glow 1.5s infinite alternate;
-  }
-
-  .page-background {
-    @apply fixed inset-0 bg-cover bg-center z-[-1];
-  }
-
-  .font-inter {
-    font-family: "Inter", sans-serif;
-  }
-}
-
-@layer components {
-  .card {
-    @apply bg-black border border-brand text-white rounded-xl p-4;
-  }
-
-  .button-primary {
-    @apply px-4 py-2 bg-brand text-black font-semibold rounded-md shadow hover:bg-brand-dark transition;
-  }
-
-  .button-secondary {
-    @apply px-4 py-2 border border-foreground text-foreground rounded-md font-semibold hover:bg-foreground hover:text-background transition;
-  }
-}
 
 :root {
   /* Apply dark theme variables directly to root */
-  --sidebar: oklch(0.205 0 0);
+  --sidebar: oklch(0.18 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent: oklch(0.84 0.1726 92.66);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-ring: oklch(0.556 0 0);
   --sidebar-border: oklch(1 0 0 / 10%); /* Dark theme border */
 
   --border: oklch(1 0 0 / 10%); /* Dark theme border */
   --radius: 0.625rem;
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.18 0 0);
   --foreground: oklch(0.985 0 0); /* White */
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0); /* White */
@@ -121,7 +61,7 @@
   --accent-foreground: oklch(0.985 0 0); /* White text for dark accent background */
   --destructive: oklch(0.704 0.191 22.216);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.84 0.1726 92.66);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -131,7 +71,7 @@
 
 /* Keep the .dark block if you still want theme switching, otherwise it can be removed */
 .dark {
-  --sidebar: oklch(0.205 0 0);
+  --sidebar: oklch(0.18 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -142,7 +82,7 @@
 
   /* Define dark theme --border using HSL */
   --border: oklch(1 0 0 / 10%);
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.18 0 0);
   --foreground: oklch(0.985 0 0); /* White */
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0); /* White */
@@ -174,7 +114,7 @@
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--border); /* Use theme --border */
+  --color-sidebar-border: var(--border); 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
@@ -205,4 +145,70 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+@layer base {
+  body {
+    @apply font-sans bg-background text-foreground min-h-screen;
+  }
+}
 
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-neutral-dark rounded-full;
+  }
+
+  @keyframes glow {
+    from {
+      text-shadow: 0 0 2px var(--color-brand), 0 0 4px var(--color-brand);
+    }
+
+    to {
+      text-shadow: 0 0 5px var(--color-brand), 0 0 8px var(--color-brand);
+    }
+  }
+
+  .glow {
+    animation: glow 1.5s infinite alternate;
+  }
+
+  .page-background {
+    @apply fixed inset-0 bg-cover bg-center z-[-1];
+  }
+
+  .font-inter {
+    font-family: "Inter", sans-serif;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-black border border-brand text-white rounded-xl p-4;
+  }
+
+  .button-primary {
+    @apply px-4 py-2 bg-brand text-black font-semibold rounded-md shadow hover:bg-brand-dark transition;
+  }
+
+  .button-secondary {
+    @apply px-4 py-2 border border-foreground text-foreground rounded-md font-semibold hover:bg-foreground hover:text-background transition;
+  }
+
+  .bg-background-image {
+    @apply fixed inset-0 bg-cover bg-center z-[-1];
+    background-color: #1f2937;
+    transition: opacity 1s ease-in-out;
+    background-repeat: no-repeat;
+  }
+}

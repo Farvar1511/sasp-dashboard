@@ -89,7 +89,6 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
 
     if (isAddingGangMode) {
         // --- Logic to add a NEW GANG ---
-        // ... existing add gang logic ...
         if (!name.trim()) {
             toast.error("Gang Name is required.");
             setLoading(false);
@@ -181,13 +180,11 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
   if (!isAddingGangMode) {
     // Render MEMBER add/edit form inside the Dialog
     return (
-      // Use black background for DialogContent
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[425px] bg-black/95 border border-border rounded-lg text-foreground shadow-lg">
+        <DialogContent className="sm:max-w-[425px] bg-card border border-border rounded-lg text-foreground shadow-lg">
           <DialogHeader>
-            {/* Use theme accent for title, border */}
-            <DialogTitle className="text-xl font-semibold text-accent mb-5 border-b border-border pb-2">{memberToEdit ? 'Edit Member' : 'Add New Member'}</DialogTitle>
-            {/* Use theme muted text color */}
+            {/* Use direct yellow color for title */}
+            <DialogTitle className="text-xl font-semibold text-[#f3c700] mb-5 border-b border-border pb-2">{memberToEdit ? 'Edit Member' : 'Add New Member'}</DialogTitle>
             <DialogDescription className="text-muted-foreground -mt-4">
               {memberToEdit ? 'Update the details for this member.' : 'Enter the details for the new member.'}
             </DialogDescription>
@@ -218,14 +215,12 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
                       <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className="bg-input border-border text-foreground placeholder:text-muted-foreground" placeholder="Any relevant notes about the member (Optional)"/>
                   </div>
              </div>
-            {/* Use theme footer style */}
             <DialogFooter className="mt-6 border-t border-border pt-4">
               <DialogClose asChild>
-                {/* Use theme secondary button style */}
-                <Button type="button" variant="outline" disabled={loading}>Cancel</Button>
+                <Button type="button" variant="outline" disabled={loading} className="border-border text-muted-foreground hover:bg-muted/50">Cancel</Button>
               </DialogClose>
-              {/* Use theme primary button style */}
-              <Button type="submit" disabled={loading} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+              {/* Use direct yellow color for primary button */}
+              <Button type="submit" disabled={loading} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">
                 {loading ? (memberToEdit ? 'Updating...' : 'Adding...') : (memberToEdit ? 'Save Changes' : 'Add Member')}
               </Button>
             </DialogFooter>
@@ -235,11 +230,10 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
     );
   } else {
      // Render GANG add form directly (not in a Dialog)
-     // Use black background with opacity
      return (
-        <div className="p-6 border border-border rounded-lg bg-black/95 text-foreground">
-            {/* Use theme section header style */}
-            <h2 className="text-xl font-semibold text-accent border-b border-border pb-2 mb-4">Add New Gang</h2>
+        <div className="p-6 border border-border rounded-lg bg-card text-foreground">
+            {/* Use direct yellow color for title */}
+            <h2 className="text-xl font-semibold text-[#f3c700] border-b border-border pb-2 mb-4">Add New Gang</h2>
             <form onSubmit={handleSubmit} className="grid gap-4 py-4">
                 {/* Gang Name Input */}
                 <div className="space-y-2">
@@ -277,10 +271,8 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
                     />
                 </div>
                 <div className="flex justify-end gap-4 mt-4">
-                    {/* Provide a way to cancel adding a gang if needed */}
-                    {/* <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancel</Button> */}
-                    {/* Use theme primary button style */}
-                    <Button type="submit" disabled={loading} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                    {/* Use direct yellow color for primary button */}
+                    <Button type="submit" disabled={loading} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">
                         {loading ? 'Adding Gang...' : 'Add Gang'}
                     </Button>
                 </div>

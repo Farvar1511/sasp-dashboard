@@ -19,7 +19,6 @@ import {
   divisionKeys,
   getCertStyle,
 } from "../data/rosterConfig";
-import { backgroundImages } from "../data/images";
 import { computeIsAdmin } from "../utils/isadmin";
 import {
   formatTimestampDateTime,
@@ -117,7 +116,6 @@ const SASPRoster: React.FC = () => {
   const [hideVacant, setHideVacant] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedRank, setSelectedRank] = useState<string>("All");
-  const [backgroundImage, setBackgroundImage] = useState<string>("");
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editedRowData, setEditedRowData] = useState<Partial<RosterUser>>({});
 
@@ -127,11 +125,6 @@ const SASPRoster: React.FC = () => {
     if (!currentUser || !currentUser.rank) return false;
     return editPermissionRanks.includes(currentUser.rank);
   }, [currentUser, isAdmin]);
-
-  useEffect(() => {
-    const randomIndex = Math.floor(Math.random() * backgroundImages.length);
-    setBackgroundImage(backgroundImages[randomIndex]);
-  }, []);
 
   const fetchAndMergeRoster = async () => {
     setLoading(true);
@@ -278,7 +271,7 @@ const SASPRoster: React.FC = () => {
 
   useEffect(() => {
     fetchAndMergeRoster();
-  }, [hideVacant, searchTerm, selectedRank, isAdmin]);
+  }, [hideVacant, searchTerm, selectedRank, isAdmin]); // Keep dependencies
 
   const uniqueRanks = useMemo(() => {
     const ranks = new Set<string>(["All"]);
@@ -402,16 +395,10 @@ const SASPRoster: React.FC = () => {
 
   return (
     <Layout>
-      <div
-        className="page-content space-y-6 p-6 text-white min-h-screen"
-        style={{
-          backgroundImage: `url(${backgroundImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
+      <div className="relative z-10 page-content space-y-6 p-6 text-white min-h-screen">
         <h1 className="text-3xl font-bold text-[#f3c700]">SASP Roster</h1>
 
+        {/* Filter controls */}
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <input
             type="text"

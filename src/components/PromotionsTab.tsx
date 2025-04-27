@@ -79,7 +79,6 @@ export default function PromotionsTab(): JSX.Element {
   const [promotionData, setPromotionData] = useState<{ [userId: string]: EligibleUserPromotionData }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [backgroundImage, setBackgroundImage] = useState<string>("");
   const [newComments, setNewComments] = useState<{ [userId: string]: string }>({});
   const [editingComment, setEditingComment] = useState<{ userId: string; commentId: string; text: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -90,11 +89,6 @@ export default function PromotionsTab(): JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const userCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  useEffect(() => {
-    console.log("PromotionsTab: Background effect running.");
-    setBackgroundImage(getRandomBackgroundImage());
-  }, []);
 
   const fetchAllUsers = useCallback(async () => {
     try {
@@ -169,7 +163,7 @@ export default function PromotionsTab(): JSX.Element {
       }
 
       const unsubVotes = onSnapshot(promotionDocRef, (docSnap) => {
-        // console.log(`Snapshot received for user ${eligibleUser.id}:`, docSnap.exists() ? docSnap.data() : 'No data');
+        
         const rawVoteData = docSnap.exists() ? (docSnap.data() as PromotionVoteData) : null;
 
         const safeVoteData: PromotionVoteData | null = rawVoteData
@@ -187,10 +181,10 @@ export default function PromotionsTab(): JSX.Element {
             comments: existingUserPromoData?.comments || [],
           };
 
-          // Create a completely new object for the state
+          
           const newState = { ...prev };
           newState[eligibleUser.id] = updatedUserPromoData;
-          return newState; // Return the new object reference
+          return newState; 
         });
       }, (err) => {
         console.error(`Error fetching votes for ${eligibleUser.id}:`, err);
@@ -213,10 +207,10 @@ export default function PromotionsTab(): JSX.Element {
                 comments: comments,
             };
 
-            // Create a completely new object for the state
+            
             const newState = { ...prev };
             newState[eligibleUser.id] = updatedUserPromoData;
-            return newState; // Return the new object reference
+            return newState; 
         });
       }, (err) => {
         console.error(`Error fetching comments for ${eligibleUser.id}:`, err);
@@ -253,7 +247,7 @@ export default function PromotionsTab(): JSX.Element {
   }, [location.search, navigate, promotionData]);
 
   const filteredPromotionData = useMemo(() => {
-    // Filter out users where promotionData might not be fully populated yet
+    
     let data = Object.values(promotionData).filter(userPromoData => userPromoData && userPromoData.id);
 
     if (searchTerm) {
@@ -286,10 +280,10 @@ export default function PromotionsTab(): JSX.Element {
         console.error("handleVote: currentUser.email is empty or whitespace.");
         return;
     }
-    // No longer need FieldPath here, will use direct key in setDoc
+    
 
     try {
-      // We still need to check the current vote to decide if we are removing or setting
+      
       const currentDocSnap = await getDoc(promotionDocRef);
       const currentVotesData = currentDocSnap.exists()
         ? (currentDocSnap.data() as PromotionVoteData)
@@ -298,25 +292,25 @@ export default function PromotionsTab(): JSX.Element {
       const currentVoteInDb = currentVotes[cleanVoterEmail];
 
       if (currentVoteInDb === vote) {
-        // --- Remove Vote ---
+        
         console.log(`Attempting to remove vote for ${userId} by ${cleanVoterEmail} using setDoc merge.`);
-        // Use setDoc with merge and deleteField()
+        
         await setDoc(promotionDocRef, {
             votes: {
-                [cleanVoterEmail]: deleteField() // Use the email string as the key
+                [cleanVoterEmail]: deleteField() 
             }
-        }, { merge: true }); // Merge ensures other votes and fields are untouched
+        }, { merge: true }); 
         console.log(`Firestore vote removal successful for ${userId}.`);
         toast.success(`Vote removed for ${promotionData[userId]?.name || userId}.`);
       } else {
-        // --- Add or Change Vote ---
+        
         console.log(`Attempting to set vote for ${userId} by ${cleanVoterEmail} to '${vote}' using setDoc merge.`);
-        // Use setDoc with merge to add or update the vote
+        
         await setDoc(promotionDocRef, {
             votes: {
-                [cleanVoterEmail]: vote // Use the email string as the key
+                [cleanVoterEmail]: vote 
             }
-        }, { merge: true }); // Merge ensures other votes and fields are untouched
+        }, { merge: true }); 
         console.log(`Firestore vote update/set successful for ${userId}.`);
 
         toast.success(
@@ -442,8 +436,10 @@ export default function PromotionsTab(): JSX.Element {
   const iconButtonSave = "text-green-400 hover:text-green-300 cursor-pointer transition-colors duration-150";
   const iconButtonCancel = "text-red-500 hover:text-red-400 cursor-pointer transition-colors duration-150";
   const iconButtonDelete = "text-red-500 hover:text-red-400 cursor-pointer transition-colors duration-150";
-  const inputStyle = "w-full p-2 bg-black/80 text-white rounded border border-[#f3c700] text-sm focus:ring-[#f3c700] focus:border-[#f3c700]";
-  const cardBase = "p-4 bg-black/80 rounded-lg shadow-lg border border-[#f3c700]/50";
+  
+  const inputStyle = "w-full p-2 bg-black/95 text-white rounded border border-[#f3c700] text-sm focus:ring-[#f3c700] focus:border-[#f3c700]";
+  
+  const cardBase = "p-4 bg-black/95 rounded-lg shadow-lg border border-[#f3c700]/50";
   const textPrimary = "text-white";
   const textSecondary = "text-white/70";
   const textAccent = "text-[#f3c700]";
@@ -464,10 +460,11 @@ export default function PromotionsTab(): JSX.Element {
   return (
     <Layout>
       <div
-        className="page-content space-y-6 p-6 text-white/80 min-h-screen bg-cover bg-center bg-no-repeat bg-fixed"
-        style={{ backgroundImage: `url(${backgroundImage})`, fontFamily: "'Inter', sans-serif" }}
+        className="relative z-10 page-content space-y-6 p-6 text-white/80 min-h-screen"
+        style={{ fontFamily: "'Inter', sans-serif" }}
       >
-        <div className="bg-black/75 text-[#f3c700] font-sans p-4 rounded-lg shadow-lg mb-6">
+        {}
+        <div className="bg-black/95 text-[#f3c700] font-sans p-4 rounded-lg shadow-lg mb-6">
           <h1 className="text-2xl font-bold text-center mb-4">Promotion Review</h1>
 
           <div className="flex space-x-6 border-b border-[#f3c700] mb-6">
@@ -527,7 +524,8 @@ export default function PromotionsTab(): JSX.Element {
                  type="checkbox"
                  checked={showHiddenByVotes}
                  onChange={(e) => setShowHiddenByVotes(e.target.checked)}
-                 className="h-4 w-4 rounded border-gray-300 text-[#f3c700] focus:ring-[#f3c700] bg-black/50"
+                 
+                 className="h-4 w-4 rounded border-gray-300 text-[#f3c700] focus:ring-[#f3c700] bg-black/90"
                />
                <FaFilter size="0.9em"/>
                Show Manually Hidden
@@ -569,10 +567,11 @@ export default function PromotionsTab(): JSX.Element {
                 <div
                   key={userId}
                   ref={el => { userCardRefs.current[userId] = el; }}
+                  
                   className={`${cardBase} space-y-4 ${
-                    (isManuallyHidden && showHiddenByVotes ? 'opacity-70 border-dashed border-orange-500' : '')
+                    (isManuallyHidden && showHiddenByVotes ? 'border-dashed border-orange-500' : '') 
                   } ${
-                    highlightedUserId === userId ? 'ring-2 ring-offset-2 ring-[#f3c700] ring-offset-black/80 scale-102' : ''
+                    highlightedUserId === userId ? 'ring-2 ring-offset-2 ring-[#f3c700] ring-offset-black/95 scale-102' : ''
                   }`}
                   title={isManuallyHidden && showHiddenByVotes ? 'This user is manually hidden' : ''}
                 >
@@ -598,13 +597,14 @@ export default function PromotionsTab(): JSX.Element {
 
                   <div className="border-t border-white/20 pt-4">
                     <h4 className="text-lg font-semibold mb-2 text-white">Poll ({totalVotesCast} / {adminVoters.length} Voted)</h4>
-                    <div className="grid grid-cols-3 gap-2 items-center bg-black/50 p-3 rounded border border-white/10">
+                    {}
+                    <div className="grid grid-cols-3 gap-2 items-center bg-black/90 p-3 rounded border border-white/10">
                       <div className="text-center">
                         <p className="text-green-400 font-bold text-2xl">{promoteVotes}</p>
                         <button
                           onClick={() => handleVote(userId, 'promote')}
-                          // Check currentUserVote directly here
-                          className={`mt-1 ${currentUserVote === 'promote' ? 'ring-2 ring-offset-2 ring-offset-black/50 ring-green-400' : ''} bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs transition-all duration-150`}
+                          
+                          className={`mt-1 ${currentUserVote === 'promote' ? 'ring-2 ring-offset-2 ring-offset-black/90 ring-green-400' : ''} bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs transition-all duration-150`}
                         >
                           Promote
                         </button>
@@ -613,8 +613,8 @@ export default function PromotionsTab(): JSX.Element {
                         <p className="text-orange-400 font-bold text-2xl">{needsTimeVotes}</p>
                         <button
                           onClick={() => handleVote(userId, 'needs_time')}
-                           // Check currentUserVote directly here
-                          className={`mt-1 ${currentUserVote === 'needs_time' ? 'ring-2 ring-offset-2 ring-offset-black/50 ring-orange-400' : ''} ${buttonWarning} px-3 py-1 rounded text-xs transition-all duration-150`}
+                           
+                          className={`mt-1 ${currentUserVote === 'needs_time' ? 'ring-2 ring-offset-2 ring-offset-black/90 ring-orange-400' : ''} ${buttonWarning} px-3 py-1 rounded text-xs transition-all duration-150`}
                         >
                           Needs Time
                         </button>
@@ -623,8 +623,8 @@ export default function PromotionsTab(): JSX.Element {
                         <p className="text-red-500 font-bold text-2xl">{denyVotes}</p>
                         <button
                           onClick={() => handleVote(userId, 'deny')}
-                           // Check currentUserVote directly here
-                          className={`mt-1 ${currentUserVote === 'deny' ? 'ring-2 ring-offset-2 ring-offset-black/50 ring-red-500' : ''} bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs transition-all duration-150`}
+                           
+                          className={`mt-1 ${currentUserVote === 'deny' ? 'ring-2 ring-offset-2 ring-offset-black/90 ring-red-500' : ''} bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs transition-all duration-150`}
                         >
                           Deny
                         </button>
@@ -639,14 +639,16 @@ export default function PromotionsTab(): JSX.Element {
 
                   <div className="border-t border-white/20 pt-4">
                     <h4 className="text-lg font-semibold mb-2 text-white">Discussion</h4>
-                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 mb-3 border border-white/10 rounded p-2 bg-black/30">
+                    {}
+                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 mb-3 border border-white/10 rounded p-2 bg-black/90">
                       {comments.length === 0 && <p className="text-white/50 italic text-xs">No comments yet.</p>}
                       {comments.map(comment => {
                         const isEditingThisComment = editingComment?.userId === userId && editingComment?.commentId === comment.id;
                         const canManage = currentUser?.email === comment.commenterEmail || isHCAdmin;
 
                         return (
-                          <div key={comment.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50 text-xs relative group">
+                          
+                          <div key={comment.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/90 text-xs relative group">
                             {isEditingThisComment ? (
                               <div className="space-y-1">
                                 <textarea

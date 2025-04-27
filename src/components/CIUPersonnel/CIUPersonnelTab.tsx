@@ -109,9 +109,9 @@ const CIUPersonnelTab: React.FC = () => {
     const renderPersonnelList = () => {
         if (loadingPersonnel) {
             return (
-                // Use theme skeleton style
+                // Use darker skeleton for better contrast
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-24 w-full bg-black/95 border border-border" />)}
+                    {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-24 w-full bg-black/50 border border-border" />)}
                 </div>
             );
         }
@@ -126,11 +126,11 @@ const CIUPersonnelTab: React.FC = () => {
                     const certStyle = getCertStyle(ciuCert);
                     const assignedCasesCount = person.id ? getAssignedCasesForPersonnel(person.id).length : 0;
 
-                    // Use black background with opacity, adjust hover
+                    // Use darker background, adjust hover
                     return (
                         <div
                             key={person.id || person.name}
-                            className="p-4 border border-border rounded-lg bg-black/95 hover:bg-gray-800/95 cursor-pointer transition-colors shadow-sm"
+                            className="p-4 border border-border rounded-lg bg-black/80 hover:bg-black/60 cursor-pointer transition-colors shadow-sm" // Darker background
                             onClick={() => handleOpenDetailsModal(person)}
                         >
                             <div className="flex justify-between items-start">
@@ -162,10 +162,10 @@ const CIUPersonnelTab: React.FC = () => {
     };
 
     return (
-        // Use black background with opacity for main container
-        <div className="space-y-6 bg-black/95 p-4 rounded-lg border border-border">
-            {/* Use theme section header style */}
-            <h2 className="text-xl font-semibold text-accent border-b border-border pb-2">CIU Personnel Roster</h2>
+        // Use darker background for main container
+        <div className="space-y-6 bg-black/90 p-4 rounded-lg border border-border">
+            {/* Use brand color for heading */}
+            <h2 className="text-xl font-semibold text-brand border-b border-border pb-2">CIU Personnel Roster</h2>
             {error && <p className="text-destructive">{error}</p>}
             {renderPersonnelList()}
 
@@ -176,7 +176,7 @@ const CIUPersonnelTab: React.FC = () => {
                     personnel={selectedPersonnel}
                     assignedCases={selectedPersonnel.id ? getAssignedCasesForPersonnel(selectedPersonnel.id) : []}
                     canViewSensitiveData={canViewSensitiveData}
-                    // Modal itself needs internal styling updates
+                    // Modal styling is handled internally in CIUPersonnelDetailsModal.tsx
                 />
             )}
         </div>
