@@ -1,3 +1,12 @@
+@import "tailwindcss";
+
+@theme {
+  /* Define brand colors as theme variables */
+  --color-brand: #f3c700;
+  --color-brand-dark: #eab308;
+  /* Add other custom theme variables here if needed */
+}
+
 @layer base {
   body {
     background-color: #111827; /* Equivalent to bg-gray-900 */
@@ -12,19 +21,22 @@
 }
 @layer components {
   .button-primary {
-    @apply bg-yellow-400 text-black font-bold py-2 px-4 rounded hover:bg-yellow-300 transition duration-150;
+    /* Use brand color from config */
+    @apply bg-brand text-black font-bold py-2 px-4 rounded hover:bg-brand-dark transition duration-150;
   }
   .button-secondary {
     @apply bg-gray-600 text-white font-bold py-2 px-4 rounded hover:bg-gray-500 transition duration-150;
   }
   .input {
-    @apply block w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-gray-200 focus:outline-none focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400;
+    /* Use brand color for focus states */
+    @apply block w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-gray-200 focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand;
   }
   .admin-section {
     @apply bg-black/70 border border-gray-700 rounded-lg shadow-lg;
   }
   .section-header {
-    @apply font-bold text-yellow-400 border-b border-gray-700 pb-2;
+    /* Use brand color for text */
+    @apply font-bold text-brand border-b border-gray-700 pb-2;
   }
   /* ... other component styles ... */
 }
@@ -36,9 +48,11 @@
     @apply bg-gray-800 rounded-lg;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-yellow-400 rounded-lg border-2 border-solid border-gray-800;
+    /* Use brand color for scrollbar thumb */
+    @apply bg-brand rounded-lg border-2 border-solid border-gray-800;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    @apply bg-yellow-500;
+    /* Use darker brand color for hover */
+    @apply bg-brand-dark;
   }
 }

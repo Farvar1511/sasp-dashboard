@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react"; // Added useMemo
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { computeIsAdmin } from "../utils/isadmin";
 import { showTime } from "../utils/timeHelpers";
+import { hasCIUPermission } from "../utils/ciuUtils";
 import {
   FaHome,
   FaUsers,
@@ -14,6 +15,10 @@ import {
   FaFileAlt,
   FaUserGraduate, // Added for Cadet FTO icon
   FaUserShield, // Added for FTO Management icon
+  FaUserSecret, // Added for CIU icon
+  FaArrowUp, // Added for Promotions icon
+  FaBullhorn, // Added for Bulletins icon
+  FaBalanceScale, // Added for Discipline/Notes icon
 } from "react-icons/fa";
 
 const saspLogo = "/SASPLOGO2.png";
@@ -45,12 +50,14 @@ const ClockDisplay = React.memo(() => {
 });
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
-  const { user, logout } = useAuth();
-  const isAdmin = computeIsAdmin(user);
-  const ftoCertStatus = user?.certifications?.FTO?.toUpperCase(); // Ensure comparison is case-insensitive
+  const { user: currentUser, logout } = useAuth(); // Renamed user to currentUser for clarity
+  const isAdmin = computeIsAdmin(currentUser);
+  const ftoCertStatus = currentUser?.certifications?.FTO?.toUpperCase(); // Ensure comparison is case-insensitive
   // Include 'TRAIN' in the check for FTO certification
-  const hasFTOCert = ["CERT", "LEAD", "SUPER", "TRAIN"].includes(ftoCertStatus || "");
-  const isCadet = user?.rank === "Cadet"; // Check if user is a Cadet
+  const hasFTOCert = useMemo(() => ["CERT", "LEAD", "SUPER", "TRAIN"].includes(ftoCertStatus || ""), [ftoCertStatus]);
+  const isCadet = useMemo(() => currentUser?.rank === "Cadet", [currentUser?.rank]); // Check if user is a Cadet
+  // Use the correctly imported named function
+  const canAccessCIU = useMemo(() => currentUser ? hasCIUPermission(currentUser) : false, [currentUser]);
 
   const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
     `flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out border border-transparent ${
@@ -96,7 +103,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, setIsCollapsed }) => {
       title: isCadet ? "My Training Progress" : "FTO Management",
       show: hasFTOCert || isCadet, // Show if FTO certified OR if user is a Cadet
     },
-    // Admin Menu item definition
+    // CIU Management Link - Conditionally shown
+    {
+      to: "/ciu-management", // Updated route
+      icon: FaUserSecret,
+      label: "CIU Management", // Updated label
+      title: "CIU Management", // Updated title
+      show: canAccessCIU, // Use the permission check result
+    },
     { to: "/admin", icon: FaTools, label: "Admin Menu", title: "Admin Menu", show: isAdmin },
   ];
 

@@ -133,6 +133,7 @@ export interface User {
   loaEndDate?: string | Timestamp | null;
   discordId?: string;
   category?: string | null;
+  lastSignInTime?: Timestamp | string | null; // Last sign-in time from Firebase Auth
 }
 
 // -----------------------------

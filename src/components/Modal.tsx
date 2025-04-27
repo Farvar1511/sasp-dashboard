@@ -1,11 +1,13 @@
 // components/Modal.tsx
 import React, { ReactNode } from "react";
+import { cn } from "../lib/utils"; // Import cn utility
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
-  maxWidth?: string; // e.g., 'max-w-md', 'max-w-xl', 'max-w-4xl'
+  maxWidth?: string; // Optional prop for max-width
+  className?: string; // Add optional className prop
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -13,6 +15,7 @@ const Modal: React.FC<ModalProps> = ({
   onClose,
   children,
   maxWidth = "max-w-4xl", // Default max-width
+  className, // Destructure className
 }) => {
   if (!isOpen) return null;
 
@@ -22,7 +25,10 @@ const Modal: React.FC<ModalProps> = ({
       onClick={onClose} // Click on backdrop to close
     >
       <div
-        className={`bg-black border border-[#f3c700] rounded-lg shadow-xl w-full ${maxWidth} max-h-[90vh] overflow-y-auto custom-scrollbar p-6 m-4`}
+        className={cn( // Use cn to merge classes
+          `bg-black border border-[#f3c700] rounded-lg shadow-xl w-full ${maxWidth} max-h-[90vh] overflow-y-auto custom-scrollbar p-6 m-4`,
+          className // Apply the passed className
+        )}
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal content
       >
         {children}

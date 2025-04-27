@@ -1650,9 +1650,12 @@ const FTOPage: React.FC = () => {
       <ConfirmationModal
         isOpen={isConfirmModalOpen}
         onClose={() => setIsConfirmModalOpen(false)}
+        onCancel={() => setIsConfirmModalOpen(false)}
         onConfirm={handleConfirmDelete}
         title={`Confirm Deletion`}
         message={`Are you sure you want to delete this ${itemToDelete?.type}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
       />
     </div>
   );

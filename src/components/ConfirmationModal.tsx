@@ -2,11 +2,14 @@ import React from "react";
 import Modal from "./Modal"; // Import the generic Modal
 
 interface ConfirmationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    onCancel: () => void; // Add this line
+    onClose: () => void; // Add this line
+    confirmText: string;
+    cancelText: string;
 }
 
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
