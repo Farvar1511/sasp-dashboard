@@ -10,7 +10,8 @@ import { Input } from '../ui/input'; // Ensure Input is imported
 import { Textarea } from '../ui/textarea'; // Ensure Textarea is imported
 import { Label } from '../ui/label'; // Ensure Label is imported
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"; // Ensure Select components are imported
-import { FaTrash, FaPlus } from 'react-icons/fa'; // Ensure icons are imported
+import { FaTrash } from 'react-icons/fa';
+import { FaPlus } from 'react-icons/fa6'; // Use the correct submodule if needed
 import { toast } from 'react-toastify'; // Ensure toast is imported
 import { Skeleton } from '../ui/skeleton'; // Ensure Skeleton is imported
 import ConfirmationModal from '../ConfirmationModal'; // Ensure ConfirmationModal is imported

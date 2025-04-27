@@ -6,7 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import AddGangMemberForm from './AddGangMemberModal'; // Import the refactored form component
 import { formatTimestampDateTime } from '../../utils/timeHelpers';
-import { FaEdit, FaTrash, FaPlus, FaUpload, FaGripVertical } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaUpload } from 'react-icons/fa';
+import { FaGripVertical } from 'react-icons/fa6';
 import {
   Table,
   TableBody,

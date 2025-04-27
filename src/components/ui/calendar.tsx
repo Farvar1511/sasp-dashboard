@@ -58,8 +58,8 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: (props) => ["svg", { ...props, className: cn("size-4", props.className) }],
-        IconRight: (props) => ["svg", { ...props, className: cn("size-4", props.className) }],
+        IconLeft: (props) => <svg {...props} className={cn("size-4", props.className)} />,
+        IconRight: (props) => <svg {...props} className={cn("size-4", props.className)} />,
       }}
       {...props}
     />

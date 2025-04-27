@@ -1,18 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import React, { useState } from 'react'; // Ensure React is imported
+import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
-import { User } from '../../types/User';
 import { CaseFile, CaseStatus } from '../../utils/ciuUtils';
+import { User } from '../../types/User';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { FaTrash, FaPlus, FaTimes } from 'react-icons/fa';
+import { Textarea } from '../ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { toast } from 'react-toastify';
+// Ensure react-icons are imported
+import { FaTimes, FaPlus, FaTrash } from 'react-icons/fa';
+
+// If you are seeing TS2786 errors ("Type 'ReactNode' is not a valid JSX element"),
+// it's likely due to a mismatch between @types/react and your React version.
+// Consider updating @types/react (e.g., `npm install --save-dev @types/react@latest` or `yarn add --dev @types/react@latest`)
+// or ensuring your `tsconfig.json` is configured correctly for your React version.
 
 interface CreateCaseModalProps {
     // isOpen prop might not be needed if parent controls rendering directly
@@ -154,6 +160,7 @@ const CreateCaseModal: React.FC<CreateCaseModalProps> = ({ onClose, onSuccess, e
         const witnessSummary = namesOfInterest.filter(n => n.role?.toLowerCase().includes('witness')).map((w, i) => `Witness ${String.fromCharCode(65 + i)}: ${w.name}`).join('\n');
         // Basic template
         let template = `
+
 WARRANT TEMPLATE FOR ${primarySuspect}
 
 Case Title: ${title || '[Case Title]'}
@@ -184,7 +191,7 @@ ${gangInfo || 'No specific gang information provided.'}
         <div className="w-[85vw] max-w-none mx-auto p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl transition-all duration-300 ease-in-out border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative">
             {/* Close button */}
             <Button variant="ghost" size="icon" className="absolute top-3 right-3 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
-                <FaTimes className="h-5 w-5" />
+                <FaTimes className="h-5 w-5" /> {/* Usage seems correct */}
                 <span className="sr-only">Close</span>
             </Button>
 
@@ -253,14 +260,15 @@ ${gangInfo || 'No specific gang information provided.'}
                                     <div className="flex items-end h-full">
                                         {namesOfInterest.length > 1 && (
                                             <Button type="button" variant="ghost" size="icon" onClick={() => removeNameRow(index)} className="text-destructive hover:text-destructive/80 h-9 w-9" disabled={isSubmitting}>
-                                                <FaTrash className="h-4 w-4" />
+                                                <FaTrash className="h-4 w-4" /> {/* Usage seems correct */}
                                             </Button>
                                         )}
                                     </div>
                                 </div>
                             ))}
                             <Button type="button" variant="outline" size="sm" onClick={addNameRow} className="mt-2 border-accent text-accent hover:bg-accent/10" disabled={isSubmitting}>
-                                <FaPlus className="mr-2 h-3 w-3" /> Add Name
+                                <FaPlus className="mr-2 h-3 w-3" /> {/* Usage seems correct */}
+                                Add Name
                             </Button>
                         </CardContent>
                     </Card>
@@ -278,13 +286,14 @@ ${gangInfo || 'No specific gang information provided.'}
                                     <Input value={item.location} onChange={(e) => updateEvidence(index, 'location', e.target.value)} placeholder="Location Collected" className="flex-grow bg-input border-border" disabled={isSubmitting}/>
                                     {evidence.length > 1 && (
                                         <Button type="button" variant="ghost" size="icon" onClick={() => removeEvidenceRow(index)} className="text-destructive hover:text-destructive/80 h-9 w-9" disabled={isSubmitting}>
-                                            <FaTrash className="h-4 w-4" />
+                                            <FaTrash className="h-4 w-4" /> {/* Usage seems correct */}
                                         </Button>
                                     )}
                                 </div>
                             ))}
                             <Button type="button" variant="outline" size="sm" onClick={addEvidenceRow} className="mt-2 border-accent text-accent hover:bg-accent/10" disabled={isSubmitting}>
-                                <FaPlus className="mr-2 h-3 w-3" /> Add Evidence
+                                <FaPlus className="mr-2 h-3 w-3" /> {/* Usage seems correct */}
+                                Add Evidence
                             </Button>
                         </CardContent>
                     </Card>
@@ -300,13 +309,14 @@ ${gangInfo || 'No specific gang information provided.'}
                                     <Input value={link} onChange={(e) => updatePhotoLink(index, e.target.value)} placeholder="https://example.com/image.png" className="flex-grow bg-input border-border" disabled={isSubmitting}/>
                                     {photos.length > 1 && (
                                         <Button type="button" variant="ghost" size="icon" onClick={() => removePhotoLink(index)} className="text-destructive hover:text-destructive/80 h-9 w-9" disabled={isSubmitting}>
-                                            <FaTrash className="h-4 w-4" />
+                                            <FaTrash className="h-4 w-4" /> {/* Usage seems correct */}
                                         </Button>
                                     )}
                                 </div>
                             ))}
                             <Button type="button" variant="outline" size="sm" onClick={addPhotoLink} className="mt-2 border-accent text-accent hover:bg-accent/10" disabled={isSubmitting}>
-                                <FaPlus className="mr-2 h-3 w-3" /> Add Photo Link
+                                <FaPlus className="mr-2 h-3 w-3" /> {/* Usage seems correct */}
+                                Add Photo Link
                             </Button>
                         </CardContent>
                     </Card>

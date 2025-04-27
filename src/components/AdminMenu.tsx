@@ -4,14 +4,14 @@ import Layout from "./Layout";
 import {
   collection,
   getDocs,
-  writeBatch, // Import writeBatch
+  writeBatch, 
   query,
   orderBy,
   doc,
   deleteDoc,
   updateDoc,
   Timestamp,
-  deleteField, // Import deleteField
+  deleteField,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime } from "../utils/timeHelpers";
@@ -26,6 +26,13 @@ import { toast } from "react-toastify";
 import ConfirmationModal from "./ConfirmationModal";
 import { where as firestoreWhere, QueryConstraint } from "firebase/firestore";
 import { limit as firestoreLimit } from "firebase/firestore";
+
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../components/ui/accordion"; // Adjust path as needed
 
 // Export these for use in AddUserModal
 export const rankCategories = {
@@ -828,6 +835,7 @@ export default function AdminMenu(): JSX.Element {
                         title={`${isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}${isOnLOA ? ' User is currently on LOA' : ''}`} // Add LOA to title
                       >
                         <div className="flex-grow">
+                          {/* ... User Header Info (Name, Rank, Badges etc.) ... */}
                           <div className="flex justify-between items-start mb-1">
                             <h4 className={`font-semibold ${textAccent} ${loaTextClass}`}> {/* Apply LOA text class */}
                               {userData.name}
@@ -870,74 +878,95 @@ export default function AdminMenu(): JSX.Element {
                           <p className={`text-sm ${textSecondary} mb-2 ${loaTextClass}`}> {/* Apply LOA text class */}
                             Badge: {userData.badge}
                           </p>
-                          <h5 className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}>
-                            Tasks ({userData.tasks?.length || 0}):
-                          </h5>
-                          <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 mb-3">
-                            {/* Use the newly sortedTasks array */}
-                            {sortedTasks.length > 0 ? sortedTasks.map((task) => (
-                              <div
-                                key={task.id}
-                                className={`p-1.5 rounded border relative group transition-colors duration-200 ${
-                                  task.completed
-                                    ? 'border-green-600/50 bg-green-900/30 opacity-80'
-                                    : 'border-[#f3c700]/40 bg-black/50'
-                                }`}
-                                title={task.completed ? 'Task Completed' : 'Task In Progress'}
-                              >
-                                <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                  <FaEdit className={`cursor-pointer h-3.5 w-3.5 transition-colors duration-150 ${task.completed ? 'text-green-400 hover:text-green-300' : 'text-[#f3c700] hover:text-yellow-300'}`} title="Edit Task" />
-                                  <FaTrash className="text-red-500 hover:text-red-400 cursor-pointer h-3.5 w-3.5 transition-colors duration-150" title="Delete Task" />
+
+                          {/* Accordion for Tasks, Discipline, Notes */}
+                          <Accordion type="multiple" className="w-full mt-3 border-t border-[#f3c700]/50 pt-2">
+                            {/* Tasks Accordion Item */}
+                            <AccordionItem value="tasks" className="border-b border-[#f3c700]/30">
+                              <AccordionTrigger className={`py-2 px-1 text-sm font-medium ${textSecondary} italic hover:no-underline hover:text-white`}>
+                                Tasks ({userData.tasks?.length || 0})
+                              </AccordionTrigger>
+                              <AccordionContent className="pb-2 px-1">
+                                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2">
+                                  {sortedTasks.length > 0 ? sortedTasks.map((task) => (
+                                    <div
+                                      key={task.id}
+                                      className={`p-1.5 rounded border relative group transition-colors duration-200 ${
+                                        task.completed
+                                          ? 'border-green-600/50 bg-green-900/30 opacity-80'
+                                          : 'border-[#f3c700]/40 bg-black/50'
+                                      }`}
+                                      title={task.completed ? 'Task Completed' : 'Task In Progress'}
+                                    >
+                                      <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                        <FaEdit className={`cursor-pointer h-3.5 w-3.5 transition-colors duration-150 ${task.completed ? 'text-green-400 hover:text-green-300' : 'text-[#f3c700] hover:text-yellow-300'}`} title="Edit Task" />
+                                        <FaTrash className="text-red-500 hover:text-red-400 cursor-pointer h-3.5 w-3.5 transition-colors duration-150" title="Delete Task" />
+                                      </div>
+                                      <p className={`inline text-xs pr-10 ${task.completed ? "line-through text-white/60" : "text-white/90"}`}>
+                                        {task.task}
+                                      </p>
+                                      <small className="text-white/60 block mt-1 text-[10px]">
+                                        Type: {task.type}
+                                        {task.type === "goal" && ` | Progress: ${task.progress ?? 0}/${task.goal ?? "N/A"}`}
+                                        | Status: {task.completed ? <span className="text-green-400 font-semibold">Completed</span> : <span className={textAccent}>In Progress</span>}
+                                        | Assigned: {formatIssuedAt(task.issueddate, task.issuedtime)} | By: {task.issuedby || "Unknown"}
+                                      </small>
+                                    </div>
+                                  )) : (
+                                    <p className="text-white/50 italic text-xs">No tasks assigned.</p>
+                                  )}
                                 </div>
-                                <p className={`inline text-xs pr-10 ${task.completed ? "line-through text-white/60" : "text-white/90"}`}>
-                                  {task.task}
-                                </p>
-                                <small className="text-white/60 block mt-1 text-[10px]">
-                                  Type: {task.type}
-                                  {task.type === "goal" && ` | Progress: ${task.progress ?? 0}/${task.goal ?? "N/A"}`}
-                                  | Status: {task.completed ? <span className="text-green-400 font-semibold">Completed</span> : <span className={textAccent}>In Progress</span>}
-                                  | Assigned: {formatIssuedAt(task.issueddate, task.issuedtime)} | By: {task.issuedby || "Unknown"}
-                                </small>
-                              </div>
-                            )) : (
-                              <p className="text-white/50 italic text-xs">No tasks assigned.</p>
-                            )}
-                          </div>
-                          <h5 className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}>
-                            Discipline ({userData.disciplineEntries?.length || 0}):
-                          </h5>
-                          <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs mb-3">
-                            {userData.disciplineEntries && userData.disciplineEntries.length > 0 ? (
-                              userData.disciplineEntries.map((entry) => (
-                                <div key={entry.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50">
-                                  <p className="text-white/90 font-medium uppercase text-[10px]">{entry.type}</p>
-                                  <p className="text-white/80 truncate">{entry.disciplinenotes}</p>
-                                  <small className="text-white/60 block mt-0.5 text-[10px]">
-                                    By: {entry.issuedby} on {formatIssuedAt(entry.issueddate, entry.issuedtime)}
-                                  </small>
+                              </AccordionContent>
+                            </AccordionItem>
+
+                            {/* Discipline Accordion Item */}
+                            <AccordionItem value="discipline" className="border-b border-[#f3c700]/30">
+                              <AccordionTrigger className={`py-2 px-1 text-sm font-medium ${textSecondary} italic hover:no-underline hover:text-white`}>
+                                Discipline ({userData.disciplineEntries?.length || 0})
+                              </AccordionTrigger>
+                              <AccordionContent className="pb-2 px-1">
+                                <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
+                                  {userData.disciplineEntries && userData.disciplineEntries.length > 0 ? (
+                                    userData.disciplineEntries.map((entry) => (
+                                      <div key={entry.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50">
+                                        <p className="text-white/90 font-medium uppercase text-[10px]">{entry.type}</p>
+                                        <p className="text-white/80 truncate">{entry.disciplinenotes}</p>
+                                        <small className="text-white/60 block mt-0.5 text-[10px]">
+                                          By: {entry.issuedby} on {formatIssuedAt(entry.issueddate, entry.issuedtime)}
+                                        </small>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-white/50 italic">No discipline.</p>
+                                  )}
                                 </div>
-                              ))
-                            ) : (
-                              <p className="text-white/50 italic">No discipline.</p>
-                            )}
-                          </div>
-                          <h5 className={`text-sm font-medium ${textSecondary} italic mb-1 mt-3 border-t border-[#f3c700]/50 pt-2`}>
-                            Notes ({userData.generalNotes?.length || 0}):
-                          </h5>
-                          <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
-                            {userData.generalNotes && userData.generalNotes.length > 0 ? (
-                              userData.generalNotes.map((note) => (
-                                <div key={note.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50">
-                                  <p className="text-white/90 font-medium text-[10px]">{note.note}</p>
-                                  <small className="text-white/60 block mt-0.5 text-[10px]">
-                                    By: {note.issuedby} on {formatIssuedAt(note.issueddate, note.issuedtime)}
-                                  </small>
+                              </AccordionContent>
+                            </AccordionItem>
+
+                            {/* Notes Accordion Item */}
+                            <AccordionItem value="notes" className="border-b-0"> {/* Remove border-bottom from last item */}
+                              <AccordionTrigger className={`py-2 px-1 text-sm font-medium ${textSecondary} italic hover:no-underline hover:text-white`}>
+                                Notes ({userData.generalNotes?.length || 0})
+                              </AccordionTrigger>
+                              <AccordionContent className="pb-2 px-1">
+                                <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
+                                  {userData.generalNotes && userData.generalNotes.length > 0 ? (
+                                    userData.generalNotes.map((note) => (
+                                      <div key={note.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50">
+                                        <p className="text-white/90 font-medium text-[10px]">{note.note}</p>
+                                        <small className="text-white/60 block mt-0.5 text-[10px]">
+                                          By: {note.issuedby} on {formatIssuedAt(note.issueddate, note.issuedtime)}
+                                        </small>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-white/50 italic">No notes.</p>
+                                  )}
                                 </div>
-                              ))
-                            ) : (
-                              <p className="text-white/50 italic">No notes.</p>
-                            )}
-                          </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+
                         </div>
                         <div className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center">
                           <span className="text-xs text-white/50 italic">
