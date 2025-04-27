@@ -1,21 +1,24 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-    collection,
-    query,
-    where,
-    orderBy,
-    onSnapshot,
-    addDoc,
-    serverTimestamp,
-    getDocs,
-    limit,
-    doc,
-    getDoc,
-    Timestamp,
-    QuerySnapshot,
-    DocumentData,
+    collection, // Firestore
+    query, // Firestore
+    where, // Firestore
+    orderBy, // Firestore
+    onSnapshot, // Firestore (real-time listener)
+    addDoc, // Firestore (write)
+    serverTimestamp, // Firestore (write)
+    getDocs, // Firestore (read)
+    limit, // Firestore
+    doc, // Firestore
+    getDoc, // Firestore (read)
+    updateDoc, // Firestore (write)
+    arrayUnion, // Firestore (write)
+    arrayRemove, // Firestore (write)
+    Timestamp, // Firestore
+    QuerySnapshot, // Firestore
+    DocumentData, // Firestore
 } from 'firebase/firestore';
-import { db as dbFirestore } from '../../firebase';
+import { db as dbFirestore } from '../../firebase'; // Firestore database instance
 import { useAuth } from '../../context/AuthContext';
 import { User } from '../../types/User';
 import { ChatGroup } from '../../types/ChatGroup';
@@ -28,9 +31,10 @@ import { ChatInput } from '../ui/chat/chat-input';
 import { toast } from 'react-toastify';
 import { hasCIUPermission } from '../../utils/ciuUtils';
 import { cn } from '../../lib/utils';
-import { FaUsers, FaUser, FaPlus } from 'react-icons/fa';
-import CreateGroupModal from './CreateGroupModal'; // Import the new modal
-import { formatUserName, getAvatarFallback } from './utils'; // Import utils
+import { FaUsers, FaUser, FaPlus, FaSmile } from 'react-icons/fa'; // Add FaSmile
+import CreateGroupModal from './CreateGroupModal';
+import { formatUserName, getAvatarFallback } from './utils';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'; // Import picker
 
 interface Message {
     id: string;
@@ -41,7 +45,9 @@ interface Message {
     senderName?: string;
 }
 
-const CIUChatInterface: React.FC = () => {
+const TYPING_TIMEOUT_MS = 2000; // 2 seconds
+
+export const CIUChatInterface: React.FC = () => {
     const { user: currentUser } = useAuth();
     const [ciuPersonnel, setCiuPersonnel] = useState<User[]>([]);
     const [chatGroups, setChatGroups] = useState<ChatGroup[]>([]);
@@ -53,11 +59,16 @@ const CIUChatInterface: React.FC = () => {
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
-    const messageContainerRef = useRef<HTMLDivElement>(null); // Ref for the scrollable message container
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false); // State for emoji picker visibility
+    const messageContainerRef = useRef<HTMLDivElement>(null);
+    const [typingIndicatorUsers, setTypingIndicatorUsers] = useState<string[]>([]); // State for typing users' emails
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Ref for debounce timer
+    const currentChatIdRef = useRef<string | null>(null); // Ref to store current chat ID for cleanup
 
     // Function to scroll to the bottom of the message list container
     const scrollToBottom = () => {
         if (messageContainerRef.current) {
+            // Use 'auto' behavior for immediate scroll after receiving/sending messages
             messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
         }
     };
@@ -156,21 +167,106 @@ const CIUChatInterface: React.FC = () => {
         return [sanitize(email1), sanitize(email2)].sort().join('-');
     };
 
-    // Fetch Messages when selectedChat changes
+    // --- Typing Indicator Logic ---
+
+    const getChatDocRef = useCallback((chatId: string | null) => {
+        if (!chatId) return null;
+        return doc(dbFirestore, 'chats', chatId);
+    }, []);
+
+    // Function to signal that the current user IS typing
+    const signalTyping = useCallback(async () => {
+        const chatId = currentChatIdRef.current;
+        const userEmail = currentUser?.email;
+        if (!chatId || !userEmail) return;
+
+        const chatDocRef = getChatDocRef(chatId);
+        if (!chatDocRef) return;
+
+        try {
+            // Check if doc exists before updating? Maybe not necessary for arrayUnion
+            await updateDoc(chatDocRef, {
+                typingUsers: arrayUnion(userEmail)
+            });
+        } catch (err) {
+            console.error("Error signaling typing:", err);
+            // Handle potential errors (e.g., doc doesn't exist yet - might need creation)
+        }
+    }, [currentUser?.email, getChatDocRef]);
+
+    // Function to signal that the current user has STOPPED typing
+    const signalStoppedTyping = useCallback(async () => {
+        const chatId = currentChatIdRef.current;
+        const userEmail = currentUser?.email;
+        if (!chatId || !userEmail) return;
+
+        const chatDocRef = getChatDocRef(chatId);
+        if (!chatDocRef) return;
+
+        try {
+            await updateDoc(chatDocRef, {
+                typingUsers: arrayRemove(userEmail)
+            });
+        } catch (err) {
+            console.error("Error signaling stopped typing:", err);
+        }
+    }, [currentUser?.email, getChatDocRef]);
+
+    // Effect to handle user input changes for typing indicator
     useEffect(() => {
-        // Reset messages if no chat is selected or user is missing
+        if (!selectedChat || !currentUser?.email) return; // Only run if a chat is selected and user exists
+
+        if (newMessage.trim()) {
+            // User is typing
+            signalTyping(); // Update Firestore immediately
+
+            // Clear existing timeout
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+
+            // Set a new timeout to signal stopped typing
+            typingTimeoutRef.current = setTimeout(() => {
+                signalStoppedTyping();
+            }, TYPING_TIMEOUT_MS);
+
+        } else {
+            // Input is empty, ensure stopped typing signal is sent if timeout hasn't fired
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+                typingTimeoutRef.current = null;
+                signalStoppedTyping(); // Signal stopped immediately if input cleared
+            }
+        }
+
+        // Cleanup on component unmount or newMessage change
+        return () => {
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            // Don't signal stopped typing here on every keystroke cleanup, only on unmount/chat change
+        };
+    }, [newMessage, selectedChat, currentUser?.email, signalTyping, signalStoppedTyping]);
+
+
+    // Fetch Messages and Listen for Typing Indicators
+    useEffect(() => {
+        // Reset messages and typing indicators if no chat is selected or user is missing
         if (!currentUser?.email || !selectedChat) {
             setMessages([]);
+            setTypingIndicatorUsers([]);
+            currentChatIdRef.current = null; // Clear current chat ID ref
             return;
         }
 
         setLoadingMessages(true);
         let chatId = '';
-        if ('groupName' in selectedChat) { // Check if it's a ChatGroup
-            chatId = selectedChat.id; // Use group document ID
-        } else if (selectedChat.email) { // Check if it's a User
+        if ('groupName' in selectedChat) {
+            chatId = selectedChat.id;
+        } else if (selectedChat.email) {
             chatId = getDirectChatId(currentUser.email, selectedChat.email);
         }
+        currentChatIdRef.current = chatId; // Store current chat ID
 
         if (!chatId) {
              setLoadingMessages(false);
@@ -179,10 +275,10 @@ const CIUChatInterface: React.FC = () => {
              return;
         }
 
+        // Listener for Messages (Subcollection)
         const messagesRef = collection(dbFirestore, 'chats', chatId, 'messages');
         const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(100));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribeMessages = onSnapshot(q, (snapshot) => {
             const fetchedMessages: Message[] = [];
             snapshot.forEach(doc => {
                  const data = doc.data();
@@ -200,9 +296,7 @@ const CIUChatInterface: React.FC = () => {
              setMessages(fetchedMessages);
              setLoadingMessages(false);
              setError(null);
-             // Scroll to bottom after messages are updated
-             // Use setTimeout to ensure DOM update before scrolling
-             setTimeout(scrollToBottom, 50); // Small delay might help
+             setTimeout(scrollToBottom, 50);
         }, (err) => {
             console.error("Error fetching messages:", err);
             setError("Failed to load messages.");
@@ -211,20 +305,57 @@ const CIUChatInterface: React.FC = () => {
             setLoadingMessages(false);
         });
 
-        return () => unsubscribe();
-    }, [currentUser?.email, selectedChat]);
+        // Listener for Chat Document (Typing Indicators, Group Info)
+        const chatDocRef = getChatDocRef(chatId); // References doc(dbFirestore, 'chats', chatId)
+        let unsubscribeChatDoc: (() => void) | null = null;
+        if (chatDocRef) {
+            unsubscribeChatDoc = onSnapshot(chatDocRef, (docSnapshot) => {
+                if (docSnapshot.exists()) {
+                    const data = docSnapshot.data();
+                    const typingEmails = (data?.typingUsers || []) as string[];
+                    // Filter out the current user and update state
+                    setTypingIndicatorUsers(typingEmails.filter(email => email !== currentUser.email));
+                } else {
+                    // Document might not exist yet for direct chats
+                    setTypingIndicatorUsers([]);
+                }
+            }, (err) => {
+                console.error("Error listening to chat document:", err);
+                setTypingIndicatorUsers([]);
+            });
+        }
+
+        // Cleanup function
+        return () => {
+            unsubscribeMessages();
+            if (unsubscribeChatDoc) {
+                unsubscribeChatDoc();
+            }
+            // Signal stopped typing for the current user in this chat when switching or unmounting
+            if (currentChatIdRef.current && currentUser?.email) {
+                 const cleanupChatRef = getChatDocRef(currentChatIdRef.current);
+                 if (cleanupChatRef) {
+                     updateDoc(cleanupChatRef, {
+                         typingUsers: arrayRemove(currentUser.email)
+                     }).catch(err => console.error("Error cleaning up typing status:", err));
+                 }
+            }
+            // Clear timeout ref on cleanup
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+                typingTimeoutRef.current = null;
+            }
+        };
+    }, [currentUser?.email, selectedChat, getChatDocRef]); // Add getChatDocRef dependency
 
 
     // Scroll to bottom when selectedChat changes and messages load initially
     useEffect(() => {
         // Only scroll if messages are loaded and a chat is selected
         if (!loadingMessages && selectedChat && messageContainerRef.current) {
-             // Scroll immediately on chat change/initial load
              messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
-             // Optionally add a small delay if needed for complex rendering
-             // setTimeout(scrollToBottom, 100);
         }
-    }, [loadingMessages, selectedChat, messages]); // Add messages dependency
+    }, [loadingMessages, selectedChat, messages]);
 
 
     const handleSendMessage = async () => {
@@ -254,70 +385,83 @@ const CIUChatInterface: React.FC = () => {
         const messagesRef = collection(dbFirestore, 'chats', chatId, 'messages');
 
         try {
+            // Clear timeout and signal stopped typing *before* sending message
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+                typingTimeoutRef.current = null;
+            }
+            await signalStoppedTyping(); // Ensure typing indicator is removed
+
+            // Add the message to the 'messages' subcollection of the chat
             await addDoc(messagesRef, messageData);
-            setNewMessage('');
-            // Scroll to bottom after sending a message
-            // Use setTimeout to ensure the new message is rendered before scrolling
-            setTimeout(scrollToBottom, 50);
-            // TODO: Optionally update group's lastMessageTimestamp in the 'chats/{chatId}' doc
+
+            // Update the last message timestamp on the main chat document (optional but good for sorting)
+            const chatDocRef = getChatDocRef(chatId);
+            if (chatDocRef) {
+                await updateDoc(chatDocRef, {
+                    lastMessageTimestamp: serverTimestamp(), // Update timestamp
+                    // Optionally update last message text snippet
+                    // lastMessageText: messageData.text.substring(0, 50) // Example snippet
+                }).catch(err => console.warn("Could not update chat metadata:", err)); // Non-critical error
+            }
+
+            setNewMessage(''); // Clear the input field
+            // No need to manually add message to state, Firestore listener will do it
+            // setTimeout(scrollToBottom, 50); // Scroll after state updates from listener
+
         } catch (err) {
             console.error("Error sending message:", err);
             toast.error("Failed to send message.");
+            // Don't re-throw here unless needed upstream
         }
     };
 
-    const handleChatSelect = (chatItem: User | ChatGroup) => {
-        // Prevent selecting self if it's a User object
-        if (!('groupName' in chatItem) && chatItem.email === currentUser?.email) {
-             console.warn("Attempted to select self for chat.");
-             return;
-        }
-        setSelectedChat(chatItem);
-        setMessages([]); // Clear previous messages
-        setError(null); // Clear errors
-    };
 
-    // Handler to open the create group modal
-    const handleOpenCreateGroupModal = () => {
-        setIsCreateGroupModalOpen(true);
-    };
-
-    // Handler to close the create group modal
-    const handleCloseCreateGroupModal = () => {
-        setIsCreateGroupModalOpen(false);
-    };
-
-
-    // Implement group creation logic
-    const handleCreateGroup = async (name: string, members: string[]) => {
+    // --- Group Creation Logic ---
+    const handleCreateGroup = async (name: string, selectedMemberEmails: string[]) => {
         if (!currentUser?.email) {
-            toast.error("Authentication error. Cannot create group.");
-            throw new Error("User not authenticated"); // Throw error to signal failure to modal
+            toast.error("Cannot create group without logged-in user.");
+            return;
         }
-        if (!name || members.length === 0) {
-             toast.error("Group name and members are required.");
-             throw new Error("Invalid group data");
+        if (!name.trim()) {
+            toast.warn("Group name cannot be empty.");
+            return;
+        }
+        if (selectedMemberEmails.length === 0) {
+            toast.warn("Please select at least one member for the group.");
+            return;
         }
 
-        // Ensure current user is included
-        const finalMembers = Array.from(new Set([...members, currentUser.email]));
+        // Include the current user in the members list
+        const allMemberEmails = Array.from(new Set([currentUser.email, ...selectedMemberEmails]));
+
+        const groupData: Omit<ChatGroup, 'id'> = {
+            groupName: name.trim(),
+            type: 'group',
+            members: allMemberEmails, // Store member emails
+            createdBy: currentUser.email,
+            createdAt: serverTimestamp(),
+            lastMessageTimestamp: serverTimestamp(), // Initialize timestamp
+            typingUsers: [], // Initialize typing users
+        };
 
         try {
-            const groupData: Omit<ChatGroup, 'id'> = {
-                type: 'group',
-                groupName: name,
-                members: finalMembers,
-                createdAt: serverTimestamp() as Timestamp,
-                // lastMessage: '', // Initialize if needed
-                // lastMessageTimestamp: serverTimestamp() as Timestamp, // Initialize if needed
-            };
+            // Creating a new group document in the 'chats' collection
             const docRef = await addDoc(collection(dbFirestore, 'chats'), groupData);
             toast.success(`Group "${name}" created successfully.`);
             handleCloseCreateGroupModal(); // Close modal on success
 
             // Optionally, select the newly created group
-            // Need to fetch the created group data or construct it to select it
-            // For now, just close the modal. User can select from the list.
+            // Need to construct the group object to select it, approximating timestamps for immediate UI update
+            const newGroup: ChatGroup = {
+                // Spread the data sent to Firestore, but override timestamps for local state
+                ...groupData,
+                id: docRef.id,
+                // Use client-side timestamps for immediate state update as serverTimestamp() is a sentinel
+                createdAt: Timestamp.now(), // Use client-side timestamp for local state
+                lastMessageTimestamp: Timestamp.now() // Use client-side timestamp for local state
+            };
+            setSelectedChat(newGroup); // Select the new group
 
         } catch (err) {
             console.error("Error creating group:", err);
@@ -326,14 +470,66 @@ const CIUChatInterface: React.FC = () => {
         }
     };
 
+
+    // Helper to get names of typing users
+    const getTypingUserNames = () => {
+        return typingIndicatorUsers
+            .map(email => {
+                const user = ciuPersonnel.find(p => p.email === email);
+                return user ? formatUserName(user) : 'Someone';
+            })
+            .join(', ');
+    };
+
     const isLoading = loadingUsers || loadingGroups; // Combined loading state
 
     // Determine selected chat identifier for comparison
     const selectedChatId = selectedChat ? ('groupName' in selectedChat ? selectedChat.id : selectedChat.email) : null;
 
 
+    // --- Emoji Picker Handler ---
+    const onEmojiClick = (emojiData: EmojiClickData, event: MouseEvent) => {
+        setNewMessage(prevMessage => prevMessage + emojiData.emoji);
+        // Optionally close picker after selection, or keep it open
+        // setShowEmojiPicker(false);
+    };
+
+    // --- Modal and Chat Selection Handlers ---
+    const handleCloseCreateGroupModal = () => {
+        setIsCreateGroupModalOpen(false);
+    };
+
+    const handleOpenCreateGroupModal = () => {
+        setIsCreateGroupModalOpen(true);
+    };
+
+    const handleChatSelect = useCallback((chatTarget: User | ChatGroup) => {
+        // Clear previous typing indicator when switching chats
+        if (currentChatIdRef.current && currentUser?.email) {
+            const cleanupChatRef = getChatDocRef(currentChatIdRef.current);
+            if (cleanupChatRef) {
+                updateDoc(cleanupChatRef, {
+                    typingUsers: arrayRemove(currentUser.email)
+                }).catch(err => console.error("Error cleaning up typing status on chat switch:", err));
+            }
+        }
+        // Clear timeout ref on chat switch
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = null;
+        }
+
+        setSelectedChat(chatTarget);
+        setMessages([]); // Clear messages immediately on selection
+        setTypingIndicatorUsers([]); // Clear typing indicators immediately
+        setNewMessage(''); // Clear input field
+        setShowEmojiPicker(false); // Hide emoji picker
+        // The useEffect hook for fetching messages will trigger automatically
+    }, [currentUser?.email, getChatDocRef]); // Add dependencies
+
     return (
-        <div className="flex h-[calc(100vh-200px)] border border-border rounded-lg bg-card text-card-foreground overflow-hidden">
+        // Adjust overall height, e.g., subtract less from 100vh
+        <div className="flex h-[calc(100vh-180px)] border border-border rounded-lg bg-card text-card-foreground overflow-hidden">
             {/* User List Sidebar */}
             <div className="w-1/4 border-r border-border p-2 flex flex-col">
                 {/* Sidebar Header with Create Group Button */}
@@ -409,6 +605,7 @@ const CIUChatInterface: React.FC = () => {
                 {selectedChat ? (
                     <>
                         {/* Chat Header */}
+                        {/* Reduce padding slightly if needed, e.g., p-2 */}
                         <div className="border-b border-border p-3 flex items-center bg-card space-x-2">
                              {/* Main Avatar (Group or User) */}
                              <Avatar className="h-8 w-8 flex-shrink-0">
@@ -438,7 +635,7 @@ const CIUChatInterface: React.FC = () => {
                                         .map(member => member && ( // Add null check for member
                                             <Avatar key={member.id} className="h-6 w-6 border-2 border-card" title={formatUserName(member)}>
                                                 <AvatarImage src={member.photoURL || undefined} alt={formatUserName(member)} />
-                                                <AvatarFallback className="text-xs">{getAvatarFallback(member)}</AvatarFallback>
+                                                <AvatarFallback className="text-xs">{getAvatarFallback(member || null)}</AvatarFallback>
                                             </Avatar>
                                         ))
                                     }
@@ -453,10 +650,9 @@ const CIUChatInterface: React.FC = () => {
                         </div>
 
                         {/* Scrollable Message Container */}
-                        <div ref={messageContainerRef} className="flex-grow p-4 overflow-y-auto space-y-3">
-                            <ChatMessageList
-                                className="space-y-3" // Keep spacing if needed
-                            >
+                        {/* Reduce padding slightly if needed, e.g., p-3 */}
+                        <div ref={messageContainerRef} className="flex-grow p-4 overflow-y-auto space-y-3 relative"> {/* Add relative positioning if needed for picker */}
+                            <ChatMessageList className="space-y-3">
                                 {messages.map(msg => {
                                     const isSent = msg.senderId === currentUser?.email;
                                     const senderUser = isSent
@@ -509,49 +705,98 @@ const CIUChatInterface: React.FC = () => {
                                         </ChatBubble>
                                     );
                                 })}
+
+                                {/* Loading Indicator */}
                                 {loadingMessages && (
                                     <ChatBubble variant="received" className="self-start bg-muted px-3 py-2 rounded-lg shadow-sm">
                                          <ChatBubbleAvatar fallback="?" className="h-6 w-6 mr-2" />
                                          <ChatBubbleMessage isLoading={true} className="text-sm text-foreground">&nbsp;</ChatBubbleMessage>
                                     </ChatBubble>
                                 )}
+
+                                {/* Typing Indicator */}
+                                {typingIndicatorUsers.length > 0 && (
+                                    <ChatBubble variant="received" className="self-start bg-muted px-3 py-2 rounded-lg shadow-sm max-w-[75%]">
+                                        {/* Find avatar for the first typing user */}
+                                        {(() => {
+                                            const firstTyper = ciuPersonnel.find(p => p.email === typingIndicatorUsers[0]);
+                                            return (
+                                                <ChatBubbleAvatar
+                                                    src={firstTyper?.photoURL || undefined}
+                                                    fallback={getAvatarFallback(firstTyper || null)}
+                                                    className="h-6 w-6 mr-2"
+                                                />
+                                            );
+                                        })()}
+                                        <div className="flex flex-col">
+                                             <p className="text-xs text-muted-foreground/80 mb-0.5 font-medium">
+                                                {getTypingUserNames()} {typingIndicatorUsers.length === 1 ? 'is' : 'are'} typing...
+                                             </p>
+                                             {/* Optional: Add animated dots */}
+                                             <div className="flex space-x-1 items-center h-4">
+                                                <span className="h-1.5 w-1.5 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                                <span className="h-1.5 w-1.5 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                                <span className="h-1.5 w-1.5 bg-muted-foreground/60 rounded-full animate-bounce"></span>
+                                             </div>
+                                        </div>
+                                    </ChatBubble>
+                                )}
                             </ChatMessageList>
                         </div>
 
-                        {/* Message Input */}
-                        <div className="border-t border-border p-3 bg-card">
-                            <ChatInput
-                                value={newMessage}
-                                onChange={(e) => setNewMessage(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleSendMessage();
-                                    }
-                                }}
-                                placeholder={`Message ${'groupName' in selectedChat ? selectedChat.groupName : formatUserName(selectedChat)}...`}
-                                className="rounded-md"
-                            />
+                        {/* Message Input Area */}
+                        {/* Reduce padding slightly if needed, e.g., p-2 */}
+                        <div className="border-t border-border p-3 bg-card relative"> {/* Add relative positioning */}
+                            {/* Emoji Picker Popover */}
+                            {showEmojiPicker && (
+                                <div className="absolute bottom-full right-2 mb-2 z-10"> {/* Position picker above input */}
+                                    <EmojiPicker
+                                        onEmojiClick={onEmojiClick}
+                                        // Optional: Add theme, size, etc.
+                                        // theme={Theme.DARK} // Example if using themes
+                                        // height={350}
+                                        // width="100%"
+                                    />
+                                </div>
+                            )}
+                            <div className="flex items-center space-x-2">
+                                <ChatInput
+                                    value={newMessage}
+                                    onChange={(e) => {
+                                        setNewMessage(e.target.value);
+                                        // Close emoji picker when user starts typing manually
+                                        if (showEmojiPicker) {
+                                            setShowEmojiPicker(false);
+                                        }
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSendMessage();
+                                        }
+                                    }}
+                                    placeholder={`Message ${'groupName' in selectedChat ? selectedChat.groupName : formatUserName(selectedChat)}...`}
+                                    className="rounded-md flex-grow" // Make input grow
+                                />
+                            </div>
                         </div>
                     </>
                 ) : (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                        <p>Select a user or group to start chatting.</p>
+                    <div className="flex-grow flex items-center justify-center">
+                        <p className="text-muted-foreground">Select a chat to start messaging</p>
                     </div>
                 )}
             </div>
 
-             {/* Create Group Modal */}
-             <CreateGroupModal
+            {/* Create Group Modal */}
+            <CreateGroupModal
                 isOpen={isCreateGroupModalOpen}
                 onClose={handleCloseCreateGroupModal}
-                personnel={ciuPersonnel} // Pass personnel list for member selection
-                currentUserEmail={currentUser?.email} // Pass current user's email
-                onCreate={handleCreateGroup}
-             />
+                onCreateGroup={handleCreateGroup}
+                personnel={ciuPersonnel}
+                currentUserEmail={currentUser?.email} // Pass the current user's email
+            />
         </div>
     );
 };
-
-export default CIUChatInterface;
 

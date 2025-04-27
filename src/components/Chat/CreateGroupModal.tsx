@@ -14,7 +14,7 @@ interface CreateGroupModalProps {
     onClose: () => void;
     personnel: User[];
     currentUserEmail: string | null | undefined; // Pass current user's email
-    onCreate: (name: string, members: string[]) => Promise<void>;
+    onCreateGroup: (name: string, members: string[]) => Promise<void>; // Add this line
 }
 
 const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
@@ -22,7 +22,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
     onClose,
     personnel,
     currentUserEmail,
-    onCreate
+    onCreateGroup // Use the correct prop name from the interface
 }) => {
     const [groupName, setGroupName] = useState('');
     const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
@@ -60,13 +60,15 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
         }
 
         try {
-            await onCreate(groupName.trim(), memberList);
+            await onCreateGroup(groupName.trim(), memberList); // Use renamed prop here
             // Reset state on success before closing
             setGroupName('');
             setSelectedMembers(new Set());
-            onClose(); // Close is handled by onCreate in the parent now
+            // onClose(); // Close is handled by onCreate in the parent now
         } catch (error) {
             // Error is handled by onCreate in the parent
+            // Optionally show a generic error toast here if needed
+            // toast.error("Failed to create group.");
         } finally {
             setIsCreating(false);
         }

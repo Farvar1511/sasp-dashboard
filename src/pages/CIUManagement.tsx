@@ -22,7 +22,7 @@ import CIUPersonnelTab from '../components/CIUPersonnel/CIUPersonnelTab';
 import CreateCaseModal from '../components/CaseFiles/CreateCaseModal';
 import EditCaseModal from '../components/CaseFiles/CaseDetailsModal';
 // Import Chat components
-import CIUChatInterface from '../components/Chat/CIUChatInterface'; // Import the new chat component
+import { CIUChatInterface } from '../components/Chat/CIUChatInterface'; // Changed to named import
 
 const CIUManagement: React.FC = () => {
   const { user: currentUser, loading: authLoading } = useAuth();
