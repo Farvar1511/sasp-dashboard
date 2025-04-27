@@ -93,33 +93,80 @@
 }
 
 :root {
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  /* --sidebar-border: hsl(220 13% 91%); /* Use theme --border */
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  /* Apply dark theme variables directly to root */
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%); /* Dark theme border */
 
-  /* Define light theme --border using HSL */
-  --border: 220 13% 91%; /* Corresponds roughly to #e5e7eb (gray-200) */
+  --border: oklch(1 0 0 / 10%); /* Dark theme border */
+  --radius: 0.625rem;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0); /* White */
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0); /* White */
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0); /* White */
+  --primary: oklch(0.269 0 0); /* Dark grey (was light) */
+  --primary-foreground: oklch(0.985 0 0); /* White (was dark) */
+  --secondary: oklch(0.269 0 0); /* Dark grey */
+  --secondary-foreground: oklch(0.985 0 0); /* White text for dark secondary background */
+  --muted: oklch(0.269 0 0); /* Dark grey */
+  --muted-foreground: oklch(0.85 0 0); /* Lighter grey text for dark muted background */
+  --accent: oklch(0.269 0 0); /* Dark grey */
+  --accent-foreground: oklch(0.985 0 0); /* White text for dark accent background */
+  --destructive: oklch(0.704 0.191 22.216);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
 }
 
+/* Keep the .dark block if you still want theme switching, otherwise it can be removed */
 .dark {
-  --sidebar: hsl(240 5.9% 10%);
-  --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 3.7% 15.9%);
-  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
   /* --sidebar-border: hsl(240 3.7% 15.9%); /* Use theme --border */
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --sidebar-ring: oklch(0.556 0 0);
 
   /* Define dark theme --border using HSL */
-  --border: 215 20% 25%; /* Corresponds roughly to #374151 (gray-700) */
+  --border: oklch(1 0 0 / 10%);
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0); /* White */
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0); /* White */
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0); /* White */
+  /* Swap primary and primary-foreground */
+  --primary: oklch(0.269 0 0); /* Dark grey (was light) */
+  --primary-foreground: oklch(0.985 0 0); /* White (was dark) */
+  --secondary: oklch(0.269 0 0); /* Dark grey */
+  --secondary-foreground: oklch(0.985 0 0); /* White text for dark secondary background */
+  --muted: oklch(0.269 0 0); /* Dark grey */
+  --muted-foreground: oklch(0.85 0 0); /* Lighter grey text for dark muted background */
+  --accent: oklch(0.269 0 0); /* Dark grey */
+  --accent-foreground: oklch(0.985 0 0); /* White text for dark accent background */
+  --destructive: oklch(0.704 0.191 22.216);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar-border: oklch(1 0 0 / 10%);
 }
-
 @theme inline {
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -129,4 +176,33 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--border); /* Use theme --border */
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
+
+

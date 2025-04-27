@@ -122,7 +122,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     isActive: boolean;
     isPlaceholder: boolean;
     isadmin?: boolean;
-    joinDate: string; // Will hold MM/DD/YY for display
+    joinDate: string; 
     lastPromotionDate: string; // Will hold MM/DD/YY for display
     loaEndDate: string; // Will hold MM/DD/YY for display
     loaStartDate: string; // Will hold MM/DD/YY for display

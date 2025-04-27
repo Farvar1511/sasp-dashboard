@@ -15,10 +15,8 @@ import { FaPlus } from 'react-icons/fa6'; // Use the correct submodule if needed
 import { toast } from 'react-toastify'; // Ensure toast is imported
 import { Skeleton } from '../ui/skeleton'; // Ensure Skeleton is imported
 import ConfirmationModal from '../ConfirmationModal'; // Ensure ConfirmationModal is imported
-// Import types from ciuUtils
-import { Gang, GangVehicle, GangNote } from '../../utils/ciuUtils';
-// Import the GangRoster component
-import GangRoster from './GangRoster';
+import { Gang, GangVehicle, GangNote } from '../../utils/ciuUtils'; // Import types from ciuUtils
+import GangRoster from './GangRoster'; // Import the GangRoster component
 
 // --- Firestore Collection Constants ---
 const GANGS_COLLECTION = "gangs";
@@ -295,7 +293,7 @@ const GangManagementTab: React.FC = () => {
                 level: infoEditState.level,
                 photoUrl: infoEditState.photoUrl ?? '', // Use ?? '' to save empty string if null/undefined
                 vehiclesInfo: infoEditState.vehiclesInfo ?? '', // Use ?? '' to save empty string if null/undefined
-                updatedAt: serverTimestamp(),
+                updatedAt: serverTimestamp() as Timestamp, // Cast to Timestamp
                 updatedByName: currentUser.name || currentUser.displayName || "Unknown",
             };
             await updateDoc(gangDocRef, updatedData);
@@ -334,7 +332,7 @@ const GangManagementTab: React.FC = () => {
             const gangDocRef = doc(dbFirestore, GANGS_COLLECTION, selectedGangId);
             await updateDoc(gangDocRef, {
                 clothingInfo: clothingEditState || null,
-                updatedAt: serverTimestamp(),
+                updatedAt: serverTimestamp() as Timestamp, // Cast to Timestamp
                 updatedByName: currentUser.name || currentUser.displayName || "Unknown",
             });
             setClothingInfo(clothingEditState); // Update local state
@@ -365,7 +363,7 @@ const GangManagementTab: React.FC = () => {
             const gangDocRef = doc(dbFirestore, GANGS_COLLECTION, selectedGangId);
             await updateDoc(gangDocRef, {
                 locationInfo: locationEditState || null,
-                updatedAt: serverTimestamp(),
+                updatedAt: serverTimestamp() as Timestamp, // Cast to Timestamp
                 updatedByName: currentUser.name || currentUser.displayName || "Unknown",
             });
             setLocationInfo(locationEditState); // Update local state
@@ -396,7 +394,7 @@ const GangManagementTab: React.FC = () => {
             const gangDocRef = doc(dbFirestore, GANGS_COLLECTION, selectedGangId);
             await updateDoc(gangDocRef, {
                 vehiclesInfo: generalVehiclesInfoEditState || null, // Use correct state
-                updatedAt: serverTimestamp(),
+                updatedAt: serverTimestamp() as Timestamp, // Cast to Timestamp
                 updatedByName: currentUser.name || currentUser.displayName || "Unknown",
             });
             setVehiclesInfo(generalVehiclesInfoEditState); // Update local state
@@ -427,7 +425,7 @@ const GangManagementTab: React.FC = () => {
             const gangDocRef = doc(dbFirestore, GANGS_COLLECTION, selectedGangId);
             await updateDoc(gangDocRef, {
                 notes: mainNotesEditState || null, // Use correct state and field name 'notes'
-                updatedAt: serverTimestamp(),
+                updatedAt: serverTimestamp() as Timestamp, // Cast to Timestamp
                 updatedByName: currentUser.name || currentUser.displayName || "Unknown",
             });
             setGeneralNotes(mainNotesEditState); // Update local state
@@ -502,7 +500,7 @@ const GangManagementTab: React.FC = () => {
                 vehiclesInfo: '',
                 notes: '',
                 photoUrl: '',
-                updatedAt: serverTimestamp() as Timestamp, // Also set updatedAt on creation
+                updatedAt: serverTimestamp() as Timestamp, // Also set updatedAt on creation (Cast needed)
                 updatedByName: currentUser.name || "Unknown",
             };
             const newDocRef = await addDoc(gangsColRef, newGangData);
@@ -703,42 +701,42 @@ const GangManagementTab: React.FC = () => {
                         {/* Info Tab Trigger */}
                         <TabsTrigger
                             value="info"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm"
+                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
                         >
                             Info
                         </TabsTrigger>
                         {/* Roster Tab Trigger */}
                         <TabsTrigger
                             value="roster"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm"
+                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
                         >
                             Roster {/* Removed count */}
                         </TabsTrigger>
                         {/* Clothing Tab Trigger */}
                         <TabsTrigger
                             value="clothing"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm"
+                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
                         >
                             Clothing
                         </TabsTrigger>
                         {/* Location Tab Trigger */}
                         <TabsTrigger
                             value="location"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm"
+                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
                         >
                             Location
                         </TabsTrigger>
                         {/* Vehicles Tab Trigger */}
                         <TabsTrigger
                             value="vehicles"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm"
+                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
                         >
                             Vehicles ({vehicles.length}) {/* Show count */}
                         </TabsTrigger>
                         {/* Notes Tab Trigger */}
                         <TabsTrigger
                             value="notes"
-                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm"
+                            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-foreground data-[state=active]:bg-transparent text-muted-foreground px-1 py-2 text-sm" // Changed text-accent to text-foreground
                         >
                             Notes ({notes.length}) {/* Show count */}
                         </TabsTrigger>

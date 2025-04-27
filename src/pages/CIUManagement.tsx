@@ -21,6 +21,8 @@ import CIUPersonnelTab from '../components/CIUPersonnel/CIUPersonnelTab';
 // Import Modals used by CaseFilesTab
 import CreateCaseModal from '../components/CaseFiles/CreateCaseModal';
 import EditCaseModal from '../components/CaseFiles/CaseDetailsModal';
+// Import Chat components
+import CIUChatInterface from '../components/Chat/CIUChatInterface'; // Import the new chat component
 
 const CIUManagement: React.FC = () => {
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -117,26 +119,25 @@ const CIUManagement: React.FC = () => {
 
         {/* Tabs for different CIU sections */}
         <Tabs defaultValue="gangs" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          {/* Update grid columns to 4 */}
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="gangs">Gangs</TabsTrigger>
             <TabsTrigger value="cases">Case Files</TabsTrigger>
             <TabsTrigger value="personnel">Personnel</TabsTrigger>
+            {/* Add new Chat trigger */}
+            <TabsTrigger value="chat">Chat</TabsTrigger>
           </TabsList>
 
           {/* Gangs Tab */}
           <TabsContent value="gangs">
-            {/* Use the new GangManagementTab component */}
             <GangManagementTab />
           </TabsContent>
 
           {/* Case Files Tab */}
           <TabsContent value="cases">
-            {/* Pass modal control handlers and assignee data to CaseFilesTab */}
             <CaseFilesTab
-              // Pass handlers to open modals managed by this parent component
               openCreateModal={handleOpenCreateCaseModal}
               openEditModal={handleOpenEditCaseModal}
-              // Pass loading state for assignees if needed by the tab
               loadingAssignees={loadingUsers}
             />
           </TabsContent>
@@ -144,6 +145,12 @@ const CIUManagement: React.FC = () => {
           {/* Personnel Tab */}
           <TabsContent value="personnel">
             <CIUPersonnelTab />
+          </TabsContent>
+
+          {/* Chat Tab */}
+          <TabsContent value="chat">
+            {/* Render the new Chat Interface Component */}
+            <CIUChatInterface />
           </TabsContent>
         </Tabs>
 

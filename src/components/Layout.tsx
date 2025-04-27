@@ -4,6 +4,9 @@ import { backgroundImages } from "../data/images";
 import { FaChalkboardTeacher } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { computeIsAdmin } from "../utils/isadmin";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"; // Import Avatar components
+import ProfileModal from "./ProfileModal"; // Import the new modal
+import { getInitials } from "../utils/getInitials"; // Helper to get initials
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,9 +16,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, loading } = useAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentBgImage, setCurrentBgImage] = useState<string>("");
-  const [bgOpacity, setBgOpacity] = useState(0); // State for background opacity
+  const [bgOpacity, setBgOpacity] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isFTOQualified, setIsFTOQualified] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // State for modal
 
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * backgroundImages.length);
@@ -61,33 +65,73 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     },
   ];
 
-  return (
-    <div className="relative min-h-screen">
-      <div
-        className="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: `url(${currentBgImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          opacity: bgOpacity, // Apply opacity state
-          transition: "opacity 1.5s ease-in-out", // Add transition effect (1.5 seconds)
-        }}
-      ></div>
+  const handleAvatarClick = () => {
+    setIsProfileModalOpen(true);
+  };
 
-      <div className="flex h-screen relative z-10">
-        <Sidebar
-          isCollapsed={isSidebarCollapsed}
-          setIsCollapsed={setIsSidebarCollapsed}
-        />
-        <main
-          className={`flex-1 overflow-x-hidden overflow-y-auto transition-all duration-300 ease-in-out ${
-            isSidebarCollapsed ? "pl-16" : "pl-64"
-          }`}
-        >
-          {children}
-        </main>
-      </div>
+  const closeProfileModal = () => {
+    setIsProfileModalOpen(false);
+  };
+
+  // Get user initials for fallback
+  const userInitials = user?.name ? getInitials(user.name) : "?";
+
+  return (
+    <div className="flex h-screen bg-background text-foreground">
+      <Sidebar
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
+        // @ts-ignore - Ignoring potential mismatch in SidebarProps definition in Sidebar.tsx
+        navItems={navItems}
+        isAdmin={isAdmin}
+        isFTOQualified={isFTOQualified}
+      />
+      <div
+        className={`page-background transition-opacity duration-1000 ${
+          bgOpacity === 1 ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ backgroundImage: `url(${currentBgImage})` }}
+      ></div>
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-[-1]"></div>
+
+      <main
+        className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${
+          isSidebarCollapsed ? "ml-16" : "ml-64"
+        }`}
+      >
+        {/* Optional Header Bar */}
+        <header className="bg-background/80 backdrop-blur-sm border-b border-border h-16 flex items-center justify-between px-6 sticky top-0 z-10">
+          {/* Placeholder for potential header content like breadcrumbs or search */}
+          <div></div>
+          {/* User Avatar/Menu */}
+          {!loading && user && (
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                {user.rank} {user.name}
+              </span>
+              <Avatar
+                className="h-9 w-9 cursor-pointer hover:ring-2 hover:ring-ring"
+                onClick={handleAvatarClick} // Open modal on click
+              >
+                <AvatarImage src={user.photoURL ?? undefined} alt={user.name ?? "User"} />
+                <AvatarFallback>{userInitials}</AvatarFallback>
+              </Avatar>
+            </div>
+          )}
+        </header>
+
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-y-auto p-6">{children}</div>
+      </main>
+
+      {/* Profile Modal */}
+      {user && (
+          <ProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={closeProfileModal}
+            user={user}
+          />
+      )}
     </div>
   );
 };

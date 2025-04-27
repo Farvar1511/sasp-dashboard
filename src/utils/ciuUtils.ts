@@ -1,6 +1,5 @@
-import { Timestamp, FieldValue } from 'firebase/firestore'; // Import FieldValue
-import { User } from '../types/User'; // Import the User type
-import { computeIsAdmin } from './isadmin'; // Import admin check
+import { User } from '../types/User'; // Assuming User type is here
+import { Timestamp, FieldValue } from 'firebase/firestore'; // Import Timestamp and FieldValue if needed for other types
 
 // Define interfaces
 export interface Gang {
@@ -14,7 +13,7 @@ export interface Gang {
   createdByName?: string;
   createdAt?: Timestamp;
   updatedByName?: string;
-  updatedAt?: Timestamp | FieldValue; // Allow FieldValue for serverTimestamp()
+  updatedAt?: Timestamp; // Allow FieldValue for serverTimestamp()
   notes?: string; // Main notes field for the gang
   photoUrl?: string;
 }
@@ -64,20 +63,22 @@ export interface CaseFile {
   createdAt: Timestamp;
   createdBy: string; // User ID
   createdByName: string; // User Name
-  // Add other potential fields based on CreateCaseModal
-  assignedToId?: string | null;
+  updatedAt: Timestamp | FieldValue;  assignedToId?: string | null;
   assignedToName?: string | null;
   lastUpdatedAt?: Timestamp;
   imageLinks?: string[];
   details?: string; // JSON string containing incidentReport, evidence, photos, location, namesOfInterest, gangInfo, updates
 }
 
-// --- CIU Permissions ---
-// Function to check if a user has permission to manage CIU features
+/**
+ * Checks if a user has the required CIU certification level.
+ * Allowed levels: TRAIN, CERT, LEAD, SUPER
+ */
 export const hasCIUPermission = (user: User | null): boolean => {
-  if (!user) return false;
-
-  const isAdmin = computeIsAdmin(user); // Use the imported helper
-  const ciuCert = user.certifications?.CIU?.toUpperCase();
-  return isAdmin || ciuCert === 'LEAD' || ciuCert === 'SUPER';
+  if (!user || !user.certifications || !user.certifications.CIU) {
+    return false;
+  }
+  const ciuCert = user.certifications.CIU.toUpperCase();
+  // Add 'TRAIN' to the allowed list
+  return ['TRAIN', 'CERT', 'LEAD', 'SUPER'].includes(ciuCert);
 };

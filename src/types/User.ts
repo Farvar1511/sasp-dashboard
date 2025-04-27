@@ -68,6 +68,36 @@ export interface FTOAnnouncement {
 }
 
 // -----------------------------
+// 🔓 Authenticated User (from AuthContext/Firebase Auth)
+// -----------------------------
+export interface User {
+  uid: string; // Firebase Auth UID
+  email: string | null; // Can be null from Auth
+  displayName?: string | null; // Firebase Auth display name
+  photoURL?: string | null; // Add photoURL if not already present
+
+  // --- Fields merged from Firestore '/users' doc ---
+  id?: string; // Firestore doc ID (usually email or name)
+  name?: string; // User's full name from Firestore
+  rank?: string;
+  badge?: string;
+  callsign?: string;
+  role?: string;
+  cid?: string;
+  certifications?: { [key: string]: CertStatus };
+  isActive?: boolean;
+  isAdmin?: boolean; // Calculated based on role/rank
+  isPlaceholder?: boolean;
+  joinDate?: string | Timestamp | null;
+  lastPromotionDate?: string | Timestamp | null;
+  loaStartDate?: string | Timestamp | null;
+  loaEndDate?: string | Timestamp | null;
+  discordId?: string;
+  category?: string | null;
+  lastSignInTime?: Timestamp | string | null; // Last sign-in time from Firebase Auth
+}
+
+// -----------------------------
 // 🧑‍✈️ Full Firestore User Document (Collection: /users)
 // -----------------------------
 export interface RosterUser {
@@ -98,6 +128,7 @@ export interface RosterUser {
   disciplineEntries?: DisciplineEntry[]; // Populated in AdminMenu/Home
   generalNotes?: NoteEntry[]; // Populated in AdminMenu/Home
   assignedVehicleId?: string | null; // Assigned vehicle ID (plate)
+  photoURL?: string | null; // Add photoURL for consistency
 
   lastSignInTime?: Timestamp | string | null; // Ensure this exists if used in AdminMenu
   promotionStatus?: {
@@ -105,35 +136,6 @@ export interface RosterUser {
     hideUntil?: Timestamp | null; // Hide card until this time if majority Deny/Needs Time
     lastVoteTimestamp?: Timestamp; // Track when the last vote affecting status occurred
   };
-}
-
-// -----------------------------
-// 🔓 Authenticated User (from AuthContext/Firebase Auth)
-// -----------------------------
-export interface User {
-  uid: string; // Firebase Auth UID
-  email: string | null; // Can be null from Auth
-  displayName?: string | null; // Firebase Auth display name
-
-  // --- Fields merged from Firestore '/users' doc ---
-  id?: string; // Firestore doc ID (usually email)
-  name?: string; // User's full name from Firestore
-  rank?: string;
-  badge?: string;
-  callsign?: string;
-  role?: string;
-  cid?: string;
-  certifications?: { [key: string]: CertStatus };
-  isActive?: boolean;
-  isAdmin?: boolean; // Calculated based on role/rank
-  isPlaceholder?: boolean;
-  joinDate?: string | Timestamp | null;
-  lastPromotionDate?: string | Timestamp | null;
-  loaStartDate?: string | Timestamp | null;
-  loaEndDate?: string | Timestamp | null;
-  discordId?: string;
-  category?: string | null;
-  lastSignInTime?: Timestamp | string | null; // Last sign-in time from Firebase Auth
 }
 
 // -----------------------------

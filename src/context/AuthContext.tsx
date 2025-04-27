@@ -1,80 +1,91 @@
 import React, {
   createContext,
   useContext,
-  useEffect,
   useState,
+  useEffect,
   useMemo,
+  ReactNode,
 } from "react";
-import { onAuthStateChanged, signOut, signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore"; // Re-import Timestamp
-import { auth, db } from "../firebase";
-import { User } from "../types/User";
-import { useNavigate } from "react-router-dom"; // Import useNavigate
+import {
+  onAuthStateChanged,
+  signOut,
+  signInWithEmailAndPassword,
+  User as FirebaseUser,
+  updateProfile, // Import updateProfile
+} from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"; // Import updateDoc
+import { auth, db } from "../firebase"; // db might be named dbFirestore in your project
+import { useNavigate } from "react-router-dom";
+import { User, RosterUser } from "../types/User"; // Assuming RosterUser is the Firestore user type
+import { computeIsAdmin } from "../utils/isadmin";
 
-// Define rank order for admin check
-const adminRanks = [
-  "lieutenant",
-  "captain",
-  "commander",
-  "assistant commissioner",
-  "deputy commissioner",
-  "commissioner",
-];
-
-interface AuthContextProps {
+interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAdmin: boolean;
-  logout: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  updateUserProfilePhoto: (newPhotoURL: string) => Promise<void>; // Add function type
 }
 
-const AuthContext = createContext<AuthContextProps>({
-  user: null,
-  loading: true,
-  isAdmin: false,
-  logout: async () => {},
-  login: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate(); // Ensure useNavigate is used correctly
+  const navigate = useNavigate();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser?.email) {
+      if (firebaseUser) {
         try {
-          const userDocRef = doc(db, "users", firebaseUser.email);
-          const userSnap = await getDoc(userDocRef);
-
-          if (userSnap.exists()) {
-            const firestoreData = userSnap.data();
-            const isAdmin =
-              firestoreData.role?.toLowerCase() === "admin" ||
-              adminRanks.includes(firestoreData.rank?.toLowerCase() || "");
-
-            const fullUser: User = {
-              ...firestoreData,
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              id: userSnap.id,
-              isAdmin,
-            };
-            setUser(fullUser);
-          } else {
-            console.warn(
-              `User doc not found in Firestore for email: ${firebaseUser.email}`
-            );
-            setUser(null);
+          // Use email or name as the document ID, matching your Firestore structure
+          // Adjust this logic if your document ID is different (e.g., firebaseUser.uid)
+          const userDocId = firebaseUser.email || firebaseUser.displayName; // Or determine ID based on your structure
+          if (!userDocId) {
+            throw new Error("Cannot determine user document ID.");
           }
+          const userRef = doc(db, "users", userDocId); // Use correct db instance
+          const userDoc = await getDoc(userRef);
+
+          let userData: User = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL, // Get photoURL from Firebase Auth
+            // Initialize other fields as undefined or default
+            id: userDocId,
+            name: undefined,
+            rank: undefined,
+            // ... other fields
+          };
+
+          if (userDoc.exists()) {
+            const firestoreData = userDoc.data() as RosterUser;
+            // Merge Firestore data into the user object
+            const mergedData = {
+              ...userData,
+              ...firestoreData,
+              id: userDoc.id, // Ensure Firestore doc ID is set
+            };
+            // Calculate admin status using the fully merged data
+            userData = {
+              ...mergedData,
+              isAdmin: computeIsAdmin(mergedData),
+            };
+          } else {
+            // If Firestore doc doesn't exist, calculate isAdmin based on initial userData (from Auth)
+            userData.isAdmin = computeIsAdmin(userData);
+            console.warn(`Firestore document not found for user: ${userDocId}`);
+            // Optionally create a basic Firestore doc if it doesn't exist
+            // await setDoc(userRef, { name: firebaseUser.displayName || 'New User', email: firebaseUser.email, rank: 'Unknown', /* other defaults */ });
+          }
+          setUser(userData);
         } catch (error) {
           console.error("Failed to fetch user data from Firestore:", error);
-          setUser(null);
+          setUser(null); // Log out user if Firestore fetch fails critically
         }
       } else {
         setUser(null);
@@ -87,9 +98,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const isAdmin = useMemo(() => {
     if (!user) return false;
-    const userRankLower = user.rank?.toLowerCase() || "";
-    const userRoleLower = user.role?.toLowerCase() || "";
-    return userRoleLower === "admin" || adminRanks.includes(userRankLower);
+    // Use the pre-calculated isAdmin field if available, otherwise compute it
+    return user.isAdmin ?? computeIsAdmin(user);
   }, [user]);
 
   const logout = async () => {
@@ -112,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         try {
           const userDocRef = doc(db, "users", firebaseUser.email);
           await updateDoc(userDocRef, {
-            lastSignInTime: Timestamp.now(), // Use server timestamp object
+            lastSignInTime: new Date(), // Use server timestamp object
           });
           console.log("Successfully updated lastSignInTime for user:", firebaseUser.email);
         } catch (firestoreError) {
@@ -127,11 +137,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // Function to update user profile photo
+  const updateUserProfilePhoto = async (newPhotoURL: string) => {
+    if (!auth.currentUser) {
+      throw new Error("No authenticated user found.");
+    }
+    if (!user || !user.id) {
+      throw new Error("User data or ID is missing in context.");
+    }
+
+    try {
+      // 1. Update Firebase Auth profile
+      await updateProfile(auth.currentUser, { photoURL: newPhotoURL });
+
+      // 2. Update Firestore document (optional but recommended)
+      const userRef = doc(db, "users", user.id); // Use the correct user ID from context
+      await updateDoc(userRef, { photoURL: newPhotoURL });
+
+      // 3. Update local state immediately for better UX
+      setUser((prevUser) =>
+        prevUser ? { ...prevUser, photoURL: newPhotoURL } : null
+      );
+    } catch (error) {
+      console.error("Error updating profile photo:", error);
+      throw error; // Re-throw to be caught in the modal
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, logout, login }}>
+    <AuthContext.Provider
+      value={{ user, loading, isAdmin, login, logout, updateUserProfilePhoto }} // Add updateUserProfilePhoto to value
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+};
