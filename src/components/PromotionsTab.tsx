@@ -56,7 +56,6 @@ type PromotionVote = 'promote' | 'deny' | 'needs_time';
 
 interface PromotionVoteData {
   votes: { [voterEmail: string]: PromotionVote };
-  hideUntil?: Timestamp | null;
   isManuallyHidden?: boolean;
 }
 
@@ -176,7 +175,6 @@ export default function PromotionsTab(): JSX.Element {
         const safeVoteData: PromotionVoteData | null = rawVoteData
           ? {
               votes: rawVoteData.votes || {},
-              hideUntil: rawVoteData.hideUntil,
               isManuallyHidden: rawVoteData.isManuallyHidden ?? false,
             }
           : null;
@@ -551,12 +549,6 @@ export default function PromotionsTab(): JSX.Element {
             )}
 
             {filteredPromotionData.map((userPromoData) => {
-              // --- Debug Logs ---
-              console.log(`Rendering card for user: ${userPromoData.name} (ID: ${userPromoData.id})`);
-              console.log(`  Current User Email: ${currentUser?.email}`);
-              console.log(`  Vote Data from State:`, userPromoData.voteData);
-              // --- End Debug Logs ---
-
               const userId = userPromoData.id;
               const voteData = userPromoData.voteData;
               const isManuallyHidden = voteData?.isManuallyHidden ?? false;
@@ -569,12 +561,6 @@ export default function PromotionsTab(): JSX.Element {
 
               const userEmailForLookup = currentUser?.email;
               const currentUserVote = userEmailForLookup ? voteData?.votes?.[userEmailForLookup] : undefined;
-
-              // --- Debug Log for Vote Lookup ---
-              console.log(`  Lookup Key (Email): ${userEmailForLookup}`);
-              console.log(`  Votes Object:`, voteData?.votes);
-              console.log(`  Current User Vote (Result): ${currentUserVote}`);
-              // --- End Debug Log ---
 
               const comments = userPromoData.comments || [];
               const voteDisplay = getVoteDisplay(currentUserVote);
