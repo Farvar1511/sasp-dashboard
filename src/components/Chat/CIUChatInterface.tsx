@@ -34,7 +34,7 @@ import { toast } from 'react-toastify';
 import { hasCIUPermission } from '../../utils/ciuUtils';
 import { cn } from '../../lib/utils';
 // Add FaTimes for the close button
-import { FaUsers, FaUser, FaPlus, FaSmile, FaTimes, FaEyeSlash, FaUserPlus } from 'react-icons/fa';
+import { FaUsers, FaUser, FaPlus, FaSmile, FaTimes, FaEyeSlash, FaUserPlus } from 'react-icons/fa'; // Add FaImage
 import CreateGroupModal from './CreateGroupModal';
 import { formatUserName, getAvatarFallback } from './utils';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'; // Import picker
@@ -56,7 +56,8 @@ interface Message {
     id: string;
     senderId: string; // Sender's CID
     receiverId?: string; // Receiver's CID (for 1-on-1) or Group ID (optional)
-    text: string;
+    text?: string; // Make text optional
+    imageUrl?: string; // Add optional imageUrl
     timestamp: Timestamp | null;
     senderName?: string; // Keep senderName for display
 }
@@ -86,7 +87,6 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [loadingUsers, setLoadingUsers] = useState(true);
-    // Use a single loading state for chats
     const [loadingChats, setLoadingChats] = useState(true);
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -98,7 +98,6 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
     const currentChatIdRef = useRef<string | null>(null);
     const [unreadChats, setUnreadChats] = useState<Set<string>>(new Set());
     const [hiddenChatIds, setHiddenChatIds] = useState<Set<string>>(new Set());
-    // NEW State: Store all raw chat documents for the user
     const [allUserChats, setAllUserChats] = useState<DocumentData[]>([]);
 
 
@@ -246,9 +245,9 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
         });
 
         return () => unsubscribe();
-    }, [currentUser?.cid]); // Removed hiddenChatIds dependency - managed within the effect
+    }, [currentUser?.cid]); // Ensure only currentUser.cid is the dependency
 
-    // Helper function to get chat document reference
+    //
     const getChatDocRef = useCallback((chatId: string | null) => {
         if (!chatId) return null;
         return doc(dbFirestore, 'chats', chatId);
@@ -420,6 +419,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                      senderId: data.senderId, // Sender's CID
                      receiverId: data.receiverId,
                      text: data.text,
+                     imageUrl: data.imageUrl, // Add imageUrl here
                      timestamp: timestamp,
                      senderName: data.senderName,
                  });
@@ -485,19 +485,28 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
     }, [loadingMessages, selectedChat, messages]);
 
 
+    // Simplify handleSendMessage - remove imageUrl parameter and logic
     const handleSendMessage = async () => {
+        // Only send if there's non-empty text
         if (!newMessage.trim() || !currentUser?.cid || !selectedChat) return;
+
+        const trimmedMessage = newMessage.trim();
+        // Basic check for image URLs (adjust regex as needed for more robustness)
+        const isImageUrl = /\.(jpg|jpeg|png|gif|webp)$/i.test(trimmedMessage) && /^https?:\/\//i.test(trimmedMessage);
 
         let chatId = '';
         let isGroupChat = false;
         let members: string[] = [];
 
+        // Prepare base message data - conditionally set text or imageUrl
         let messageData: Omit<Message, 'id' | 'timestamp'> & { timestamp: any } = {
              senderId: currentUser.cid,
-             text: newMessage.trim(),
              timestamp: serverTimestamp(),
              senderName: formatUserName(currentUser),
+             // Conditionally set text or imageUrl
+             ...(isImageUrl ? { imageUrl: trimmedMessage } : { text: trimmedMessage }),
         };
+
 
         if ('groupName' in selectedChat) {
             chatId = selectedChat.id;
@@ -534,10 +543,10 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
                 typingTimeoutRef.current = null;
+                await signalStoppedTyping(); // Ensure typing indicator is removed
             }
-            await signalStoppedTyping(); // Ensure typing indicator is removed
 
-            // Add the message (with senderId as CID)
+            // Add the message
             const messageDocRef = await addDoc(messagesRef, messageData);
             console.log("Message sent with ID:", messageDocRef.id);
 
@@ -545,10 +554,14 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
             if (chatDocRef) {
                 const chatDocSnap = await getDoc(chatDocRef);
                 const now = serverTimestamp();
+                // Determine the preview text based on message type
+                const lastMessagePreview = isImageUrl ? "[Image]" : (messageData.text?.substring(0, 50) || '');
+
                 const updateData: { [key: string]: any } = {
                     lastMessageTimestamp: now,
                     [`lastRead.${currentUser.cid}`]: now, // Update sender's (CID) last read time
-                    // lastMessageText: messageData.text.substring(0, 50)
+                    // Update last message preview text
+                    lastMessageText: lastMessagePreview // Use the determined preview
                 };
 
                 if (chatDocSnap.exists()) {
@@ -565,7 +578,9 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                         lastRead: {
                             [currentUser.cid]: now // Initialize sender's (CID) last read
                         },
-                        typingUsers: [] // Initialize typing users (CIDs) array
+                        typingUsers: [], // Initialize typing users (CIDs) array
+                        // Add last message preview text here too
+                        lastMessageText: lastMessagePreview // Use the determined preview
                     };
                     await setDoc(chatDocRef, initialChatData);
                     console.log("Chat document created for new direct chat:", chatId);
@@ -576,7 +591,8 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                 }
             }
 
-            setNewMessage(''); // Clear the input field
+            // Clear the text input
+            setNewMessage('');
 
         } catch (err) {
             console.error("Error sending message or updating chat metadata:", err);
@@ -586,7 +602,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
 
 
     // --- Group Creation Logic ---
-    const handleCreateGroup = async (name: string, selectedMemberCids: string[]) => { // Expect CIDs
+    const handleCreateGroup = async (name: string, selectedMemberCids: string[]) => {
         if (!currentUser?.cid) { // Check for CID
             toast.error("Cannot create group without logged-in user.");
             return;
@@ -643,10 +659,9 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
     };
 
     // --- Chat Selection Handler ---
-    // Define handleChatSelect *before* handleStartDirectChatFromModal
     const handleChatSelect = useCallback((chatTarget: User | ChatGroup) => {
         // Clear previous typing indicator (using CID)
-        if (currentChatIdRef.current && currentUser?.cid) { // Check CID
+        if (currentChatIdRef.current && currentUser?.cid) {
             const cleanupChatRef = getChatDocRef(currentChatIdRef.current);
             if (cleanupChatRef) {
                 updateDoc(cleanupChatRef, {
@@ -668,21 +683,15 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
 
         // Determine chatId for the selected chat (using CID)
         let chatIdToMarkRead = '';
-        let targetCid: string | undefined = undefined; // Define targetCid here
+        let targetCid: string | undefined = undefined;
 
         if ('groupName' in chatTarget) {
             chatIdToMarkRead = chatTarget.id;
         } else if (currentUser?.cid) {
-            // Now check if chatTarget.cid is defined before using it
             if (chatTarget.cid !== undefined) {
-                targetCid = chatTarget.cid; // Assign here
+                targetCid = chatTarget.cid;
                 chatIdToMarkRead = getDirectChatId(currentUser.cid, targetCid);
-
-                // If starting a new direct chat, ensure the chat document exists or will be created
-                // (No need to add to activeDirectChatParticipantCids manually, derived state handles it)
-
             } else {
-                // Handle the case where a User object somehow doesn't have a cid (shouldn't happen based on filtering)
                 console.error("Selected user is missing CID:", chatTarget);
                 toast.error("Cannot select user without a valid identifier.");
             }
@@ -691,7 +700,6 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
         // Mark the selected chat as read
         if (chatIdToMarkRead) {
             updateLastReadTimestamp(chatIdToMarkRead);
-            // Optimistically remove from unread set for immediate UI feedback if needed
             setUnreadChats(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(chatIdToMarkRead);
@@ -699,51 +707,46 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
             });
         }
 
-        // The useEffect hook for fetching messages will trigger automatically
-    }, [currentUser?.cid, getChatDocRef, updateLastReadTimestamp]); // Removed activeDirectChatParticipantCids dependency
+    }, [currentUser?.cid, getChatDocRef, updateLastReadTimestamp]);
 
 
     // --- Direct Chat Start Logic (from Modal) ---
-    // Now defined *after* handleChatSelect
     const handleStartDirectChatFromModal = useCallback((memberCid: string) => {
         const targetUser = ciuPersonnel.find(p => p.cid === memberCid);
         if (targetUser) {
             console.log("Starting direct chat via modal with:", targetUser);
-            handleChatSelect(targetUser); // Use the existing chat selection logic
-            handleCloseCreateGroupModal(); // Ensure modal closes
+            handleChatSelect(targetUser);
+            handleCloseCreateGroupModal(); // Use the function defined below
         } else {
             console.error("Could not find user with CID to start direct chat:", memberCid);
             toast.error("Failed to find selected user.");
-            // Optionally close modal even on error?
-            // handleCloseCreateGroupModal();
         }
-    }, [ciuPersonnel, handleChatSelect]); // handleChatSelect is now correctly in scope
+    }, [ciuPersonnel, handleChatSelect]); // Removed handleCloseCreateGroupModal dependency as it's defined below
 
 
-    // Helper to get names of typing users (find by CID)
+    // --- Typing Users Display Names ---
     const getTypingUserNames = () => {
-        return typingIndicatorUsers // Contains CIDs
+        const typingUsers = typingIndicatorUsers
             .map(cid => {
-                const user = ciuPersonnel.find(p => p.cid === cid); // Find user by CID
-                return user ? formatUserName(user) : 'Someone';
+                const user = ciuPersonnel.find(p => p.cid === cid);
+                return user ? formatUserName(user) : null;
             })
-            .join(', ');
+            .filter((name): name is string => !!name); // Filter out nulls
+        return typingUsers.join(', ');
     };
 
-    const isLoading = loadingUsers || loadingChats; // Use loadingChats now
 
-    // Determine selected chat identifier for comparison (use CID for direct chats)
+    const isLoading = loadingUsers || loadingChats;
     const selectedChatId = selectedChat ? ('groupName' in selectedChat ? selectedChat.id : selectedChat.cid) : null;
 
 
     // --- Emoji Picker Handler ---
     const onEmojiClick = (emojiData: EmojiClickData, event: MouseEvent) => {
         setNewMessage(prevMessage => prevMessage + emojiData.emoji);
-        // Close picker after selection
         setShowEmojiPicker(false);
     };
 
-    // --- Modal and Chat Selection Handlers ---
+    // --- Modal Handlers (defined within component scope) ---
     const handleCloseCreateGroupModal = () => {
         setIsCreateGroupModalOpen(false);
     };
@@ -755,7 +758,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
     // --- Close Chat Handler ---
     const handleCloseChat = useCallback(() => {
         // Signal stopped typing for the current chat (using CID) before closing
-        if (currentChatIdRef.current && currentUser?.cid) { // Check CID
+        if (currentChatIdRef.current && currentUser?.cid) {
             signalStoppedTyping(); // This function now uses CID internally
         }
         // Clear timeout ref
@@ -779,11 +782,11 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
     const handleHideChat = useCallback((chatId: string) => {
         setHiddenChatIds(prev => new Set(prev).add(chatId));
         // If the chat being hidden is the currently selected one, close it
-        const currentSelectedId = selectedChat ? ('groupName' in selectedChat ? selectedChat.id : (selectedChat.cid && currentUser?.cid ? getDirectChatId(currentUser.cid, selectedChat.cid) : null)) : null; // Use CID
+        const currentSelectedId = selectedChat ? ('groupName' in selectedChat ? selectedChat.id : (selectedChat.cid && currentUser?.cid ? getDirectChatId(currentUser.cid, selectedChat.cid) : null)) : null;
         if (currentSelectedId === chatId) {
-            handleCloseChat(); // Use the existing close chat logic (now defined above)
+            handleCloseChat(); // Use the existing close chat logic
         }
-        toast.info("Chat hidden for this session."); // Inform the user
+        toast.info("Chat hidden for this session.");
     }, [selectedChat, currentUser?.cid, handleCloseChat]); // Depend on CID
 
 
@@ -863,7 +866,6 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
 
 
     return (
-        // Adjust overall height, subtract more from 100vh
         <div className="flex h-[calc(100vh-220px)] border border-border rounded-lg bg-card text-card-foreground overflow-hidden">
             {/* User List Sidebar */}
             <div className="w-1/4 border-r border-border p-2 flex flex-col">
@@ -982,6 +984,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                 )}
             </div>
 
+
             {/* Chat Area */}
             <div className="w-3/4 flex flex-col bg-background">
                 {selectedChat ? (
@@ -1046,19 +1049,19 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                             </Button>
                         </div>
 
+
                         {/* Scrollable Message Container */}
                         <div ref={messageContainerRef} className="flex-grow p-4 overflow-y-auto space-y-3 relative">
                             <ChatMessageList className="space-y-3">
-                                {messages.map(msg => { // msg.senderId is CID
-                                    const isSent = msg.senderId === currentUser?.cid; // Compare CIDs
+                                {messages.map(msg => {
+                                    const isSent = msg.senderId === currentUser?.cid;
                                     const senderUser = isSent
                                         ? currentUser
-                                        : ciuPersonnel.find(p => p.cid === msg.senderId) || null; // Find sender by CID
+                                        : ciuPersonnel.find(p => p.cid === msg.senderId) || null;
                                     const timestamp = msg.timestamp?.toDate().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) ?? '';
                                     const senderName = msg.senderName || formatUserName(senderUser);
                                     const senderAvatarSrc = senderUser?.photoURL || undefined;
                                     const senderAvatarFallback = getAvatarFallback(senderUser);
-                                    // Add null check for selectedChat, although theoretically guaranteed by outer check
                                     const showSenderName = !isSent && selectedChat && 'groupName' in selectedChat;
 
                                     return (
@@ -1066,7 +1069,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                             key={msg.id}
                                             variant={isSent ? 'sent' : 'received'}
                                             className={cn(
-                                                "px-3 py-2 rounded-lg shadow-sm max-w-[75%]",
+                                                "px-3 py-2 rounded-lg shadow-sm max-w-[75%]", // Keep max-width for text
                                                 isSent
                                                     ? 'bg-primary text-primary-foreground self-end'
                                                     : 'bg-muted text-muted-foreground self-start'
@@ -1083,12 +1086,22 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                                 {showSenderName && (
                                                     <p className="text-xs text-muted-foreground/80 mb-0.5 font-medium">{senderName}</p>
                                                 )}
-                                                <ChatBubbleMessage className={cn(
-                                                    "text-sm leading-snug",
-                                                    isSent ? 'text-primary-foreground' : 'text-foreground'
-                                                )}>
-                                                    {msg.text}
-                                                </ChatBubbleMessage>
+                                                {/* Conditionally render Image or Text */}
+                                                {msg.imageUrl ? (
+                                                    <img
+                                                        src={msg.imageUrl}
+                                                        alt="Sent image"
+                                                        className="max-w-xs max-h-60 rounded-md object-contain my-1" // Adjust size as needed
+                                                        // Add loading state?
+                                                    />
+                                                ) : (
+                                                    <ChatBubbleMessage className={cn(
+                                                        "text-sm leading-snug",
+                                                        isSent ? 'text-primary-foreground' : 'text-foreground'
+                                                    )}>
+                                                        {msg.text}
+                                                    </ChatBubbleMessage>
+                                                )}
                                                 {timestamp && (
                                                     <ChatBubbleTimestamp
                                                         timestamp={timestamp}
@@ -1138,6 +1151,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                         </div>
                                     </ChatBubble>
                                 )}
+
                             </ChatMessageList>
                         </div>
 
@@ -1145,18 +1159,12 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                         <div className="border-t border-border p-3 bg-card relative">
                             {/* Emoji Picker Popover */}
                             {showEmojiPicker && (
-                                <div className="absolute bottom-full right-2 mb-2 z-10"> {/* Position picker above input */}
-                                    <EmojiPicker
-                                        onEmojiClick={onEmojiClick}
-                                        // Optional: Add theme, size, etc.
-                                        // theme={Theme.DARK} // Example if using themes
-                                        // height={350}
-                                        // width="100%"
-                                    />
+                                <div className="absolute bottom-full right-2 mb-2 z-10">
+                                    <EmojiPicker onEmojiClick={onEmojiClick} />
                                 </div>
                             )}
                             <div className="flex items-center space-x-2">
-                                {/* Add Emoji Button Here */}
+                                {/* Emoji Button */}
                                 <Button
                                     variant="ghost"
                                     size="icon"
@@ -1170,37 +1178,34 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
                                     value={newMessage}
                                     onChange={(e) => {
                                         setNewMessage(e.target.value);
-                                        // Close emoji picker when user starts typing manually
-                                        if (showEmojiPicker) {
-                                            setShowEmojiPicker(false);
-                                        }
+                                        if (showEmojiPicker) setShowEmojiPicker(false);
                                     }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
-                                            handleSendMessage();
+                                            handleSendMessage(); // Call without arg for text message
                                         }
                                     }}
-                                    // Use the pre-calculated placeholder text
                                     placeholder="Type your message here..."
-                                    className="rounded-md flex-grow" // Make input grow
+                                    className="rounded-md flex-grow"
+                                    disabled={!selectedChat} // Only disable if no chat selected
                                 />
                             </div>
                         </div>
                     </>
                 ) : (
-                    <div className="flex-grow flex items-center justify-center">
-                        <p className="text-muted-foreground">Select a chat to start messaging</p>
-                    </div>
+                     <div className="flex-grow flex items-center justify-center">
+                         <p className="text-muted-foreground">Select a chat to start messaging</p>
+                     </div>
                 )}
             </div>
 
             {/* Create Group Modal */}
             <CreateGroupModal
                 isOpen={isCreateGroupModalOpen}
-                onClose={handleCloseCreateGroupModal}
-                onCreateGroup={handleCreateGroup} // For creating groups (>1 member)
-                onStartDirectChat={handleStartDirectChatFromModal} // For starting DM (1 member)
+                onClose={handleCloseCreateGroupModal} // Use the correct handler
+                onCreateGroup={handleCreateGroup}
+                onStartDirectChat={handleStartDirectChatFromModal}
                 personnel={ciuPersonnel}
                 currentUserCid={currentUser?.cid}
             />
