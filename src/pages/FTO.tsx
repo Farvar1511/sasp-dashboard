@@ -47,6 +47,7 @@ const progressItems = {
   heistPrimary: "Primary one of these heists (Bobcat, LSIA, Fleeca)",
   tenEightyPrimary: "Primary in 10-80 with callouts",
   blsComplete: "Complete BLS Training and perform BLS",
+  classroomComplete: "Complete SASP Classroom Training", // Added new item
 };
 type ProgressItemKey = keyof typeof progressItems;
 const totalProgressItems = Object.keys(progressItems).length;
