@@ -115,7 +115,8 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
 
     return (
         <Card className={cn(
-            "flex flex-col border-[#f3c700]/50 bg-black/90 text-white shadow-md",
+            // Darken the background from bg-black/90 to bg-black/95
+            "flex flex-col border-[#f3c700]/50 bg-black/98 text-white shadow-md", 
             allVehiclesOutOfService ? "opacity-60 border-dashed border-red-600/50" : ""
         )} title={allVehiclesOutOfService ? `${modelName} (All Out of Service)` : modelName}>
             {/* Updated Header: Model Name and Division Badges */}
