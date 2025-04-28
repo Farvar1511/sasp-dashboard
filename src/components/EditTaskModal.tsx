@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { UserTask } from '../types/User'; // Adjust import if needed
+import { UserTask } from '../types/User';
 import { toast } from 'react-toastify';
+import { deleteField, FieldValue } from 'firebase/firestore'; // Import FieldValue if needed, though 'as any' works
 
 interface EditTaskModalProps {
-    task: UserTask & { userId: string };
+    task: UserTask & { userId: string }; // Renamed from initialTaskData and updated type
     onClose: () => void;
     onSave: (userId: string, taskId: string, updatedTaskData: Partial<UserTask>) => Promise<void>;
 }
 
-const EditTaskModal: React.FC<EditTaskModalProps> = ({ task: initialTaskData, onClose, onSave }) => {
-    const [taskContent, setTaskContent] = useState(initialTaskData.task || '');
-    const [type, setType] = useState<'normal' | 'goal'>(initialTaskData.type || 'normal');
-    const [goal, setGoal] = useState<number>(initialTaskData.goal || 1);
-    const [progress, setProgress] = useState<number>(initialTaskData.progress || 0);
-    const [completed, setCompleted] = useState<boolean>(initialTaskData.completed || false);
-    const [archived, setArchived] = useState<boolean>(initialTaskData.archived || false); // Added archived state
+const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onSave, onClose }) => { // Destructure 'task' instead of 'initialTaskData'
+    const [taskContent, setTaskContent] = useState(task.task || ''); // Use 'task'
+    const [type, setType] = useState<'normal' | 'goal'>(task.type || 'normal'); // Use 'task'
+    const [goal, setGoal] = useState<number>(task.goal || 1); // Use 'task'
+    const [progress, setProgress] = useState<number>(task.progress || 0); // Use 'task'
+    const [completed, setCompleted] = useState<boolean>(task.completed || false); // Use 'task'
+    const [archived, setArchived] = useState<boolean>(task.archived || false); // Use 'task'
     const [isSaving, setIsSaving] = useState(false);
 
     // Ensure progress doesn't exceed goal if type is goal
@@ -62,8 +63,8 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task: initialTaskData, on
             updatedData.completed = updatedData.progress >= updatedData.goal;
         } else {
             // Remove goal/progress if switching back to normal
-            updatedData.goal = undefined; // Or use deleteField() if preferred
-            updatedData.progress = undefined;
+            updatedData.goal = deleteField() as any; // Use type assertion
+            updatedData.progress = deleteField() as any; // Use type assertion
         }
 
         // If archiving, ensure completed is false unless it's a goal task that met its goal
@@ -76,10 +77,12 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task: initialTaskData, on
 
         try {
             // Pass updatedData (which now includes 'task' field) to onSave
-            await onSave(initialTaskData.userId, initialTaskData.id, updatedData);
+            await onSave(task.userId, task.id, updatedData); // Use 'task'
+            toast.success("Task updated successfully!");
             onClose(); // Close modal on successful save
         } catch (error) {
-            // Error handled in onSave, modal stays open
+            // Error handling is managed by the caller (AdminMenu)
+            // toast.error("Failed to save task."); // Optionally keep local toast
         } finally {
             setIsSaving(false);
         }

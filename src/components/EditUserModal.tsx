@@ -7,9 +7,10 @@ import {
   deleteDoc,
   getDocs,
   Timestamp, // Import Timestamp from firebase/firestore
+  deleteField, // Import deleteField
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase"; // Keep db import as is
-import { FaEdit, FaTrash, FaPlus, FaArchive, FaUndo } from "react-icons/fa";
+import { FaEdit, FaTrash, FaPlus, FaArchive, FaUndo, FaSave, FaTimes } from "react-icons/fa"; // Add FaSave, FaTimes
 import { useAuth } from "../context/AuthContext";
 import { formatIssuedAt, formatDateToMMDDYY } from "../utils/timeHelpers";
 import { toast } from "react-toastify";
@@ -180,6 +181,16 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
   const [disciplineNotes, setDisciplineNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fleetPlates, setFleetPlates] = useState<string[]>([]);
+
+  // --- State for inline editing ---
+  const [editingTaskEntry, setEditingTaskEntry] = useState<UserTask | null>(null);
+  const [editedTaskDesc, setEditedTaskDesc] = useState("");
+  const [editingDisciplineEntry, setEditingDisciplineEntry] = useState<DisciplineEntry | null>(null);
+  const [editedDisciplineNotes, setEditedDisciplineNotes] = useState("");
+  const [editingNoteEntry, setEditingNoteEntry] = useState<NoteEntry | null>(null);
+  const [editedNoteText, setEditedNoteText] = useState("");
+  // --- End State for inline editing ---
+
 
   useEffect(() => {
     setTasks(user.tasks || []);
@@ -378,6 +389,58 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
     });
   };
 
+  // --- Start Task Edit Handlers ---
+  const handleStartTaskEdit = (task: UserTask) => {
+    setEditingTaskEntry(task);
+    setEditedTaskDesc(task.task);
+    // Close other edit forms if open
+    setEditingDisciplineEntry(null);
+    setEditingNoteEntry(null);
+  };
+
+  const handleCancelTaskEdit = () => {
+    setEditingTaskEntry(null);
+    setEditedTaskDesc("");
+  };
+
+  const handleSaveTaskEdit = async () => {
+    if (!editingTaskEntry || !editedTaskDesc.trim()) {
+      toast.error("Task description cannot be empty.");
+      return;
+    }
+    setIsSubmitting(true); // Indicate saving process
+    try {
+      const taskRef = doc(dbFirestore, "users", user.id, "tasks", editingTaskEntry.id);
+      const updateData: Partial<UserTask> & { goal?: any; progress?: any } = {
+        task: editedTaskDesc.trim(),
+      };
+
+      // IMPORTANT: Handle goal/progress removal if type is not 'goal'
+      // Note: This assumes task type cannot be changed here. If it can, add logic.
+      if (editingTaskEntry.type !== 'goal') {
+        updateData.goal = deleteField();
+        updateData.progress = deleteField();
+      }
+
+      await updateDoc(taskRef, updateData);
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === editingTaskEntry.id ? { ...t, task: editedTaskDesc.trim() } : t
+        )
+      );
+      toast.success("Task updated successfully!");
+      handleCancelTaskEdit(); // Close edit form
+    } catch (error) {
+      console.error("Error updating task:", error);
+      toast.error(`Failed to update task: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsSubmitting(false); // End saving process
+    }
+  };
+  // --- End Task Edit Handlers ---
+
+
   // No changes needed for handleEditTask, EditTaskModal handles archive now
 
   // Add handler for archiving within the modal
@@ -394,29 +457,48 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
       }
   };
 
+  // --- Start Discipline Edit Handlers ---
+  const handleStartDisciplineEdit = (entry: DisciplineEntry) => {
+    setEditingDisciplineEntry(entry);
+    setEditedDisciplineNotes(entry.disciplinenotes);
+    // Close other edit forms
+    setEditingTaskEntry(null);
+    setEditingNoteEntry(null);
+  };
 
-  const handleEditDiscipline = async (entry: DisciplineEntry) => {
-    const updatedNotes = prompt("Edit Discipline Notes:", entry.disciplinenotes);
-    if (!updatedNotes || !updatedNotes.trim()) {
+  const handleCancelDisciplineEdit = () => {
+    setEditingDisciplineEntry(null);
+    setEditedDisciplineNotes("");
+  };
+
+  const handleSaveDisciplineEdit = async () => {
+    if (!editingDisciplineEntry || !editedDisciplineNotes.trim()) {
       toast.error("Discipline notes cannot be empty.");
       return;
     }
-  
+    setIsSubmitting(true);
     try {
-      const disciplineRef = doc(dbFirestore, "users", user.id, "discipline", entry.id);
-      const updatedEntry = { ...entry, disciplinenotes: updatedNotes.trim() };
-  
-      await updateDoc(disciplineRef, updatedEntry);
+      const disciplineRef = doc(dbFirestore, "users", user.id, "discipline", editingDisciplineEntry.id);
+      // Assuming only notes are editable here. If type is editable, add it to updateData.
+      const updateData = { disciplinenotes: editedDisciplineNotes.trim() };
+
+      await updateDoc(disciplineRef, updateData);
       setDiscipline((prev) =>
-        prev.map((d) => (d.id === entry.id ? { ...d, ...updatedEntry } : d))
+        prev.map((d) =>
+          d.id === editingDisciplineEntry.id ? { ...d, disciplinenotes: editedDisciplineNotes.trim() } : d
+        )
       );
       toast.success("Discipline entry updated successfully!");
+      handleCancelDisciplineEdit(); // Close edit form
     } catch (error) {
       console.error("Error updating discipline entry:", error);
       toast.error("Failed to update discipline entry.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  
+  // --- End Discipline Edit Handlers ---
+
   const handleAddDiscipline = async () => {
     if (!disciplineType.trim() || !disciplineNotes.trim()) {
       setFormData((prev) => ({
@@ -602,55 +684,47 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
     }
   };
 
-  const handleEditNote = async (note: NoteEntry) => {
-    const updatedNote = prompt("Edit Note:", note.note);
-    if (!updatedNote || !updatedNote.trim()) {
+  // --- Start Note Edit Handlers ---
+  const handleStartNoteEdit = (note: NoteEntry) => {
+    setEditingNoteEntry(note);
+    setEditedNoteText(note.note);
+    // Close other edit forms
+    setEditingTaskEntry(null);
+    setEditingDisciplineEntry(null);
+  };
+
+  const handleCancelNoteEdit = () => {
+    setEditingNoteEntry(null);
+    setEditedNoteText("");
+  };
+
+  const handleSaveNoteEdit = async () => {
+    if (!editingNoteEntry || !editedNoteText.trim()) {
       toast.error("Note cannot be empty.");
       return;
     }
-
+    setIsSubmitting(true);
     try {
-      const noteRef = doc(dbFirestore, "users", user.id, "notes", note.id);
-      const updatedNoteData = { ...note, note: updatedNote.trim() };
+      const noteRef = doc(dbFirestore, "users", user.id, "notes", editingNoteEntry.id);
+      const updateData = { note: editedNoteText.trim() };
 
-      await updateDoc(noteRef, updatedNoteData);
+      await updateDoc(noteRef, updateData);
       setNotes((prev) =>
-        prev.map((n) => (n.id === note.id ? { ...n, ...updatedNoteData } : n))
+        prev.map((n) =>
+          n.id === editingNoteEntry.id ? { ...n, note: editedNoteText.trim() } : n
+        )
       );
       toast.success("Note updated successfully!");
+      handleCancelNoteEdit(); // Close edit form
     } catch (error) {
       console.error("Error updating note:", error);
       toast.error("Failed to update note.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
+  // --- End Note Edit Handlers ---
 
-  function onEditTask(user: {
-    id: string; name: string; rank: string; badge: string; callsign: string; category: string; certifications: { [key: string]: CertStatus | null; }; cid: string; discordId: string; email: string; isActive: boolean; isPlaceholder: boolean; isadmin?: boolean; joinDate: string; lastPromotionDate: string; loaEndDate: string; loaStartDate: string; role: string; assignedVehicleId?: string; tasks: UserTask[]; disciplineEntries: DisciplineEntry[]; generalNotes: NoteEntry[]; promotionStatus?: {
-      votes?: { [voterId: string]: "Approve" | "Deny" | "Needs Time"; };
-      hideUntil?: Timestamp | null;
-      lastVoteTimestamp?: Timestamp;
-    };
-  }, task: UserTask): void {
-    const updatedTask = prompt("Edit Task Description:", task.task);
-    if (!updatedTask || !updatedTask.trim()) {
-      toast.error("Task description cannot be empty.");
-      return;
-    }
-
-    const taskRef = doc(dbFirestore, "users", user.id, "tasks", task.id);
-
-    updateDoc(taskRef, { task: updatedTask.trim() })
-      .then(() => {
-        setTasks((prev) =>
-          prev.map((t) => (t.id === task.id ? { ...t, task: updatedTask.trim() } : t))
-        );
-        toast.success("Task updated successfully!");
-      })
-      .catch((error) => {
-        console.error("Error updating task:", error);
-        toast.error("Failed to update task.");
-      });
-  }
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
       {/* Modal container */}
@@ -942,53 +1016,76 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
                           return 0;
                       })
                       .map((task) => (
-                      <div
-                        key={task.id}
-                        className={`p-2 border rounded text-sm relative group ${task.archived ? 'border-gray-700 bg-gray-800/60 opacity-60' : 'border-gray-600 bg-gray-700/50'}`}
-                      >
-                        <p
-                          className={`text-gray-300 ${
-                            task.completed ? "line-through text-gray-500" : ""
-                          }`}
-                        >
-                          {task.task} {task.archived ? '(Archived)' : ''}
-                        </p>
-                        <small className="text-gray-400 text-xs block">
-                          {task.type === "goal"
-                            ? `Goal: ${task.progress ?? 0}/${task.goal ?? "N/A"} | `
-                            : ''}
-                          Issued: {formatIssuedAt(task.issueddate, task.issuedtime)} | By: {task.issuedby}
-                        </small>
-                        {/* Action buttons */}
-                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {!task.archived && ( // Only show edit if not archived
-                            <button
-                              onClick={() => onEditTask(user, task)} // Assuming onEditTask is passed or handled via AdminMenu state
-                              className="text-yellow-400 hover:text-yellow-300 p-0.5"
-                              title="Edit Task"
+                        // --- Task Item ---
+                        editingTaskEntry?.id === task.id ? (
+                          // --- Task Edit Form ---
+                          <div key={task.id} className="p-2 border border-yellow-500 rounded bg-gray-700 space-y-1">
+                            <textarea
+                              value={editedTaskDesc}
+                              onChange={(e) => setEditedTaskDesc(e.target.value)}
+                              className="input w-full bg-gray-600 border-gray-500 text-white text-sm"
+                              rows={2}
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button onClick={handleCancelTaskEdit} className="text-gray-400 hover:text-white p-0.5" title="Cancel Edit">
+                                <FaTimes size="0.8rem" />
+                              </button>
+                              <button onClick={handleSaveTaskEdit} disabled={isSubmitting} className="text-green-500 hover:text-green-400 p-0.5" title="Save Edit">
+                                <FaSave size="0.8rem" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          // --- Task Display ---
+                          <div
+                            key={task.id}
+                            className={`p-2 border rounded text-sm relative group ${task.archived ? 'border-gray-700 bg-gray-800/60 opacity-60' : 'border-gray-600 bg-gray-700/50'}`}
+                          >
+                            <p
+                              className={`text-gray-300 ${
+                                task.completed ? "line-through text-gray-500" : ""
+                              }`}
                             >
-                              <FaEdit size="0.75rem" />
-                            </button>
-                          )}
-                          {/* Archive/Unarchive Button */}
-                          <button
-                              onClick={() => handleArchiveTask(task.id, task.archived ?? false)}
-                              className="text-blue-500 hover:text-blue-400 p-0.5"
-                              title={task.archived ? "Unarchive Task" : "Archive Task"}
-                          >
-                              {task.archived ? <FaUndo size="0.75rem" /> : <FaArchive size="0.75rem" />}
-                          </button>
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => handleDeleteTask(task.id)}
-                            className="text-red-500 hover:text-red-400 p-0.5"
-                            title="Delete Task"
-                          >
-                            <FaTrash size="0.75rem" />
-                          </button>
-                        </div>
-                      </div>
-                    ))
+                              {task.task} {task.archived ? '(Archived)' : ''}
+                            </p>
+                            <small className="text-gray-400 text-xs block">
+                              {task.type === "goal"
+                                ? `Goal: ${task.progress ?? 0}/${task.goal ?? "N/A"} | `
+                                : ''}
+                              Issued: {formatIssuedAt(task.issueddate, task.issuedtime)} | By: {task.issuedby}
+                            </small>
+                            {/* Action buttons */}
+                            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {!task.archived && !editingTaskEntry && !editingDisciplineEntry && !editingNoteEntry && ( // Only show edit if not archived and no other item is being edited
+                                <button
+                                  onClick={() => handleStartTaskEdit(task)} // Use new handler
+                                  className="text-yellow-400 hover:text-yellow-300 p-0.5"
+                                  title="Edit Task"
+                                >
+                                  <FaEdit size="0.75rem" />
+                                </button>
+                              )}
+                              {/* Archive/Unarchive Button */}
+                              <button
+                                  onClick={() => handleArchiveTask(task.id, task.archived ?? false)}
+                                  className="text-blue-500 hover:text-blue-400 p-0.5"
+                                  title={task.archived ? "Unarchive Task" : "Archive Task"}
+                              >
+                                  {task.archived ? <FaUndo size="0.75rem" /> : <FaArchive size="0.75rem" />}
+                              </button>
+                              {/* Delete Button */}
+                              <button
+                                onClick={() => handleDeleteTask(task.id)}
+                                className="text-red-500 hover:text-red-400 p-0.5"
+                                title="Delete Task"
+                              >
+                                <FaTrash size="0.75rem" />
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      )
+                    )
                   ) : (
                     <p className="text-gray-500 italic text-sm">No tasks.</p>
                   )}
@@ -1056,37 +1153,62 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
                   {discipline.length > 0 ? (
                     discipline.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="p-2 border border-gray-600 rounded bg-gray-700/50 text-sm relative group"
-                      >
-                        <p className="text-gray-300 font-semibold uppercase">
-                          {entry.type}
-                        </p>
-                        <p className="text-gray-300 truncate">
-                          {entry.disciplinenotes}
-                        </p>
-                        <small className="text-gray-400 text-xs block">
-                          By: {entry.issuedby} on{" "}
-                          {formatIssuedAt(entry.issueddate, entry.issuedtime)}
-                        </small>
-                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => handleEditDiscipline(entry)}
-                            className="text-yellow-400 hover:text-yellow-300 p-0.5"
-                            title="Edit Entry"
-                          >
-                            <FaEdit size="0.75rem" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteDiscipline(entry.id)}
-                            className="text-red-500 hover:text-red-400 p-0.5"
-                            title="Delete Entry"
-                          >
-                            <FaTrash size="0.75rem" />
-                          </button>
+                      // --- Discipline Item ---
+                      editingDisciplineEntry?.id === entry.id ? (
+                        // --- Discipline Edit Form ---
+                        <div key={entry.id} className="p-2 border border-yellow-500 rounded bg-gray-700 space-y-1">
+                           <p className="text-gray-300 font-semibold uppercase text-sm">{entry.type}</p>
+                           <textarea
+                              value={editedDisciplineNotes}
+                              onChange={(e) => setEditedDisciplineNotes(e.target.value)}
+                              className="input w-full bg-gray-600 border-gray-500 text-white text-sm"
+                              rows={2}
+                           />
+                           <div className="flex justify-end gap-2">
+                              <button onClick={handleCancelDisciplineEdit} className="text-gray-400 hover:text-white p-0.5" title="Cancel Edit">
+                                <FaTimes size="0.8rem" />
+                              </button>
+                              <button onClick={handleSaveDisciplineEdit} disabled={isSubmitting} className="text-green-500 hover:text-green-400 p-0.5" title="Save Edit">
+                                <FaSave size="0.8rem" />
+                              </button>
+                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        // --- Discipline Display ---
+                        <div
+                          key={entry.id}
+                          className="p-2 border border-gray-600 rounded bg-gray-700/50 text-sm relative group"
+                        >
+                          <p className="text-gray-300 font-semibold uppercase">
+                            {entry.type}
+                          </p>
+                          <p className="text-gray-300 truncate">
+                            {entry.disciplinenotes}
+                          </p>
+                          <small className="text-gray-400 text-xs block">
+                            By: {entry.issuedby} on{" "}
+                            {formatIssuedAt(entry.issueddate, entry.issuedtime)}
+                          </small>
+                          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {!editingTaskEntry && !editingDisciplineEntry && !editingNoteEntry && ( // Only show if no other item is being edited
+                              <button
+                                onClick={() => handleStartDisciplineEdit(entry)} // Use new handler
+                                className="text-yellow-400 hover:text-yellow-300 p-0.5"
+                                title="Edit Entry"
+                              >
+                                <FaEdit size="0.75rem" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteDiscipline(entry.id)}
+                              className="text-red-500 hover:text-red-400 p-0.5"
+                              title="Delete Entry"
+                            >
+                              <FaTrash size="0.75rem" />
+                            </button>
+                          </div>
+                        </div>
+                      )
                     ))
                   ) : (
                     <p className="text-gray-500 italic text-sm">
@@ -1146,32 +1268,56 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
                 <div className="space-y-2 max-h-[calc(60vh)] overflow-y-auto custom-scrollbar pr-1">
                   {notes.length > 0 ? (
                     notes.map((note) => (
-                      <div
-                        key={note.id}
-                        className="p-2 border border-gray-600 rounded bg-gray-700/50 text-sm relative group"
-                      >
-                        <p className="text-gray-300">{note.note}</p>
-                        <small className="text-gray-400 text-xs block">
-                          By: {note.issuedby} on{" "}
-                          {formatIssuedAt(note.issueddate, note.issuedtime)}
-                        </small>
-                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => handleEditNote(note)}
-                            className="text-yellow-400 hover:text-yellow-300 p-0.5"
-                            title="Edit Note"
-                          >
-                            <FaEdit size="0.75rem" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteNote(note.id)}
-                            className="text-red-500 hover:text-red-400 p-0.5"
-                            title="Delete Note"
-                          >
-                            <FaTrash size="0.75rem" />
-                          </button>
+                      // --- Note Item ---
+                      editingNoteEntry?.id === note.id ? (
+                        // --- Note Edit Form ---
+                        <div key={note.id} className="p-2 border border-yellow-500 rounded bg-gray-700 space-y-1">
+                           <textarea
+                              value={editedNoteText}
+                              onChange={(e) => setEditedNoteText(e.target.value)}
+                              className="input w-full bg-gray-600 border-gray-500 text-white text-sm"
+                              rows={3}
+                           />
+                           <div className="flex justify-end gap-2">
+                              <button onClick={handleCancelNoteEdit} className="text-gray-400 hover:text-white p-0.5" title="Cancel Edit">
+                                <FaTimes size="0.8rem" />
+                              </button>
+                              <button onClick={handleSaveNoteEdit} disabled={isSubmitting} className="text-green-500 hover:text-green-400 p-0.5" title="Save Edit">
+                                <FaSave size="0.8rem" />
+                              </button>
+                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        // --- Note Display ---
+                        <div
+                          key={note.id}
+                          className="p-2 border border-gray-600 rounded bg-gray-700/50 text-sm relative group"
+                        >
+                          <p className="text-gray-300 whitespace-pre-wrap">{note.note}</p> {/* Use whitespace-pre-wrap */}
+                          <small className="text-gray-400 text-xs block">
+                            By: {note.issuedby} on{" "}
+                            {formatIssuedAt(note.issueddate, note.issuedtime)}
+                          </small>
+                          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {!editingTaskEntry && !editingDisciplineEntry && !editingNoteEntry && ( // Only show if no other item is being edited
+                              <button
+                                onClick={() => handleStartNoteEdit(note)} // Use new handler
+                                className="text-yellow-400 hover:text-yellow-300 p-0.5"
+                                title="Edit Note"
+                              >
+                                <FaEdit size="0.75rem" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteNote(note.id)}
+                              className="text-red-500 hover:text-red-400 p-0.5"
+                              title="Delete Note"
+                            >
+                              <FaTrash size="0.75rem" />
+                            </button>
+                          </div>
+                        </div>
+                      )
                     ))
                   ) : (
                     <p className="text-gray-500 italic text-sm">No notes.</p>
