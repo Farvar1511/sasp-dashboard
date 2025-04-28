@@ -45,7 +45,7 @@
 
   --border: oklch(1 0 0 / 10%); /* Dark theme border */
   --radius: 0.625rem;
-  --background: oklch(0.18 0 0);
+  --background: oklch(0. 0 220.59);
   --foreground: oklch(0.985 0 0); /* White */
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0); /* White */

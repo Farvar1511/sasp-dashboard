@@ -155,9 +155,28 @@ export const formatDateForDisplay = (
   }
 };
 
-export const formatIssuedAt = (dateStr: string, timeStr: string): string => {
-  if (!dateStr || !timeStr) return "Invalid Date/Time";
-  return `${dateStr} at ${timeStr}`;
+/**
+ * Combines date and time strings for display.
+ * @param dateStr - Date string (e.g., "MM/DD/YY").
+ * @param timeStr - Time string (e.g., "h:mm AM/PM").
+ * @returns Combined string like "MM/DD/YY at h:mm AM/PM" or indicates invalid input.
+ */
+export const formatIssuedAt = (dateStr: string | null | undefined, timeStr: string | null | undefined): string => {
+  const formattedDate = formatDateToMMDDYY(dateStr); // Ensure consistent MM/DD/YY format
+  const formattedTime = timeStr; // Assume timeStr is already in desired h:mm AM/PM format
+
+  if (!formattedDate || !formattedTime || formattedDate === "N/A") {
+      return "Invalid Date/Time";
+  }
+  // Validate time format loosely (e.g., contains AM/PM)
+  if (!/^\d{1,2}:\d{2}\s(AM|PM)$/i.test(formattedTime)) {
+      // If time format is not as expected, maybe just show the date
+      // console.warn(`formatIssuedAt received potentially invalid time format: ${timeStr}`);
+      // return formattedDate; // Option: just return date if time is bad
+      return "Invalid Time Format"; // Option: Indicate error
+  }
+
+  return `${formattedDate} at ${formattedTime}`;
 };
 
 export function showTime(): { day: string; date: string; time: string } {
@@ -405,4 +424,68 @@ export const formatTimestampDateTime = (
   }
 
   return "N/A"; // Return N/A if parsing or formatting fails
+};
+
+/**
+ * Gets the current date and time formatted as strings.
+ * @returns An object with { currentDate: "MM/DD/YY", currentTime: "h:mm AM/PM" }.
+ */
+export const getCurrentDateTimeStrings = (): { currentDate: string; currentTime: string } => {
+    const now = new Date();
+
+    // Format Date: MM/DD/YY
+    const month = (now.getMonth() + 1).toString(); // PadStart not needed for MM/DD/YY
+    const day = now.getDate().toString();
+    const year = now.getFullYear().toString().slice(-2);
+    const currentDate = `${month}/${day}/${year}`;
+
+    // Format Time: h:mm AM/PM
+    const options: Intl.DateTimeFormatOptions = {
+        hour: 'numeric', // h
+        minute: '2-digit', // mm
+        hour12: true, // AM/PM
+    };
+    const currentTime = now.toLocaleTimeString('en-US', options);
+
+    return { currentDate, currentTime };
+};
+
+/**
+ * Converts various date/time representations to a Firestore Timestamp or null.
+ * Handles null/undefined, Firestore Timestamps, JS Date objects,
+ * and strings (attempts common formats like YYYY-MM-DD, ISO strings).
+ * Returns null if the input is invalid or cannot be parsed.
+ */
+export const convertToTimestampOrNull = (
+    value: string | Date | Timestamp | null | undefined
+): Timestamp | null => {
+    if (value === null || value === undefined) {
+        return null;
+    }
+
+    let date: Date | null = null;
+
+    try {
+        if (value instanceof Timestamp) {
+            // If value is a Firestore Timestamp, convert it to a Date object
+            date = value.toDate();
+        } else if (value instanceof Date) {
+            // If value is already a Date object, use it directly
+            date = value;
+        } else if (typeof value === 'string') {
+            // If value is a string, attempt to parse it
+            date = new Date(value);
+        }
+
+        // Check if the date is valid
+        if (date && !isNaN(date.getTime())) {
+            // If valid, return as Firestore Timestamp
+            return Timestamp.fromDate(date);
+        }
+    } catch (error) {
+        console.error("Error converting to Timestamp:", error, value);
+    }
+
+    // If value is null, undefined, or invalid, return null
+    return null;
 };

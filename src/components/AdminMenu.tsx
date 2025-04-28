@@ -14,13 +14,16 @@ import {
   deleteField,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
-import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime } from "../utils/timeHelpers";
+import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime, getCurrentDateTimeStrings } from "../utils/timeHelpers";
 import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash, FaCheckCircle } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { RosterUser, DisciplineEntry, NoteEntry } from "../types/User";
 import EditUserModal from "./EditUserModal";
 import AddUserModal from "./AddUserModal"; // Import the new modal
-import { UserTask } from "../types/User";
+import EditTaskModal from "./EditTaskModal"; // Import the new task modal
+import UserCardDetailsTabs from "./UserCardDetailsTabs"; // Import the new tabs component
+import { UserTask } from "../types/User"; // Ensure UserTask type is imported
+
 import { toast } from "react-toastify";
 import ConfirmationModal from "./ConfirmationModal";
 import { where as firestoreWhere, QueryConstraint } from "firebase/firestore";
@@ -31,7 +34,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "../components/ui/accordion"; // Adjust path as needed
+} from "../components/ui/accordion"; // Keep for now if used elsewhere, otherwise remove
 
 // Export these for use in AddUserModal
 export const rankCategories = {
@@ -143,27 +146,60 @@ const assignTaskFilterOptions = {
   ...Object.fromEntries(availableRanks.map((rank) => [rank, rank])),
 };
 
-const getCurrentDateTimeStrings = () => {
-  const now = new Date();
-  const date = now.toLocaleDateString();
-  const time = now.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return { date, time };
+// Helper function to get rank abbreviation
+const getRankAbbreviation = (rank: string): string => {
+  const lowerRank = rank.toLowerCase();
+  const abbreviations: { [key: string]: string } = {
+    commissioner: "Comm.",
+    "deputy commissioner": "DComm.",
+    "assistant commissioner": "AComm.",
+    commander: "Cmdr.",
+    captain: "Capt.",
+    lieutenant: "Lt.",
+    "staff sergeant": "SSgt.",
+    sergeant: "Sgt.",
+    corporal: "Cpl.",
+    "trooper first class": "TFC.",
+    trooper: "Tpr.",
+    cadet: "Cdt.",
+  };
+  return abbreviations[lowerRank] || rank; // Fallback to full rank if no abbreviation
 };
 
+// Helper function to format issuer name
+const formatIssuerName = (rank: string | undefined, name: string | undefined): string => {
+  if (!rank || !name) return "Admin"; // Fallback if rank or name is missing
+
+  const rankAbbreviation = getRankAbbreviation(rank);
+  const nameParts = name.trim().split(" ");
+  const firstName = nameParts[0];
+  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+
+  if (!firstName) return name; // Fallback to full name if first name is missing
+
+  const firstInitial = firstName.charAt(0).toUpperCase();
+
+  if (!lastName) return `${rankAbbreviation} ${firstInitial}.`; // Format if only first name exists
+
+  return `${rankAbbreviation} ${firstInitial}. ${lastName}`;
+};
+
+export type { FirestoreUserWithDetails };
+
 export default function AdminMenu(): JSX.Element {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser } = useAuth(); // Get currentUser
   const location = useLocation();
   const [usersData, setUsersData] = useState<FirestoreUserWithDetails[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [bulkTaskDescription, setBulkTaskDescription] = useState<string>(""); // State for task description
   const [bulkTaskType, setBulkTaskType] = useState<"goal" | "normal">("normal");
-  const [bulkTaskGoal, setBulkTaskGoal] = useState<number>(0);
+  const [bulkTaskGoal, setBulkTaskGoal] = useState<number>(1); // Default goal to 1
   const [isAssigning, setIsAssigning] = useState(false);
   const [editingUser, setEditingUser] = useState<FirestoreUserWithDetails | null>(null);
+  const [editingTask, setEditingTask] = useState<(UserTask & { userId: string }) | null>(null); // State for editing task
+  const [taskToDelete, setTaskToDelete] = useState<{ userId: string; taskId: string } | null>(null); // State still useful for rendering logic
   const [confirmationModal, setConfirmationModal] = useState<{
     show: boolean;
     message: string;
@@ -224,7 +260,7 @@ export default function AdminMenu(): JSX.Element {
         }
         // --- End Check ---
 
-        // Fetch tasks
+        // Fetch tasks - Use 'task' field consistently
         const tasksSnapshot = await getDocs(
           query(
             collection(dbFirestore, "users", userEmail, "tasks"),
@@ -233,18 +269,20 @@ export default function AdminMenu(): JSX.Element {
         );
         const tasks = tasksSnapshot.docs.map((taskDoc) => {
           const data = taskDoc.data();
+          // Use 'task' field directly, matching UserTask interface
           if (
-            typeof data.task === "string" &&
+            typeof data.task === "string" && // Check Firestore field name 'task'
             (data.type === "goal" || data.type === "normal") &&
             typeof data.issuedby === "string" &&
             typeof data.issueddate === "string" &&
             typeof data.issuedtime === "string" &&
             typeof data.completed === "boolean" &&
-            (data.type === "goal" ? typeof data.progress === "number" : true)
+            (data.type === "goal" ? typeof data.progress === "number" : true) &&
+            (data.type === "goal" ? typeof data.goal === "number" : true)
           ) {
             return {
               id: taskDoc.id,
-              task: data.task,
+              task: data.task, // Use 'task' field directly
               type: data.type,
               issuedby: data.issuedby,
               issueddate: data.issueddate,
@@ -252,8 +290,9 @@ export default function AdminMenu(): JSX.Element {
               progress: data.progress,
               completed: data.completed,
               goal: data.goal,
-            } as UserTask;
+            } as UserTask; // Cast to local UserTask type
           }
+          console.warn("Skipping invalid task data:", data);
           return null;
         }).filter((task): task is UserTask => task !== null);
 
@@ -387,11 +426,45 @@ export default function AdminMenu(): JSX.Element {
     } finally {
       setUsersLoading(false);
     }
-  }, []); // Keep dependencies as they were
+  }, []);
 
   useEffect(() => {
     fetchAdminData();
   }, [fetchAdminData]);
+
+  // Effect to update selected users based on the filter dropdown
+  useEffect(() => {
+    if (selectedAssignFilter === "SELECT") {
+      setSelectedUsers([]); // Clear selection if default is chosen
+      return;
+    }
+
+    let filteredForSelection = [...usersData];
+
+    // Apply isActive filter unless showing inactive
+    if (!showInactiveUsers) {
+        filteredForSelection = filteredForSelection.filter(user => user.isActive);
+    }
+
+    if (selectedAssignFilter !== "ALL") {
+      if (Object.keys(rankCategories).includes(selectedAssignFilter)) {
+        // Filter by category
+        filteredForSelection = filteredForSelection.filter(
+          (user) => getRankCategory(user.rank) === selectedAssignFilter
+        );
+      } else {
+        // Filter by specific rank
+        filteredForSelection = filteredForSelection.filter(
+          (user) => user.rank === selectedAssignFilter
+        );
+      }
+    }
+    // If 'ALL', no additional rank/category filtering needed beyond isActive
+
+    setSelectedUsers(filteredForSelection.map(user => user.id));
+
+  }, [selectedAssignFilter, usersData, showInactiveUsers]); // Add showInactiveUsers dependency
+
 
   const filteredUsersData = useMemo(() => {
     let filtered = [...usersData].sort((a, b) => {
@@ -486,6 +559,160 @@ export default function AdminMenu(): JSX.Element {
     fetchAdminData(); // Refresh the user list
   };
 
+  const handleAssignTask = async () => {
+    if (!bulkTaskDescription.trim()) {
+      toast.error("Please enter a task description.");
+      return;
+    }
+    if (selectedUsers.length === 0) {
+      toast.error("Please select at least one user.");
+      return;
+    }
+    if (bulkTaskType === "goal" && bulkTaskGoal <= 0) {
+      toast.error("Goal value must be greater than 0 for goal tasks.");
+      return;
+    }
+
+    setIsAssigning(true);
+    const { currentDate, currentTime } = getCurrentDateTimeStrings();
+    const batch = writeBatch(dbFirestore);
+    // Get issuer name directly from currentUser
+    const issuerName = currentUser?.displayName || currentUser?.name || "Admin"; // Use display name or name, fallback to Admin
+
+    selectedUsers.forEach((userId) => {
+      const taskRef = doc(collection(dbFirestore, "users", userId, "tasks"));
+      // Prepare data for Firestore, using 'task' field
+      const taskData: { [key: string]: any } = {
+        task: bulkTaskDescription.trim(),
+        type: bulkTaskType,
+        issuedby: issuerName, // Use the direct name from currentUser
+        issueddate: currentDate,
+        issuedtime: currentTime,
+        completed: false,
+      };
+      if (bulkTaskType === "goal") {
+        taskData.goal = bulkTaskGoal;
+        taskData.progress = 0;
+      }
+      batch.set(taskRef, taskData);
+    });
+
+    try {
+      await batch.commit();
+      toast.success(`Task assigned to ${selectedUsers.length} user(s).`);
+      setBulkTaskDescription(""); // Still reset the description input state
+      setBulkTaskType("normal");
+      setBulkTaskGoal(1);
+      setSelectedUsers([]);
+      setSelectedAssignFilter("SELECT"); // Reset dropdown
+      setIsAssignTaskOpen(false); // Optionally close the section
+      fetchAdminData(); // Refresh data to show new tasks
+    } catch (error) {
+      console.error("Error assigning bulk task:", error);
+      toast.error("Failed to assign task.");
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // --- Task Edit/Delete/Toggle Handlers ---
+  const handleOpenEditTaskModal = (user: FirestoreUserWithDetails, task: UserTask) => {
+    setEditingTask({ ...task, userId: user.id });
+  };
+
+  const handleSaveTask = async (userId: string, taskId: string, updatedTaskData: Partial<UserTask>) => {
+    const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
+
+    // Prepare data for Firestore update - no mapping needed if EditTaskModal sends 'task'
+    const dataToSave: { [key: string]: any } = { ...updatedTaskData };
+
+    // Ensure 'task' field exists if it was potentially edited
+    if (!dataToSave.hasOwnProperty('task') && updatedTaskData.task !== undefined) {
+        dataToSave.task = updatedTaskData.task;
+    }
+
+    // Handle potential undefined goal/progress when switching type
+    if (dataToSave.type === 'normal') {
+        dataToSave.goal = deleteField();
+        dataToSave.progress = deleteField();
+    } else if (dataToSave.type === 'goal') {
+        if (dataToSave.goal === undefined || dataToSave.goal === null) {
+            // Handle missing goal if necessary
+        }
+        if (dataToSave.progress === undefined || dataToSave.progress === null) {
+            dataToSave.progress = 0;
+        }
+    }
+
+    try {
+      await updateDoc(taskRef, dataToSave);
+      toast.success("Task updated successfully!");
+      setEditingTask(null); // Close modal
+      fetchAdminData(); // Refresh data
+    } catch (error) {
+      console.error("Error updating task:", error);
+      toast.error(`Failed to update task: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw error; // Re-throw error so modal knows saving failed
+    }
+  };
+
+  const handleOpenDeleteTaskConfirmation = (userId: string, taskId: string) => {
+    // Set state primarily for controlling modal visibility and potentially message content
+    setTaskToDelete({ userId, taskId });
+    setConfirmationModal({
+        show: true,
+        message: "Are you sure you want to delete this task? This action cannot be undone.",
+        // Pass an inline function that captures the current userId and taskId
+        onConfirm: () => handleDeleteTask(userId, taskId),
+    });
+  };
+
+  const handleDeleteTask = async (userId: string, taskId: string) => {
+    // Optional: Check if the taskToDelete state matches, as an extra safety measure, though not strictly necessary now
+    // if (!taskToDelete || taskToDelete.userId !== userId || taskToDelete.taskId !== taskId) {
+    //     console.error("Mismatch between arguments and taskToDelete state during deletion.");
+    //     // Decide how to handle mismatch, e.g., close modal and log error
+    //     setConfirmationModal(null);
+    //     setTaskToDelete(null);
+    //     return;
+    // }
+
+    const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
+
+    try {
+        await deleteDoc(taskRef);
+        toast.success("Task deleted successfully!");
+        fetchAdminData(); // Refresh data
+    } catch (error) {
+        console.error("Error deleting task:", error);
+        toast.error(`Failed to delete task: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+        // Always close modal and clear state, regardless of success/failure
+        setConfirmationModal(null);
+        setTaskToDelete(null);
+    }
+ };
+
+ const handleCancelDeleteTask = () => {
+    setConfirmationModal(null);
+    setTaskToDelete(null);
+ };
+
+ // New function to toggle task completion status
+ const handleToggleTaskCompletion = async (userId: string, taskId: string, currentStatus: boolean) => {
+    const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
+    const newStatus = !currentStatus; // Toggle the status
+
+    try {
+      await updateDoc(taskRef, { completed: newStatus });
+      toast.success(`Task marked as ${newStatus ? 'complete' : 'incomplete'}.`);
+      fetchAdminData(); // Refresh data
+    } catch (error) {
+      console.error("Error toggling task completion:", error);
+      toast.error(`Failed to update task status: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
 
   return (
     <Layout>
@@ -563,10 +790,8 @@ export default function AdminMenu(): JSX.Element {
             <textarea
               className={inputStyle}
               placeholder="Enter task description..."
-              value={bulkTaskType}
-              onChange={(e) => {
-                setBulkTaskType(e.target.value as "goal" | "normal");
-              }}
+              value={bulkTaskDescription} // Use description state
+              onChange={(e) => setBulkTaskDescription(e.target.value)} // Update description state
             />
             <div>
               <label className={`block text-sm font-medium ${textAccent} mb-2`}>
@@ -575,9 +800,13 @@ export default function AdminMenu(): JSX.Element {
               <select
                 className={inputStyle}
                 value={bulkTaskType}
-                onChange={(e) =>
-                  setBulkTaskType(e.target.value as "goal" | "normal")
-                }
+                onChange={(e) => {
+                  const newType = e.target.value as "goal" | "normal";
+                  setBulkTaskType(newType);
+                  if (newType === 'normal') {
+                    setBulkTaskGoal(1); // Reset goal if switching to normal
+                  }
+                }}
               >
                 <option value="normal">Normal Task</option>
                 <option value="goal">Goal Task</option>
@@ -592,10 +821,11 @@ export default function AdminMenu(): JSX.Element {
                 </label>
                 <input
                   type="number"
+                  min="1" // Ensure goal is positive
                   className={inputStyle}
-                  placeholder="Enter goal value"
+                  placeholder="Enter goal value (e.g., 5)"
                   value={bulkTaskGoal}
-                  onChange={(e) => setBulkTaskGoal(Number(e.target.value))}
+                  onChange={(e) => setBulkTaskGoal(Math.max(1, Number(e.target.value)))} // Ensure goal is at least 1
                 />
               </div>
             )}
@@ -614,6 +844,11 @@ export default function AdminMenu(): JSX.Element {
                   </option>
                 ))}
               </select>
+              {!showInactiveUsers && selectedAssignFilter !== 'SELECT' && (
+                <p className="text-xs text-white/50 italic mt-1">
+                  Note: Only active users are selected based on the filter above.
+                </p>
+              )}
             </div>
             <div>
               <h3 className="text-lg font-semibold mb-2 text-white mt-4">
@@ -622,7 +857,8 @@ export default function AdminMenu(): JSX.Element {
               <div
                 className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-black/80 p-3 rounded ${borderAccent} max-h-60 overflow-y-auto custom-scrollbar`}
               >
-                {[...usersData]
+                {[...usersData] // Display users based on main data, selection handled by checkbox
+                  .filter(user => showInactiveUsers || user.isActive) // Filter based on showInactiveUsers toggle
                   .sort((a, b) => a.name.localeCompare(b.name))
                   .map((user) => (
                     <label
@@ -646,7 +882,7 @@ export default function AdminMenu(): JSX.Element {
                       <span className="text-xs leading-tight">
                         {user.name} <br />
                         <span className="text-[10px] opacity-80">
-                          {user.rank} - {user.badge || 'N/A'}
+                          {user.rank} - {user.badge || 'N/A'} {!user.isActive ? '(Inactive)' : ''}
                         </span>
                       </span>
                     </label>
@@ -659,8 +895,8 @@ export default function AdminMenu(): JSX.Element {
               </button>
               <button
                 className={buttonPrimary}
-                onClick={() => setIsAssigning(true)}
-                disabled={isAssigning}
+                onClick={handleAssignTask} // Call the new handler
+                disabled={isAssigning || selectedUsers.length === 0 || !bulkTaskDescription.trim()} // Disable if assigning, no users, or no description
               >
                 {isAssigning ? "Assigning..." : "Assign Task"}
               </button>
@@ -813,8 +1049,8 @@ export default function AdminMenu(): JSX.Element {
 
                     // Sort tasks: completed first, then by issue date descending (implicitly handled by initial fetch)
                     const sortedTasks = [...(userData.tasks || [])].sort((a, b) => {
-                      if (a.completed === b.completed) return 0; // Keep original order if completion status is the same
-                      return a.completed ? -1 : 1; // Completed tasks first
+                        if (a.completed === b.completed) return 0;
+                        return a.completed ? 1 : -1;
                     });
 
                     // Define LOA specific styles
@@ -824,8 +1060,9 @@ export default function AdminMenu(): JSX.Element {
                     return (
                       <div
                         key={userData.id}
-                        className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md ${isHiddenByRule && showHiddenCards ? 'opacity-70 border-dashed border-orange-500' : ''} ${loaCardClass}`} // Apply LOA card class
-                        title={`${isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}${isOnLOA ? ' User is currently on LOA' : ''}`} // Add LOA to title
+                        // Add min-h class here
+                        className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md min-h-[250px] ${isHiddenByRule && showHiddenCards ? 'opacity-70 border-dashed border-orange-500' : ''} ${loaCardClass}`}
+                        title={`${isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}${isOnLOA ? ' User is currently on LOA' : ''}`}
                       >
                         <div className="flex-grow">
                           {/* ... User Header Info (Name, Rank, Badges etc.) ... */}
@@ -872,93 +1109,18 @@ export default function AdminMenu(): JSX.Element {
                             Badge: {userData.badge}
                           </p>
 
-                          {/* Accordion for Tasks, Discipline, Notes */}
-                          <Accordion type="multiple" className="w-full mt-3 border-t border-[#f3c700]/50 pt-2">
-                            {/* Tasks Accordion Item */}
-                            <AccordionItem value="tasks" className="border-b border-[#f3c700]/30">
-                              <AccordionTrigger className={`py-2 px-1 text-sm font-medium ${textSecondary} italic hover:no-underline hover:text-white`}>
-                                Tasks ({userData.tasks?.length || 0})
-                              </AccordionTrigger>
-                              <AccordionContent className="pb-2 px-1">
-                                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2">
-                                  {sortedTasks.length > 0 ? sortedTasks.map((task) => (
-                                    <div
-                                      key={task.id}
-                                      className={`p-1.5 rounded border relative group transition-colors duration-200 ${
-                                        task.completed
-                                          ? 'border-green-600/50 bg-green-900/30 opacity-80'
-                                          : 'border-[#f3c700]/40 bg-black/50'
-                                      }`}
-                                      title={task.completed ? 'Task Completed' : 'Task In Progress'}
-                                    >
-                                      <div className="absolute top-1 right-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                        <FaEdit className={`cursor-pointer h-3.5 w-3.5 transition-colors duration-150 ${task.completed ? 'text-green-400 hover:text-green-300' : 'text-[#f3c700] hover:text-yellow-300'}`} title="Edit Task" />
-                                        <FaTrash className="text-red-500 hover:text-red-400 cursor-pointer h-3.5 w-3.5 transition-colors duration-150" title="Delete Task" />
-                                      </div>
-                                      <p className={`inline text-xs pr-10 ${task.completed ? "line-through text-white/60" : "text-white/90"}`}>
-                                        {task.task}
-                                      </p>
-                                      <small className="text-white/60 block mt-1 text-[10px]">
-                                        Type: {task.type}
-                                        {task.type === "goal" && ` | Progress: ${task.progress ?? 0}/${task.goal ?? "N/A"}`}
-                                        | Status: {task.completed ? <span className="text-green-400 font-semibold">Completed</span> : <span className={textAccent}>In Progress</span>}
-                                        | Assigned: {formatIssuedAt(task.issueddate, task.issuedtime)} | By: {task.issuedby || "Unknown"}
-                                      </small>
-                                    </div>
-                                  )) : (
-                                    <p className="text-white/50 italic text-xs">No tasks assigned.</p>
-                                  )}
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-
-                            {/* Discipline Accordion Item */}
-                            <AccordionItem value="discipline" className="border-b border-[#f3c700]/30">
-                              <AccordionTrigger className={`py-2 px-1 text-sm font-medium ${textSecondary} italic hover:no-underline hover:text-white`}>
-                                Discipline ({userData.disciplineEntries?.length || 0})
-                              </AccordionTrigger>
-                              <AccordionContent className="pb-2 px-1">
-                                <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
-                                  {userData.disciplineEntries && userData.disciplineEntries.length > 0 ? (
-                                    userData.disciplineEntries.map((entry) => (
-                                      <div key={entry.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50">
-                                        <p className="text-white/90 font-medium uppercase text-[10px]">{entry.type}</p>
-                                        <p className="text-white/80 truncate">{entry.disciplinenotes}</p>
-                                        <small className="text-white/60 block mt-0.5 text-[10px]">
-                                          By: {entry.issuedby} on {formatIssuedAt(entry.issueddate, entry.issuedtime)}
-                                        </small>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <p className="text-white/50 italic">No discipline.</p>
-                                  )}
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-
-                            {/* Notes Accordion Item */}
-                            <AccordionItem value="notes" className="border-b-0"> {/* Remove border-bottom from last item */}
-                              <AccordionTrigger className={`py-2 px-1 text-sm font-medium ${textSecondary} italic hover:no-underline hover:text-white`}>
-                                Notes ({userData.generalNotes?.length || 0})
-                              </AccordionTrigger>
-                              <AccordionContent className="pb-2 px-1">
-                                <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar pr-1 shadow-inner border border-white/10 rounded p-2 text-xs">
-                                  {userData.generalNotes && userData.generalNotes.length > 0 ? (
-                                    userData.generalNotes.map((note) => (
-                                      <div key={note.id} className="p-1.5 rounded border border-[#f3c700]/40 bg-black/50">
-                                        <p className="text-white/90 font-medium text-[10px]">{note.note}</p>
-                                        <small className="text-white/60 block mt-0.5 text-[10px]">
-                                          By: {note.issuedby} on {formatIssuedAt(note.issueddate, note.issuedtime)}
-                                        </small>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <p className="text-white/50 italic">No notes.</p>
-                                  )}
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          </Accordion>
+                          {/* Replace Accordion with Tabs Component */}
+                          <UserCardDetailsTabs
+                              userData={userData}
+                              tasks={userData.tasks || []}
+                              disciplineEntries={userData.disciplineEntries || []}
+                              generalNotes={userData.generalNotes || []}
+                              onEditTask={handleOpenEditTaskModal}
+                              onDeleteTask={handleOpenDeleteTaskConfirmation} // Pass the confirmation opener
+                              onToggleTaskCompletion={handleToggleTaskCompletion} // Pass the new handler
+                              textAccent={textAccent}
+                              textSecondary={textSecondary}
+                          />
 
                         </div>
                         <div className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center">
@@ -1025,6 +1187,30 @@ export default function AdminMenu(): JSX.Element {
             onSave={handleSave} // Use combined save handler
           />
         )}
+
+        {/* Edit Task Modal */}
+        {editingTask && (
+            <EditTaskModal
+                task={editingTask}
+                onClose={() => setEditingTask(null)}
+                onSave={handleSaveTask}
+            />
+        )}
+
+        {/* Confirmation Modal for Task Deletion */}
+        {confirmationModal && confirmationModal.show && taskToDelete && (
+            <ConfirmationModal
+                isOpen={confirmationModal.show}
+                title="Confirm Action"
+                message={confirmationModal.message}
+                onConfirm={confirmationModal.onConfirm}
+                onCancel={handleCancelDeleteTask}
+                onClose={handleCancelDeleteTask}
+                confirmText="Yes, Delete"
+                cancelText="Cancel"
+            />
+        )}
+
       </div>
     </Layout>
   );

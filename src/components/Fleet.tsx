@@ -12,17 +12,22 @@ import {
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
 import { useAuth } from "../context/AuthContext";
-import { FaPlus, FaTrash } from "react-icons/fa"; 
+import { FaPlus, FaTrash, FaTable, FaThLarge } from "react-icons/fa";
 import { computeIsAdmin } from "../utils/isadmin";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { cn } from "../lib/utils"; // Import cn utility if not already present
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"; // Import Card components
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table"; // Import Table components
-import { Checkbox } from "./ui/checkbox"; // Import Checkbox component
-import { Button } from "./ui/button"; // Import Button component
+import { cn } from "../lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
+import { Checkbox } from "./ui/checkbox";
+import { Button } from "./ui/button";
+import FleetCard from "./FleetCard";
+import { Input } from "./ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Label } from "./ui/label";
 
-interface FleetVehicle {
+// Export the interface directly
+export interface FleetVehicle {
   id: string;
   plate: string;
   vehicle: string;
@@ -79,7 +84,7 @@ const initializeCheckedState = () => {
 
 const Fleet: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const isAdmin = computeIsAdmin(currentUser); 
+  const isAdmin = computeIsAdmin(currentUser);
   const [fleetData, setFleetData] = useState<FleetVehicle[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +97,7 @@ const Fleet: React.FC = () => {
   const [hideOutOfService, setHideOutOfService] = useState(true);
   const [activeTab, setActiveTab] = useState<"fleet" | "loadout">("fleet"); // State for active tab
   const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>(initializeCheckedState); // State for checklist
+  const [viewMode, setViewMode] = useState<"card" | "table">("card"); // Add view mode state, default to 'card'
 
   const fetchFleetData = useCallback(async () => {
     setLoading(true);
@@ -107,7 +113,7 @@ const Fleet: React.FC = () => {
           ({
             id: doc.id,
             ...doc.data(),
-            division: doc.data().division === "MOTO" ? "MBU" : doc.data().division, 
+            division: doc.data().division === "MOTO" ? "MBU" : doc.data().division,
           } as FleetVehicle)
       );
       setFleetData(vehicles);
@@ -128,7 +134,13 @@ const Fleet: React.FC = () => {
   }, [fetchFleetData]);
 
   const filteredFleet = useMemo(() => {
-    return fleetData.filter((vehicle) => {
+    // First, sort the data by vehicle model name
+    const sortedData = [...fleetData].sort((a, b) =>
+      a.vehicle.localeCompare(b.vehicle)
+    );
+
+    // Then, apply the filters
+    return sortedData.filter((vehicle) => {
       const divisionMatch =
         filterDivision === "All" || vehicle.division === filterDivision;
       const searchMatch =
@@ -139,7 +151,7 @@ const Fleet: React.FC = () => {
       const inServiceMatch = hideOutOfService ? vehicle.inService : true;
       return divisionMatch && searchMatch && inServiceMatch;
     });
-  }, [fleetData, filterDivision, searchTerm, hideOutOfService]);
+  }, [fleetData, filterDivision, searchTerm, hideOutOfService]); // Keep dependencies
 
   const handleSaveVehicle = async () => {
     if (!editingVehicle?.id) return;
@@ -152,7 +164,7 @@ const Fleet: React.FC = () => {
         position: "top-right",
         style: { backgroundColor: "black", color: "#f3c700" },
       });
-      
+
       fetchFleetData();
     } catch (error) {
       console.error("Error saving vehicle:", error);
@@ -230,7 +242,7 @@ const Fleet: React.FC = () => {
         position: "top-right",
         style: { backgroundColor: "black", color: "#f3c700" },
       });
-      
+
       fetchFleetData();
     } catch (error) {
       console.error("Error deleting vehicle:", error);
@@ -342,43 +354,84 @@ const Fleet: React.FC = () => {
         {/* Conditional Content Based on Active Tab */}
         {activeTab === "fleet" && (
           <>
-            {/* Existing Fleet List Content */}
-            <div className="flex flex-col md:flex-row gap-4 mb-6 items-center">
-              <input
+            {/* Filters and View Toggle - Refactored with Shadcn */}
+            <div className="flex flex-col md:flex-row gap-3 mb-6 items-center"> {/* Reduced gap */}
+              {/* Search Input */}
+              <Input
                 type="text"
                 placeholder="Search Plate, Vehicle, Assignee..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="input flex-grow bg-gray-900 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
+                className="h-9 flex-grow bg-black/80 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
               />
-              <select
+              {/* Division Select */}
+              <Select
                 value={filterDivision}
-                onChange={(e) => setFilterDivision(e.target.value)}
-                className="input md:w-auto bg-gray-900 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
+                onValueChange={(value) => setFilterDivision(value)}
               >
-                <option value="All">All Divisions</option>
-                {divisions.map((div) => (
-                  <option key={div} value={div}>
-                    {div}
-                  </option>
-                ))}
-              </select>
-              <label className="flex items-center gap-2 text-yellow-400 bg-black bg-opacity-90 p-2 rounded">
-                <input
-                  type="checkbox"
+                <SelectTrigger className="h-9 w-full md:w-[180px] bg-black/80 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]">
+                  <SelectValue placeholder="Filter Division" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                  <SelectItem value="All" className="focus:bg-gray-700">All Divisions</SelectItem>
+                  {divisions.map((div) => (
+                    <SelectItem key={div} value={div} className="focus:bg-gray-700">
+                      {div}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* Hide Out-of-Service Checkbox */}
+              <div className="flex items-center space-x-2 bg-black/80 border border-gray-700 rounded px-3 h-9">
+                <Checkbox
+                  id="hide-oos"
                   checked={hideOutOfService}
-                  onChange={(e) => setHideOutOfService(e.target.checked)}
-                  className="form-checkbox h-4 w-4 text-[#f3c700] bg-gray-700 border-gray-600 rounded focus:ring-[#f3c700]"
+                  onCheckedChange={(checked) => setHideOutOfService(Boolean(checked))}
+                  className="border-gray-500 data-[state=checked]:bg-[#f3c700] data-[state=checked]:text-black"
                 />
-                Hide Out-of-Service Vehicles
-              </label>
+                <Label htmlFor="hide-oos" className="text-sm font-medium text-yellow-400 cursor-pointer whitespace-nowrap">
+                  Hide OOS
+                </Label>
+              </div>
+
+              {/* View Toggle Buttons */}
+              <div className="flex gap-2 ml-auto">
+                 <Button
+                    variant={viewMode === 'card' ? 'default' : 'outline'}
+                    size="sm" // Keep size consistent or adjust as needed (h-9)
+                    onClick={() => setViewMode('card')}
+                    className={cn(
+                        "flex items-center gap-1 h-9", // Added h-9
+                        viewMode === 'card' ? 'bg-[#f3c700] text-black hover:bg-yellow-300' : 'border-gray-600 text-gray-400 hover:bg-gray-700 hover:text-white bg-black/80' // Added bg-black/80 for outline
+                    )}
+                    title="Card View"
+                 >
+                    <FaThLarge />
+                 </Button>
+                 <Button
+                    variant={viewMode === 'table' ? 'default' : 'outline'}
+                    size="sm" // Keep size consistent or adjust as needed (h-9)
+                    onClick={() => setViewMode('table')}
+                    className={cn(
+                        "flex items-center gap-1 h-9", // Added h-9
+                        viewMode === 'table' ? 'bg-[#f3c700] text-black hover:bg-yellow-300' : 'border-gray-600 text-gray-400 hover:bg-gray-700 hover:text-white bg-black/80' // Added bg-black/80 for outline
+                    )}
+                    title="Table View"
+                 >
+                    <FaTable />
+                 </Button>
+              </div>
+
+              {/* Add Vehicle Button */}
               {isAdmin && (
-                <button
-                  className="button-primary flex items-center gap-2 px-4 py-2"
+                <Button
+                  variant="default" // Use Shadcn Button variant
+                  size="sm" // Consistent size (h-9)
+                  className="h-9 flex items-center gap-2 px-4 bg-[#f3c700] text-black font-bold hover:bg-yellow-300" // Apply styles
                   onClick={openAddVehicleForm}
                 >
                   <FaPlus /> Add Vehicle
-                </button>
+                </Button>
               )}
             </div>
 
@@ -390,78 +443,101 @@ const Fleet: React.FC = () => {
             {error && <p className="text-center text-red-500">{error}</p>}
 
             {!loading && !error && (
-              <div className="overflow-x-auto custom-scrollbar shadow-lg border border-gray-800 rounded">
-                <table className="min-w-full border-collapse text-sm text-center bg-black bg-opacity-80">
-                  {/* ... existing table thead ... */}
-                  <thead className="bg-black text-[#f3c700]">
-                    <tr>
-                      <th className="p-3 border-r border-gray-700 text-base">Status</th>
-                      <th className="p-3 border-r border-gray-700 text-base">Plate</th>
-                      <th className="p-3 border-r border-gray-700 text-base">Vehicle</th>
-                      <th className="p-3 border-r border-gray-700 text-base">Division</th>
-                      <th className="p-3 border-r border-gray-700 text-base">Assignee</th>
-                      <th className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-base`}>Restrictions</th>
-                      {isAdmin && (
-                        <th className="p-3 text-base">Actions</th>
-                      )}
-                    </tr>
-                  </thead>
-                  {/* ... existing table tbody ... */}
-                  <tbody className="text-gray-300">
+              <>
+                {/* Card View */}
+                {viewMode === 'card' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                     {filteredFleet.length > 0 ? (
                       filteredFleet.map((vehicle) => (
-                        <tr
+                        <FleetCard
                           key={vehicle.id}
-                          className="border-t border-gray-800 hover:bg-gray-900/90"
-                        >
-                          <td className="p-3 border-r border-gray-700 text-center align-middle">
-                            <span
-                              className={`inline-block w-3 h-3 rounded-full ${
-                                vehicle.inService ? "bg-green-500" : "bg-red-500"
-                              }`}
-                              title={
-                                vehicle.inService ? "In Service" : "Out of Service"
-                              }
-                            ></span>
-                          </td>
-                          <td className="p-3 border-r border-gray-700 text-center align-middle font-mono">{vehicle.plate}</td>
-                          <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.vehicle}</td>
-                          <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.division}</td>
-                          <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.assignee}</td>
-                          <td className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-center align-middle`}>{vehicle.restrictions || "-"}</td>
-                          {isAdmin && (
-                            <td className="p-2 text-center align-middle">
-                              <button
-                                onClick={() => setEditingVehicle(vehicle)}
-                                className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
-                                title="Edit Vehicle"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteVehicle(vehicle.id)}
-                                className="bg-red-600 hover:bg-red-500 text-white text-xs py-1 px-2 rounded ml-2"
-                                title="Delete Vehicle"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          )}
-                        </tr>
+                          vehicle={vehicle}
+                        />
                       ))
                     ) : (
-                      <tr>
-                        <td
-                          colSpan={isAdmin ? 7 : 6}
-                          className="text-center p-4 text-gray-500 italic"
-                        >
-                          No vehicles found matching criteria.
-                        </td>
-                      </tr>
+                      <p className="col-span-full text-center p-4 text-gray-500 italic">
+                        No vehicles found matching criteria.
+                      </p>
                     )}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                )}
+
+                {/* Table View */}
+                {viewMode === 'table' && (
+                  <div className="overflow-x-auto custom-scrollbar shadow-lg border border-gray-800 rounded">
+                    <table className="min-w-full border-collapse text-sm text-center bg-black bg-opacity-80">
+                      {/* ... existing table thead ... */}
+                      <thead className="bg-black text-[#f3c700]">
+                        <tr>
+                          <th className="p-3 border-r border-gray-700 text-base">Status</th>
+                          <th className="p-3 border-r border-gray-700 text-base">Plate</th>
+                          <th className="p-3 border-r border-gray-700 text-base">Vehicle</th>
+                          <th className="p-3 border-r border-gray-700 text-base">Division</th>
+                          <th className="p-3 border-r border-gray-700 text-base">Assignee</th>
+                          <th className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-base`}>Restrictions</th>
+                          {isAdmin && (
+                            <th className="p-3 text-base">Actions</th>
+                          )}
+                        </tr>
+                      </thead>
+                      {/* ... existing table tbody ... */}
+                      <tbody className="text-gray-300">
+                        {filteredFleet.length > 0 ? (
+                          filteredFleet.map((vehicle) => (
+                            <tr
+                              key={vehicle.id}
+                              className="border-t border-gray-800 hover:bg-gray-900/90"
+                            >
+                              <td className="p-3 border-r border-gray-700 text-center align-middle">
+                                <span
+                                  className={`inline-block w-3 h-3 rounded-full ${
+                                    vehicle.inService ? "bg-green-500" : "bg-red-500"
+                                  }`}
+                                  title={
+                                    vehicle.inService ? "In Service" : "Out of Service"
+                                  }
+                                ></span>
+                              </td>
+                              <td className="p-3 border-r border-gray-700 text-center align-middle font-mono">{vehicle.plate}</td>
+                              <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.vehicle}</td>
+                              <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.division}</td>
+                              <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.assignee}</td>
+                              <td className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-center align-middle`}>{vehicle.restrictions || "-"}</td>
+                              {isAdmin && (
+                                <td className="p-2 text-center align-middle">
+                                  <button
+                                    onClick={() => setEditingVehicle(vehicle)}
+                                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
+                                    title="Edit Vehicle"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteVehicle(vehicle.id)}
+                                    className="bg-red-600 hover:bg-red-500 text-white text-xs py-1 px-2 rounded ml-2"
+                                    title="Delete Vehicle"
+                                  >
+                                    Delete
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={isAdmin ? 7 : 6}
+                              className="text-center p-4 text-gray-500 italic"
+                            >
+                              No vehicles found matching criteria.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -646,7 +722,7 @@ const Fleet: React.FC = () => {
                 <div
                   key={index}
                   // Increased gap and mb
-                  className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-6 border-b border-gray-700 pb-6 items-end" 
+                  className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-6 border-b border-gray-700 pb-6 items-end"
                 >
                   {/* Plate Input */}
                   <div>
@@ -658,7 +734,7 @@ const Fleet: React.FC = () => {
                       type="text"
                       placeholder="Plate"
                       // Added padding py-2
-                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2" 
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2"
                       value={vehicle.plate || ""}
                       onChange={(e) =>
                         handleNewVehicleChange(
@@ -679,7 +755,7 @@ const Fleet: React.FC = () => {
                       type="text"
                       placeholder="Vehicle Model"
                       // Added padding py-2
-                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2" 
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2"
                       value={vehicle.vehicle || ""}
                       onChange={(e) =>
                         handleNewVehicleChange(index, "vehicle", e.target.value)
@@ -694,7 +770,7 @@ const Fleet: React.FC = () => {
                     </label>
                     <select
                       // Added padding py-2
-                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2" 
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2"
                       value={vehicle.division || "Patrol"}
                       onChange={(e) =>
                         handleNewVehicleChange(index, "division", e.target.value)
@@ -717,7 +793,7 @@ const Fleet: React.FC = () => {
                       type="text"
                       placeholder="Assignee or COMMUNAL"
                       // Added padding py-2
-                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2" 
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full py-2"
                       value={vehicle.assignee || "COMMUNAL"}
                       onChange={(e) =>
                         handleNewVehicleChange(index, "assignee", e.target.value)
@@ -733,7 +809,7 @@ const Fleet: React.FC = () => {
                     <textarea
                       placeholder="Restrictions"
                       // Added padding py-2
-                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full text-xs py-2" 
+                      className="input input-sm bg-gray-700 border-gray-600 text-white w-full text-xs py-2"
                       rows={1} // Keep rows small
                       value={vehicle.restrictions || ""}
                       onChange={(e) =>
@@ -747,12 +823,12 @@ const Fleet: React.FC = () => {
                   </div>
                   {/* In Service Checkbox & Remove Button */}
                   {/* Adjusted alignment and spacing */}
-                  <div className="flex items-center justify-between h-full pt-4 pb-1"> 
+                  <div className="flex items-center justify-between h-full pt-4 pb-1">
                     <label className="flex items-center gap-2 text-gray-300 text-sm whitespace-nowrap"> {/* Increased gap and text size */}
                       <input
                         type="checkbox"
                         // Increased size
-                        className="h-5 w-5 rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500" 
+                        className="h-5 w-5 rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500"
                         checked={vehicle.inService ?? true}
                         onChange={(e) =>
                           handleNewVehicleChange(
@@ -769,7 +845,7 @@ const Fleet: React.FC = () => {
                       <button
                         onClick={() => removeNewVehicleRow(index)}
                         // Added padding for easier clicking
-                        className="text-red-500 hover:text-red-400 ml-3 p-1" 
+                        className="text-red-500 hover:text-red-400 ml-3 p-1"
                         title="Remove Row"
                       >
                         <FaTrash />
@@ -781,16 +857,16 @@ const Fleet: React.FC = () => {
 
               {/* Action Buttons */}
               {/* Increased mt */}
-              <div className="flex justify-between items-center mt-8"> 
+              <div className="flex justify-between items-center mt-8">
                 <button
                   // Adjusted padding/text size
-                  className="button-secondary flex items-center gap-2 px-4 py-2 text-base" 
+                  className="button-secondary flex items-center gap-2 px-4 py-2 text-base"
                   onClick={addNewVehicleRow}
                 >
                   <FaPlus /> Add Row
                 </button>
                 {/* Increased gap */}
-                <div className="flex gap-5"> 
+                <div className="flex gap-5">
                   <button
                     className="button-secondary px-4 py-2"
                     onClick={() => setNewVehicles([])} // Clear form on cancel
