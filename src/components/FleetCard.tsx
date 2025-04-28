@@ -1,61 +1,191 @@
 import React from 'react';
-// Import the FleetVehicle interface explicitly as a type
+// Import only the FleetVehicle type
 import { type FleetVehicle } from './Fleet';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"; // Removed CardFooter
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"; // CardTitle might be unused now
 import { Badge } from "./ui/badge";
-// Removed Button import
-// Removed FaEdit, FaTrash imports
 import { cn } from '../lib/utils';
 
+// Props remain the same
 interface FleetCardProps {
-    // Use the imported FleetVehicle interface type
-    vehicle: FleetVehicle;
-    // Removed isAdmin, onEdit, onDelete props
+    modelName: string;
+    vehicles: FleetVehicle[];
 }
 
-// Removed isAdmin, onEdit, onDelete from destructuring
-const FleetCard: React.FC<FleetCardProps> = ({ vehicle }) => {
-    const isAssigned = vehicle.assignee && vehicle.assignee.toUpperCase() !== 'COMMUNAL';
-    const isOutOfService = !vehicle.inService;
+// Define a simple type for the aggregated plate info within this component
+interface AggregatedPlateInfo {
+    plate: string;
+    division: string;
+    vehicleId: string;
+    vehicleInService: boolean;
+    assigned: string; // Assignee from the vehicle object
+}
+
+const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
+    // Aggregate data: all plates, unique divisions, unique restrictions, group plates by division
+    const allPlates: AggregatedPlateInfo[] = [];
+    const uniqueDivisions = new Set<string>();
+    const uniqueRestrictions = new Set<string>();
+    const platesByDivision = new Map<string, AggregatedPlateInfo[]>(); // Ensure this is populated
+
+    vehicles.forEach(vehicle => {
+        const division = vehicle.division;
+        uniqueDivisions.add(division);
+
+        // Group plates by division
+        if (!platesByDivision.has(division)) {
+            platesByDivision.set(division, []);
+        }
+
+        if (vehicle.restrictions && vehicle.restrictions.trim()) {
+            vehicle.restrictions.split(',').forEach(r => {
+                const trimmed = r.trim();
+                if (trimmed) uniqueRestrictions.add(trimmed);
+            });
+        }
+
+        const plateData = {
+            plate: vehicle.plate,
+            division: division,
+            vehicleId: vehicle.id,
+            vehicleInService: vehicle.inService,
+            assigned: vehicle.assignee || "",
+        };
+        allPlates.push(plateData);
+        platesByDivision.get(division)?.push(plateData); // Add to division group
+    });
+
+    const divisionsArray = Array.from(uniqueDivisions).sort();
+    const restrictionsArray = Array.from(uniqueRestrictions).sort();
+
+    // Sort plates within each division group
+    platesByDivision.forEach((plates) => {
+        plates.sort((a, b) => a.plate.localeCompare(b.plate));
+    });
+    // Also sort allPlates if needed for the single-division case
+    allPlates.sort((a, b) => a.plate.localeCompare(b.plate));
+
+    const allVehiclesOutOfService = vehicles.every(v => !v.inService);
+    const totalPlates = allPlates.length;
+    const hasMultipleDivisions = divisionsArray.length > 1; // Check if multiple divisions use this model
+
+    // Updated renderPlateList helper function
+    const renderPlateList = (plates: AggregatedPlateInfo[]) => {
+        return plates.map((plateInfo, idx) => {
+            const isVehicleOOS = !plateInfo.vehicleInService;
+            const isAssigned = plateInfo.assigned && plateInfo.assigned.toUpperCase() !== 'COMMUNAL';
+            const effectiveOOS = isVehicleOOS;
+
+            let badgeVariant: "destructive" | "secondary" | "default" = "default";
+            let statusText = "In Service";
+
+            if (effectiveOOS) {
+                badgeVariant = "destructive";
+                statusText = "Out of Service";
+            } else if (isAssigned) {
+                badgeVariant = "secondary";
+            }
+
+            // Updated badgeTitle without emoji
+            let badgeTitle = `Status: ${statusText}`;
+            if (isAssigned && !effectiveOOS) {
+                badgeTitle += ` (Assigned: ${plateInfo.assigned})`;
+            }
+
+            return (
+                <Badge
+                    key={`${plateInfo.vehicleId}-${idx}`}
+                    // Use variant primarily for semantic grouping, apply styles directly
+                    variant={badgeVariant}
+                    className={cn(
+                        "font-mono text-xs px-2 py-0.5", // Adjusted size
+                        // Specific styles based on status
+                        effectiveOOS
+                            ? "bg-red-900/70 border border-red-600/50 text-red-300 line-through" // OOS style
+                            : isAssigned
+                                ? "bg-gray-700/80 border border-gray-600/50 text-gray-400" // Assigned style
+                                : "bg-green-900/70 border border-green-700/50 text-green-300" // Available style
+                    )}
+                    title={badgeTitle}
+                >
+                    {plateInfo.plate}
+                </Badge>
+            );
+        });
+    };
 
     return (
-        // Change bg-gray-950 to bg-black/90
         <Card className={cn(
-            "flex flex-col border-[#f3c700]/50 bg-black/95 text-white shadow-md", // Changed background
-            isOutOfService ? "opacity-60 border-dashed border-red-600/50" : ""
-        )} title={isOutOfService ? "Vehicle is Out of Service" : ""}>
-            <CardHeader className="pb-2">
-                <CardTitle className="text-[#f3c700] text-lg truncate">{vehicle.vehicle}</CardTitle>
-                <CardDescription className="text-white/70 text-sm">{vehicle.division}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-3 pt-2 pb-3">
-                {vehicle.restrictions && (
-                    <div>
-                        <h4 className="text-xs font-semibold text-white/60 mb-1">Restrictions</h4>
-                        <Badge variant="secondary" className="bg-yellow-900/70 border border-yellow-700/50 text-yellow-300 text-xs">
-                            {vehicle.restrictions}
-                        </Badge>
+            "flex flex-col border-[#f3c700]/50 bg-black/90 text-white shadow-md",
+            allVehiclesOutOfService ? "opacity-60 border-dashed border-red-600/50" : ""
+        )} title={allVehiclesOutOfService ? `${modelName} (All Out of Service)` : modelName}>
+            {/* Updated Header: Model Name and Division Badges */}
+            <CardHeader className="pb-1 pt-2.5 px-3 flex items-center justify-between gap-2">
+                <div className="text-[#f3c700] text-base font-semibold truncate">{modelName}</div>
+                {/* Division badges moved to header */}
+                {divisionsArray.length > 0 && (
+                    <div className="flex flex-wrap gap-1 justify-end">
+                        {divisionsArray.map((division, idx) => (
+                            <Badge
+                                key={`div-${idx}`}
+                                variant="default"
+                                className="bg-black/50 border border-[#f3c700]/70 text-[#f3c700] text-xs px-2 py-0.5 font-semibold"
+                            >
+                                {division}
+                            </Badge>
+                        ))}
                     </div>
                 )}
-                <div>
-                    <h4 className="text-xs font-semibold text-white/60 mb-1">Plate</h4>
-                    <Badge
-                        variant={isOutOfService ? "destructive" : (isAssigned ? "secondary" : "default")}
-                        className={cn(
-                            "font-mono text-sm",
-                            isOutOfService ? "bg-red-900/70 border-red-700/50 text-red-300 line-through" : "",
-                            !isOutOfService && isAssigned ? "bg-gray-700/80 border-gray-600/50 text-gray-400" : "",
-                            !isOutOfService && !isAssigned ? "bg-green-900/70 border-green-700/50 text-green-300" : ""
-                        )}
-                        title={isOutOfService ? "Out of Service" : (isAssigned ? `Assigned to: ${vehicle.assignee}` : "Available (Communal)")}
-                    >
-                        {vehicle.plate}
-                    </Badge>
-                    {isAssigned && !isOutOfService && (
-                         <p className="text-xs text-gray-400 mt-1 italic">Assigned: {vehicle.assignee}</p>
-                    )}
-                </div>
+            </CardHeader>
+            {/* Content: Restrictions, Plates */}
+            <CardContent className="flex-grow space-y-1.5 pt-0.5 pb-2.5 px-3">
+                {/* Restriction Badges Row (only if restrictions exist) */}
+                {restrictionsArray.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                        {restrictionsArray.map((restriction, idx) => (
+                             <Badge
+                                key={`res-${idx}`}
+                                variant="default"
+                                className="bg-orange-900/70 border border-orange-700/50 text-orange-300 text-xs px-2 py-0.5 font-semibold" // Orange theme styling
+                            >
+                                {restriction}
+                            </Badge>
+                        ))}
+                    </div>
+                )}
 
+                {/* Plates Section - Now conditionally grouped */}
+                {totalPlates > 0 && (
+                    <div className="pt-1.5 mt-1.5 border-t border-white/10 max-h-32 overflow-y-auto custom-scrollbar pr-1"> {/* Adjusted max-h */}
+                        {/* Check if multiple divisions exist */}
+                        {hasMultipleDivisions ? (
+                            <div className="space-y-1.5"> {/* Space between division groups */}
+                                {divisionsArray.map(division => {
+                                    const platesForDivision = platesByDivision.get(division) || [];
+                                    if (platesForDivision.length === 0) return null; // Skip if no plates for this division
+
+                                    return (
+                                        <div key={division}>
+                                            {/* Division Header */}
+                                            <h4 className="text-xs font-bold text-[#f3c700]/80 mb-1 uppercase">{division}</h4>
+                                            {/* Plates for this division */}
+                                            <div className="flex flex-wrap gap-1">
+                                                {renderPlateList(platesForDivision)}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            /* Only one division, list all plates directly */
+                            <div className="flex flex-wrap gap-1">
+                                {renderPlateList(allPlates)}
+                            </div>
+                        )}
+                    </div>
+                )}
+                 {totalPlates === 0 && (
+                    <p className="text-xs italic text-white/50 pt-1 border-t border-white/10 mt-1.5">No vehicles of this model found.</p>
+                 )}
             </CardContent>
         </Card>
     );

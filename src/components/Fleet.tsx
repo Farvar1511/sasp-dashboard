@@ -21,20 +21,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Checkbox } from "./ui/checkbox";
 import { Button } from "./ui/button";
-import FleetCard from "./FleetCard";
+import FleetCard from "./FleetCard"; // Keep FleetCard import
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Label } from "./ui/label";
 
-// Export the interface directly
+// Revert the FleetVehicle interface to match Firestore structure
 export interface FleetVehicle {
   id: string;
-  plate: string;
+  plate: string; // Single string
   vehicle: string;
   division: string;
   inService: boolean;
-  assignee: string;
-  restrictions: string;
+  assignee: string; // Can be empty string or name
+  restrictions?: string; // Single string, optional
 }
 
 const divisions = [
@@ -104,18 +104,27 @@ const Fleet: React.FC = () => {
     setError(null);
     try {
       const fleetQuery = query(
-        collection(dbFirestore, "fleet"),
-        orderBy("plate")
+        collection(dbFirestore, "fleet")
+        // orderBy("plate") // Or orderBy("vehicle")
       );
       const querySnapshot = await getDocs(fleetQuery);
       const vehicles = querySnapshot.docs.map(
-        (doc) =>
-          ({
+        (doc) => {
+          const data = doc.data();
+          // Map directly to the reverted interface
+          return {
             id: doc.id,
-            ...doc.data(),
-            division: doc.data().division === "MOTO" ? "MBU" : doc.data().division,
-          } as FleetVehicle)
+            plate: data.plate || "NO PLATE",
+            vehicle: data.vehicle || "Unknown Vehicle",
+            division: data.division === "MOTO" ? "MBU" : (data.division || "Unknown Division"),
+            inService: data.inService ?? true,
+            assignee: data.assignee || "", // Use empty string if undefined/null
+            restrictions: data.restrictions || "", // Use empty string if undefined/null
+          } as FleetVehicle;
+        }
       );
+      // Sort after fetching/mapping
+      vehicles.sort((a, b) => a.vehicle.localeCompare(b.vehicle));
       setFleetData(vehicles);
     } catch (err) {
       console.error("Error fetching fleet data:", err);
@@ -134,7 +143,7 @@ const Fleet: React.FC = () => {
   }, [fetchFleetData]);
 
   const filteredFleet = useMemo(() => {
-    // First, sort the data by vehicle model name
+    // Sorting by vehicle name is now done in fetchFleetData or can be kept here
     const sortedData = [...fleetData].sort((a, b) =>
       a.vehicle.localeCompare(b.vehicle)
     );
@@ -143,15 +152,35 @@ const Fleet: React.FC = () => {
     return sortedData.filter((vehicle) => {
       const divisionMatch =
         filterDivision === "All" || vehicle.division === filterDivision;
+
+      // Update search logic for single plate/assignee/restrictions
       const searchMatch =
         !searchTerm ||
         vehicle.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
         vehicle.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        vehicle.assignee.toLowerCase().includes(searchTerm.toLowerCase());
+        vehicle.assignee.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (vehicle.restrictions && vehicle.restrictions.toLowerCase().includes(searchTerm.toLowerCase())); // Search restrictions string
+
+      // Overall vehicle inService status
       const inServiceMatch = hideOutOfService ? vehicle.inService : true;
+
       return divisionMatch && searchMatch && inServiceMatch;
     });
-  }, [fleetData, filterDivision, searchTerm, hideOutOfService]); // Keep dependencies
+  }, [fleetData, filterDivision, searchTerm, hideOutOfService]);
+
+  // Keep the memo hook to group filtered data by vehicle model
+  const groupedFleetData = useMemo(() => {
+    const grouped = new Map<string, FleetVehicle[]>();
+    filteredFleet.forEach((vehicle) => {
+      const model = vehicle.vehicle;
+      if (!grouped.has(model)) {
+        grouped.set(model, []);
+      }
+      grouped.get(model)?.push(vehicle);
+    });
+    // Sort the map entries by model name for consistent order
+    return new Map([...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+  }, [filteredFleet]);
 
   const handleSaveVehicle = async () => {
     if (!editingVehicle?.id) return;
@@ -355,11 +384,11 @@ const Fleet: React.FC = () => {
         {activeTab === "fleet" && (
           <>
             {/* Filters and View Toggle - Refactored with Shadcn */}
-            <div className="flex flex-col md:flex-row gap-3 mb-6 items-center"> {/* Reduced gap */}
+            <div className="flex flex-col md:flex-row gap-3 mb-6 items-center">
               {/* Search Input */}
               <Input
                 type="text"
-                placeholder="Search Plate, Vehicle, Assignee..."
+                placeholder="Search Vehicle, Plate, Assignee, Restriction..." // Updated placeholder
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="h-9 flex-grow bg-black/80 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
@@ -444,14 +473,15 @@ const Fleet: React.FC = () => {
 
             {!loading && !error && (
               <>
-                {/* Card View */}
+                {/* Card View - Uses FleetCard with grouped data */}
                 {viewMode === 'card' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                    {filteredFleet.length > 0 ? (
-                      filteredFleet.map((vehicle) => (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groupedFleetData.size > 0 ? (
+                      Array.from(groupedFleetData.entries()).map(([modelName, vehicles]) => (
                         <FleetCard
-                          key={vehicle.id}
-                          vehicle={vehicle}
+                          key={modelName}
+                          modelName={modelName}
+                          vehicles={vehicles}
                         />
                       ))
                     ) : (
@@ -466,7 +496,6 @@ const Fleet: React.FC = () => {
                 {viewMode === 'table' && (
                   <div className="overflow-x-auto custom-scrollbar shadow-lg border border-gray-800 rounded">
                     <table className="min-w-full border-collapse text-sm text-center bg-black bg-opacity-80">
-                      {/* ... existing table thead ... */}
                       <thead className="bg-black text-[#f3c700]">
                         <tr>
                           <th className="p-3 border-r border-gray-700 text-base">Status</th>
@@ -480,8 +509,8 @@ const Fleet: React.FC = () => {
                           )}
                         </tr>
                       </thead>
-                      {/* ... existing table tbody ... */}
                       <tbody className="text-gray-300">
+                        {/* Render filteredFleet directly in table view */}
                         {filteredFleet.length > 0 ? (
                           filteredFleet.map((vehicle) => (
                             <tr
@@ -501,7 +530,7 @@ const Fleet: React.FC = () => {
                               <td className="p-3 border-r border-gray-700 text-center align-middle font-mono">{vehicle.plate}</td>
                               <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.vehicle}</td>
                               <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.division}</td>
-                              <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.assignee}</td>
+                              <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.assignee || "COMMUNAL"}</td>
                               <td className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-center align-middle`}>{vehicle.restrictions || "-"}</td>
                               {isAdmin && (
                                 <td className="p-2 text-center align-middle">
