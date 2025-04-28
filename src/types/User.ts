@@ -18,6 +18,7 @@ export interface UserTask {
   progress?: number; // Optional: Only for 'goal' type
   completed: boolean; // Completion status
   goal?: number; // Optional: Goal target for 'goal' type
+  archived?: boolean; // Optional: Whether the task is archived
 }
 
 // -----------------------------

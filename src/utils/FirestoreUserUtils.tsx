@@ -23,6 +23,7 @@ export interface UserTask {
   progress?: number;
   completed: boolean;
   goal?: number;
+  archived?: boolean; // Added archived field
 }
 
 /** A single discipline doc from /users/:email/discipline */

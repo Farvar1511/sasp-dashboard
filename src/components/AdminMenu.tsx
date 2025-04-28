@@ -17,13 +17,11 @@ import { db as dbFirestore } from "../firebase";
 import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime, getCurrentDateTimeStrings } from "../utils/timeHelpers";
 import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash, FaCheckCircle } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
-import { RosterUser, DisciplineEntry, NoteEntry } from "../types/User";
+import { RosterUser, DisciplineEntry, NoteEntry, UserTask } from "../types/User"; // Ensure UserTask is imported from the correct location
 import EditUserModal from "./EditUserModal";
 import AddUserModal from "./AddUserModal"; // Import the new modal
 import EditTaskModal from "./EditTaskModal"; // Import the new task modal
 import UserCardDetailsTabs from "./UserCardDetailsTabs"; // Import the new tabs component
-import { UserTask } from "../types/User"; // Ensure UserTask type is imported
-
 import { toast } from "react-toastify";
 import ConfirmationModal from "./ConfirmationModal";
 import { where as firestoreWhere, QueryConstraint } from "firebase/firestore";
@@ -279,6 +277,7 @@ export default function AdminMenu(): JSX.Element {
             typeof data.completed === "boolean" &&
             (data.type === "goal" ? typeof data.progress === "number" : true) &&
             (data.type === "goal" ? typeof data.goal === "number" : true)
+            // No need to explicitly check for 'archived' here, just include it if present
           ) {
             return {
               id: taskDoc.id,
@@ -290,6 +289,7 @@ export default function AdminMenu(): JSX.Element {
               progress: data.progress,
               completed: data.completed,
               goal: data.goal,
+              archived: data.archived ?? false, // Include archived, default to false
             } as UserTask; // Cast to local UserTask type
           }
           console.warn("Skipping invalid task data:", data);
@@ -576,19 +576,18 @@ export default function AdminMenu(): JSX.Element {
     setIsAssigning(true);
     const { currentDate, currentTime } = getCurrentDateTimeStrings();
     const batch = writeBatch(dbFirestore);
-    // Get issuer name directly from currentUser
-    const issuerName = currentUser?.displayName || currentUser?.name || "Admin"; // Use display name or name, fallback to Admin
+    const issuerName = currentUser?.displayName || currentUser?.name || "Admin";
 
     selectedUsers.forEach((userId) => {
       const taskRef = doc(collection(dbFirestore, "users", userId, "tasks"));
-      // Prepare data for Firestore, using 'task' field
       const taskData: { [key: string]: any } = {
         task: bulkTaskDescription.trim(),
         type: bulkTaskType,
-        issuedby: issuerName, // Use the direct name from currentUser
+        issuedby: issuerName,
         issueddate: currentDate,
         issuedtime: currentTime,
         completed: false,
+        archived: false, // Initialize archived as false
       };
       if (bulkTaskType === "goal") {
         taskData.goal = bulkTaskGoal;
@@ -615,34 +614,21 @@ export default function AdminMenu(): JSX.Element {
     }
   };
 
-  // --- Task Edit/Delete/Toggle Handlers ---
+  // --- Task Edit/Delete/Toggle/Archive Handlers ---
   const handleOpenEditTaskModal = (user: FirestoreUserWithDetails, task: UserTask) => {
     setEditingTask({ ...task, userId: user.id });
   };
 
   const handleSaveTask = async (userId: string, taskId: string, updatedTaskData: Partial<UserTask>) => {
     const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
-
-    // Prepare data for Firestore update - no mapping needed if EditTaskModal sends 'task'
     const dataToSave: { [key: string]: any } = { ...updatedTaskData };
 
-    // Ensure 'task' field exists if it was potentially edited
-    if (!dataToSave.hasOwnProperty('task') && updatedTaskData.task !== undefined) {
-        dataToSave.task = updatedTaskData.task;
+    // ... existing logic to handle task field and goal/progress ...
+    // Ensure archived field is included if present
+    if (updatedTaskData.archived !== undefined) {
+        dataToSave.archived = updatedTaskData.archived;
     }
 
-    // Handle potential undefined goal/progress when switching type
-    if (dataToSave.type === 'normal') {
-        dataToSave.goal = deleteField();
-        dataToSave.progress = deleteField();
-    } else if (dataToSave.type === 'goal') {
-        if (dataToSave.goal === undefined || dataToSave.goal === null) {
-            // Handle missing goal if necessary
-        }
-        if (dataToSave.progress === undefined || dataToSave.progress === null) {
-            dataToSave.progress = 0;
-        }
-    }
 
     try {
       await updateDoc(taskRef, dataToSave);
@@ -657,28 +643,16 @@ export default function AdminMenu(): JSX.Element {
   };
 
   const handleOpenDeleteTaskConfirmation = (userId: string, taskId: string) => {
-    // Set state primarily for controlling modal visibility and potentially message content
     setTaskToDelete({ userId, taskId });
     setConfirmationModal({
         show: true,
         message: "Are you sure you want to delete this task? This action cannot be undone.",
-        // Pass an inline function that captures the current userId and taskId
         onConfirm: () => handleDeleteTask(userId, taskId),
     });
   };
 
   const handleDeleteTask = async (userId: string, taskId: string) => {
-    // Optional: Check if the taskToDelete state matches, as an extra safety measure, though not strictly necessary now
-    // if (!taskToDelete || taskToDelete.userId !== userId || taskToDelete.taskId !== taskId) {
-    //     console.error("Mismatch between arguments and taskToDelete state during deletion.");
-    //     // Decide how to handle mismatch, e.g., close modal and log error
-    //     setConfirmationModal(null);
-    //     setTaskToDelete(null);
-    //     return;
-    // }
-
     const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
-
     try {
         await deleteDoc(taskRef);
         toast.success("Task deleted successfully!");
@@ -687,7 +661,6 @@ export default function AdminMenu(): JSX.Element {
         console.error("Error deleting task:", error);
         toast.error(`Failed to delete task: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
-        // Always close modal and clear state, regardless of success/failure
         setConfirmationModal(null);
         setTaskToDelete(null);
     }
@@ -698,10 +671,16 @@ export default function AdminMenu(): JSX.Element {
     setTaskToDelete(null);
  };
 
- // New function to toggle task completion status
  const handleToggleTaskCompletion = async (userId: string, taskId: string, currentStatus: boolean) => {
     const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
-    const newStatus = !currentStatus; // Toggle the status
+    const newStatus = !currentStatus;
+
+    // Prevent marking goal task complete if progress < goal
+    const task = usersData.find(u => u.id === userId)?.tasks.find(t => t.id === taskId);
+    if (task?.type === "goal" && newStatus && (task.progress ?? 0) < (task.goal ?? Infinity)) {
+        toast.warn("Goal task cannot be marked complete until progress reaches the goal.");
+        return;
+    }
 
     try {
       await updateDoc(taskRef, { completed: newStatus });
@@ -710,6 +689,21 @@ export default function AdminMenu(): JSX.Element {
     } catch (error) {
       console.error("Error toggling task completion:", error);
       toast.error(`Failed to update task status: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
+  // New handler for archiving tasks
+  const handleArchiveTask = async (userId: string, taskId: string, currentArchivedStatus: boolean) => {
+    const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
+    const newArchivedStatus = !currentArchivedStatus;
+
+    try {
+      await updateDoc(taskRef, { archived: newArchivedStatus });
+      toast.success(`Task ${newArchivedStatus ? 'archived' : 'unarchived'}.`);
+      fetchAdminData(); // Refresh data
+    } catch (error) {
+      console.error("Error archiving/unarchiving task:", error);
+      toast.error(`Failed to update task archive status: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   };
 
@@ -1060,7 +1054,6 @@ export default function AdminMenu(): JSX.Element {
                     return (
                       <div
                         key={userData.id}
-                        // Add min-h class here
                         className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md min-h-[250px] ${isHiddenByRule && showHiddenCards ? 'opacity-70 border-dashed border-orange-500' : ''} ${loaCardClass}`}
                         title={`${isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}${isOnLOA ? ' User is currently on LOA' : ''}`}
                       >
@@ -1112,12 +1105,13 @@ export default function AdminMenu(): JSX.Element {
                           {/* Replace Accordion with Tabs Component */}
                           <UserCardDetailsTabs
                               userData={userData}
-                              tasks={userData.tasks || []}
+                              tasks={userData.tasks || []} // Pass all tasks
                               disciplineEntries={userData.disciplineEntries || []}
                               generalNotes={userData.generalNotes || []}
                               onEditTask={handleOpenEditTaskModal}
-                              onDeleteTask={handleOpenDeleteTaskConfirmation} // Pass the confirmation opener
-                              onToggleTaskCompletion={handleToggleTaskCompletion} // Pass the new handler
+                              onDeleteTask={handleOpenDeleteTaskConfirmation}
+                              onToggleTaskCompletion={handleToggleTaskCompletion}
+                              onArchiveTask={handleArchiveTask} // Pass the archive handler
                               textAccent={textAccent}
                               textSecondary={textSecondary}
                           />

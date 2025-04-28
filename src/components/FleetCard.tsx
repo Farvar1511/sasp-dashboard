@@ -65,7 +65,7 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
     const totalPlates = allPlates.length;
     const hasMultipleDivisions = divisionsArray.length > 1;
 
-    // Updated renderPlateList helper function
+    // Updated renderPlateList helper function - Reduced size
     const renderPlateList = (plates: AggregatedPlateInfo[]) => {
         return plates.map((plateInfo, idx) => {
             const isVehicleOOS = !plateInfo.vehicleInService;
@@ -91,9 +91,9 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
                 <Badge
                     key={`${plateInfo.vehicleId}-${idx}`}
                     variant={badgeVariant}
-                    // Further increased font size and padding: text-base px-3 py-1.5
+                    // Reduced font size and padding: text-sm px-2 py-1
                     className={cn(
-                        "font-mono text-base px-3 py-1.5", // Further increased size
+                        "font-mono text-sm px-2 py-1", // Reduced size
                         effectiveOOS
                             ? "bg-red-900/70 border border-red-600/50 text-red-300 line-through" // OOS style
                             : isAssigned
@@ -110,34 +110,34 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
 
     return (
         <Card className={cn(
-            "flex flex-col border-[#f3c700]/50 bg-black/98 text-white shadow-md",
+            "flex flex-col border-[#f3c700]/50 bg-black/98 text-white shadow-md", // Removed min-h if present
             allVehiclesOutOfService ? "opacity-60 border-dashed border-red-600/50" : ""
         )} title={allVehiclesOutOfService ? `${modelName} (All Out of Service)` : modelName}>
-            {/* Increased padding bottom pb-3 */}
-            <CardHeader className="pb-3 pt-3 px-3 text-center"> {/* Increased pt-3 */}
-                {/* Increased font size text-2xl */}
-                <h2 className="text-[#f3c700] text-2xl font-bold truncate">{modelName}</h2>
+            {/* Reduced padding: pb-2 pt-2 px-2 */}
+            <CardHeader className="pb-2 pt-2 px-2 text-center">
+                {/* Reduced font size: text-xl */}
+                <h2 className="text-[#f3c700] text-xl font-bold truncate">{modelName}</h2>
             </CardHeader>
 
-            {/* Increased overall spacing space-y-6 */}
-            <CardContent className="flex-grow space-y-6 pt-1 pb-4 px-4"> {/* Increased pb-4, px-4, pt-1 */}
+            {/* Reduced overall spacing: space-y-3, pt-0 pb-2 px-2 */}
+            <CardContent className="flex-grow space-y-3 pt-0 pb-2 px-2">
 
                 {/* Divisions Section */}
                 {divisionsArray.length > 0 && (
-                    // Increased spacing space-y-2
-                    <div className="space-y-2">
-                        {/* Increased font size text-lg */}
-                        <h3 className="text-lg font-semibold text-gray-400 text-center">Division</h3>
-                        {/* Increased margin my-2 */}
-                        <hr className="border-t border-[#f3c700]/50 my-2" />
-                        {/* Increased gap gap-2 */}
-                        <div className="flex flex-wrap gap-2 justify-center">
+                    // Reduced spacing: space-y-1
+                    <div className="space-y-1">
+                        {/* Reduced font size: text-base */}
+                        <h3 className="text-base font-semibold text-gray-400 text-center">Division</h3>
+                        {/* Reduced margin: my-1 */}
+                        <hr className="border-t border-[#f3c700]/50 my-1" />
+                        {/* Reduced gap: gap-1 */}
+                        <div className="flex flex-wrap gap-1 justify-center">
                             {divisionsArray.map((division, idx) => (
                                 <Badge
                                     key={`div-${idx}`}
                                     variant="default"
-                                    // Increased size: text-base px-3.5 py-1.5
-                                    className="bg-black/50 border border-[#f3c700]/70 text-[#f3c700] text-base px-3.5 py-1.5 font-semibold"
+                                    // Reduced size: text-sm px-2 py-0.5
+                                    className="bg-black/50 border border-[#f3c700]/70 text-[#f3c700] text-sm px-2 py-0.5 font-semibold"
                                 >
                                     {division}
                                 </Badge>
@@ -148,20 +148,20 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
 
                 {/* Restrictions Section */}
                 {restrictionsArray.length > 0 && (
-                    // Increased spacing space-y-2
-                    <div className="space-y-2">
-                        {/* Increased font size text-lg */}
-                        <h3 className="text-lg font-semibold text-gray-400 text-center">Restrictions</h3>
-                        {/* Increased margin my-2 */}
-                        <hr className="border-t border-[#f3c700]/50 my-2" />
-                        {/* Increased gap gap-2 */}
-                        <div className="flex flex-wrap gap-2 justify-center">
+                    // Reduced spacing: space-y-1
+                    <div className="space-y-1">
+                        {/* Reduced font size: text-base */}
+                        <h3 className="text-base font-semibold text-gray-400 text-center">Restrictions</h3>
+                        {/* Reduced margin: my-1 */}
+                        <hr className="border-t border-[#f3c700]/50 my-1" />
+                        {/* Reduced gap: gap-1 */}
+                        <div className="flex flex-wrap gap-1 justify-center">
                             {restrictionsArray.map((restriction, idx) => (
                                 <Badge
                                     key={`res-${idx}`}
                                     variant="default"
-                                    // Increased font size and padding: text-base px-3 py-1.5
-                                    className="bg-orange-900/70 border border-orange-700/50 text-orange-300 text-base px-3 py-1.5 font-semibold"
+                                    // Reduced font size and padding: text-sm px-2 py-0.5
+                                    className="bg-orange-900/70 border border-orange-700/50 text-orange-300 text-sm px-2 py-0.5 font-semibold"
                                 >
                                     {restriction}
                                 </Badge>
@@ -172,28 +172,28 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
 
                 {/* Plates Section */}
                 {totalPlates > 0 && (
-                    // Increased spacing space-y-2
-                    <div className="space-y-2">
-                        {/* Increased font size text-lg */}
-                        <h3 className="text-lg font-semibold text-gray-400 text-center">Plates</h3>
-                        {/* Increased margin my-2 */}
-                        <hr className="border-t border-[#f3c700]/50 my-2" />
-                        {/* Increased max-h-40, pt-2.5 */}
-                        <div className="pt-2.5 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                    // Reduced spacing: space-y-1
+                    <div className="space-y-1">
+                        {/* Reduced font size: text-base */}
+                        <h3 className="text-base font-semibold text-gray-400 text-center">Plates</h3>
+                        {/* Reduced margin: my-1 */}
+                        <hr className="border-t border-[#f3c700]/50 my-1" />
+                        {/* Reduced max-h: max-h-28, pt-1 */}
+                        <div className="pt-1 max-h-28 overflow-y-auto custom-scrollbar pr-1">
                             {hasMultipleDivisions ? (
-                                // Increased space-y-4
-                                <div className="space-y-4">
+                                // Reduced space-y: space-y-2
+                                <div className="space-y-2">
                                     {divisionsArray.map(division => {
                                         const platesForDivision = platesByDivision.get(division) || [];
                                         if (platesForDivision.length === 0) return null;
 
                                         return (
-                                            // Increased space-y-2, pt-2.5
-                                            <div key={division} className="space-y-2 pt-2.5 first:pt-0">
-                                                {/* Increased font size text-base, mb-2 */}
-                                                <h4 className="text-base font-bold text-[#f3c700]/80 mb-2 uppercase text-center">{division}</h4>
-                                                {/* Increased gap gap-2 */}
-                                                <div className="flex flex-wrap gap-2 justify-center">
+                                            // Reduced space-y: space-y-1, pt-1
+                                            <div key={division} className="space-y-1 pt-1 first:pt-0">
+                                                {/* Reduced font size: text-sm, mb-1 */}
+                                                <h4 className="text-sm font-bold text-[#f3c700]/80 mb-1 uppercase text-center">{division}</h4>
+                                                {/* Reduced gap: gap-1 */}
+                                                <div className="flex flex-wrap gap-1 justify-center">
                                                     {renderPlateList(platesForDivision)}
                                                 </div>
                                             </div>
@@ -201,8 +201,8 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
                                     })}
                                 </div>
                             ) : (
-                                // Increased gap gap-2, pt-2.5
-                                <div className="flex flex-wrap gap-2 pt-2.5 justify-center">
+                                // Reduced gap: gap-1, pt-1
+                                <div className="flex flex-wrap gap-1 pt-1 justify-center">
                                     {renderPlateList(allPlates)}
                                 </div>
                             )}
@@ -211,8 +211,8 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
                 )}
 
                 {totalPlates === 0 && (
-                    // Increased text-base
-                    <p className="text-base italic text-white/50 pt-1 border-t border-white/10 mt-1.5 text-center">
+                    // Reduced text-sm, pt-0.5 mt-1
+                    <p className="text-sm italic text-white/50 pt-0.5 border-t border-white/10 mt-1 text-center">
                         No vehicles of this model found.
                     </p>
                 )}

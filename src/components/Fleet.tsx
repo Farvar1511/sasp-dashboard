@@ -169,17 +169,18 @@ const Fleet: React.FC = () => {
     });
   }, [fleetData, filterDivision, searchTerm, hideOutOfService]);
 
-  // Keep the memo hook to group filtered data by vehicle model
+  // Keep the memo hook to group filtered data by vehicle model AND division
   const groupedFleetData = useMemo(() => {
     const grouped = new Map<string, FleetVehicle[]>();
     filteredFleet.forEach((vehicle) => {
-      const model = vehicle.vehicle;
-      if (!grouped.has(model)) {
-        grouped.set(model, []);
+      // Use a composite key: model::division
+      const groupKey = `${vehicle.vehicle}::${vehicle.division}`;
+      if (!grouped.has(groupKey)) {
+        grouped.set(groupKey, []);
       }
-      grouped.get(model)?.push(vehicle);
+      grouped.get(groupKey)?.push(vehicle);
     });
-    // Sort the map entries by model name for consistent order
+    // Sort the map entries by the composite key for consistent order
     return new Map([...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0])));
   }, [filteredFleet]);
 
@@ -479,13 +480,22 @@ const Fleet: React.FC = () => {
                   // Changed lg:grid-cols-3 to lg:grid-cols-4
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {groupedFleetData.size > 0 ? (
-                      Array.from(groupedFleetData.entries()).map(([modelName, vehicles]) => (
-                        <FleetCard
-                          key={modelName}
-                          modelName={modelName}
-                          vehicles={vehicles}
-                        />
-                      ))
+                      // Modify the loop to handle the new group key
+                      Array.from(groupedFleetData.entries()).map(([groupKey, vehicles]) => {
+                        // Extract model name and division from the key
+                        const [modelName, division] = groupKey.split('::');
+                        // Pass the original model name and the filtered vehicles for that specific division
+                        return (
+                          <FleetCard
+                            key={groupKey} // Use the unique composite key
+                            modelName={modelName} // Pass the model name
+                            // Pass the vehicles already filtered for this model AND division
+                            vehicles={vehicles}
+                            // Optionally, pass division if FleetCard needs to display it explicitly
+                            // division={division}
+                          />
+                        );
+                      })
                     ) : (
                       <p className="col-span-full text-center p-4 text-gray-500 italic">
                         No vehicles found matching criteria.
