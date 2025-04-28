@@ -354,14 +354,14 @@ const Fleet: React.FC = () => {
 
         {/* Tab Navigation */}
         <div className="mb-6 border-b border-gray-700">
-          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <nav className="-mb-px flex space-x-1" aria-label="Tabs"> {/* Reduced space-x */}
             <button
               onClick={() => setActiveTab("fleet")}
               className={cn(
-                "whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm",
+                "whitespace-nowrap py-2 px-4 border-b-2 font-medium text-sm rounded-t-md", // Adjusted padding and added rounded-t
                 activeTab === "fleet"
-                  ? "border-[#f3c700] text-[#f3c700]"
-                  : "border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500"
+                  ? "border-[#f3c700] bg-[#f3c700] text-black" // Active: Yellow background, black text
+                  : "border-transparent bg-gray-800/50 text-white hover:text-gray-200 hover:bg-gray-700/70" // Inactive: Dark background, white text
               )}
             >
               Fleet List
@@ -369,10 +369,10 @@ const Fleet: React.FC = () => {
             <button
               onClick={() => setActiveTab("loadout")}
               className={cn(
-                "whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm",
+                "whitespace-nowrap py-2 px-4 border-b-2 font-medium text-sm rounded-t-md", // Adjusted padding and added rounded-t
                 activeTab === "loadout"
-                  ? "border-[#f3c700] text-[#f3c700]"
-                  : "border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500"
+                  ? "border-[#f3c700] bg-[#f3c700] text-black" // Active: Yellow background, black text
+                  : "border-transparent bg-gray-800/50 text-white hover:text-gray-200 hover:bg-gray-700/70" // Inactive: Dark background, white text
               )}
             >
               Trunk Loadout

@@ -115,21 +115,24 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
 
     return (
         <Card className={cn(
-            // Darken the background from bg-black/90 to bg-black/95
-            "flex flex-col border-[#f3c700]/50 bg-black/98 text-white shadow-md", 
+            // Darken the background from bg-black/90 to bg-black/98
+            "flex flex-col border-[#f3c700]/50 bg-black/98 text-white shadow-md",
             allVehiclesOutOfService ? "opacity-60 border-dashed border-red-600/50" : ""
         )} title={allVehiclesOutOfService ? `${modelName} (All Out of Service)` : modelName}>
             {/* Updated Header: Model Name and Division Badges */}
+            {/* Removed pr-1 from CardHeader */}
             <CardHeader className="pb-1 pt-2.5 px-3 flex items-center justify-between gap-2">
                 <div className="text-[#f3c700] text-base font-semibold truncate">{modelName}</div>
                 {/* Division badges moved to header */}
                 {divisionsArray.length > 0 && (
-                    <div className="flex flex-wrap gap-1 justify-end">
+                    // Added padding-right (pr-3) to the badge container
+                    <div className="flex flex-wrap gap-1 justify-end pr-3">
                         {divisionsArray.map((division, idx) => (
                             <Badge
                                 key={`div-${idx}`}
                                 variant="default"
-                                className="bg-black/50 border border-[#f3c700]/70 text-[#f3c700] text-xs px-2 py-0.5 font-semibold"
+                                // Increased text size and padding: text-sm px-3 py-1
+                                className="bg-black/50 border border-[#f3c700]/70 text-[#f3c700] text-sm px-3 py-1 font-semibold"
                             >
                                 {division}
                             </Badge>
