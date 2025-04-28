@@ -280,7 +280,6 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = ({ onUnreadCoun
     }, [currentUser?.cid, getChatDocRef]); // Depend on CID
 
 
-    // --- Report Unread Count Changes ---
     useEffect(() => {
         onUnreadCountChange(unreadChats.size);
     }, [unreadChats, onUnreadCountChange]);

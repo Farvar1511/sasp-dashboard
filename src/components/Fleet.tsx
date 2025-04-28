@@ -16,6 +16,11 @@ import { FaPlus, FaTrash } from "react-icons/fa";
 import { computeIsAdmin } from "../utils/isadmin";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { cn } from "../lib/utils"; // Import cn utility if not already present
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"; // Import Card components
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table"; // Import Table components
+import { Checkbox } from "./ui/checkbox"; // Import Checkbox component
+import { Button } from "./ui/button"; // Import Button component
 
 interface FleetVehicle {
   id: string;
@@ -40,6 +45,38 @@ const divisions = [
   "Patrol [Parking]",
 ];
 
+// Define the trunk loadout data
+const trunkLoadout = [
+  { item: "5.56x45", quantity: 250 },
+  { item: "Service Pistol Ammo (9mm Default)", quantity: 250 },
+  { item: "Empty Evidence Bag", quantity: 100 },
+  { item: "12 Gauge", quantity: 50 },
+  { item: "Fingerprint Kit", quantity: 25 },
+  { item: "Fingerprint Tape", quantity: 25 },
+  { item: "Heavy Armor", quantity: 25 },
+  { item: "Bean Bag", quantity: 25 },
+  { item: "Taser Cartridge", quantity: 25 },
+  { item: "Mikrosil", quantity: 10 },
+  { item: "DNA Field Swab Kit", quantity: 10 },
+  { item: "SASP Barricade", quantity: 10 },
+  { item: "Flare", quantity: 10 },
+  { item: "Spike Strip", quantity: 5 },
+  { item: "Jerry Can", quantity: 4 },
+  { item: "Repair Kit (Advanced Preferred)", quantity: 1 },
+  { item: "Fire Extinguisher", quantity: 1 },
+  { item: "First Aid", quantity: 1 },
+];
+
+// Helper function to initialize checklist state
+const initializeCheckedState = () => {
+  const initialState: { [key: string]: boolean } = {};
+  trunkLoadout.forEach(item => {
+    initialState[item.item] = false;
+  });
+  return initialState;
+};
+
+
 const Fleet: React.FC = () => {
   const { user: currentUser } = useAuth();
   const isAdmin = computeIsAdmin(currentUser); 
@@ -52,7 +89,9 @@ const Fleet: React.FC = () => {
   const [newVehicles, setNewVehicles] = useState<Partial<FleetVehicle>[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDivision, setFilterDivision] = useState("All");
-  const [hideOutOfService, setHideOutOfService] = useState(true); 
+  const [hideOutOfService, setHideOutOfService] = useState(true);
+  const [activeTab, setActiveTab] = useState<"fleet" | "loadout">("fleet"); // State for active tab
+  const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>(initializeCheckedState); // State for checklist
 
   const fetchFleetData = useCallback(async () => {
     setLoading(true);
@@ -252,6 +291,18 @@ const Fleet: React.FC = () => {
     setNewVehicles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Handler for checkbox change
+  const handleCheckboxChange = (item: string, checked: boolean | 'indeterminate') => {
+    if (typeof checked === 'boolean') {
+      setCheckedItems(prev => ({ ...prev, [item]: checked }));
+    }
+  };
+
+  // Handler for uncheck all button
+  const handleUncheckAll = () => {
+    setCheckedItems(initializeCheckedState());
+  };
+
 
   return (
     <Layout>
@@ -260,123 +311,215 @@ const Fleet: React.FC = () => {
           Fleet Management
         </h1>
 
-        <div className="flex flex-col md:flex-row gap-4 mb-6 items-center">
-          <input
-            type="text"
-            placeholder="Search Plate, Vehicle, Assignee..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input flex-grow bg-gray-900 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
-          />
-          <select
-            value={filterDivision}
-            onChange={(e) => setFilterDivision(e.target.value)}
-            className="input md:w-auto bg-gray-900 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
-          >
-            <option value="All">All Divisions</option>
-            {divisions.map((div) => (
-              <option key={div} value={div}>
-                {div}
-              </option>
-            ))}
-          </select>
-          <label className="flex items-center gap-2 text-yellow-400 bg-black bg-opacity-90 p-2 rounded">
-            <input
-              type="checkbox"
-              checked={hideOutOfService}
-              onChange={(e) => setHideOutOfService(e.target.checked)}
-              className="form-checkbox h-4 w-4 text-[#f3c700] bg-gray-700 border-gray-600 rounded focus:ring-[#f3c700]"
-            />
-            Hide Out-of-Service Vehicles
-          </label>
-          {isAdmin && (
+        {/* Tab Navigation */}
+        <div className="mb-6 border-b border-gray-700">
+          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
             <button
-              className="button-primary flex items-center gap-2 px-4 py-2"
-              onClick={openAddVehicleForm}
+              onClick={() => setActiveTab("fleet")}
+              className={cn(
+                "whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm",
+                activeTab === "fleet"
+                  ? "border-[#f3c700] text-[#f3c700]"
+                  : "border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500"
+              )}
             >
-              <FaPlus /> Add Vehicle
+              Fleet List
             </button>
-          )}
+            <button
+              onClick={() => setActiveTab("loadout")}
+              className={cn(
+                "whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm",
+                activeTab === "loadout"
+                  ? "border-[#f3c700] text-[#f3c700]"
+                  : "border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500"
+              )}
+            >
+              Trunk Loadout
+            </button>
+          </nav>
         </div>
 
-        {loading && (
-          <p className="text-center text-yellow-400">Loading fleet data...</p>
-        )}
-        {error && <p className="text-center text-red-500">{error}</p>}
+        {/* Conditional Content Based on Active Tab */}
+        {activeTab === "fleet" && (
+          <>
+            {/* Existing Fleet List Content */}
+            <div className="flex flex-col md:flex-row gap-4 mb-6 items-center">
+              <input
+                type="text"
+                placeholder="Search Plate, Vehicle, Assignee..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="input flex-grow bg-gray-900 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
+              />
+              <select
+                value={filterDivision}
+                onChange={(e) => setFilterDivision(e.target.value)}
+                className="input md:w-auto bg-gray-900 border-gray-700 text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
+              >
+                <option value="All">All Divisions</option>
+                {divisions.map((div) => (
+                  <option key={div} value={div}>
+                    {div}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-2 text-yellow-400 bg-black bg-opacity-90 p-2 rounded">
+                <input
+                  type="checkbox"
+                  checked={hideOutOfService}
+                  onChange={(e) => setHideOutOfService(e.target.checked)}
+                  className="form-checkbox h-4 w-4 text-[#f3c700] bg-gray-700 border-gray-600 rounded focus:ring-[#f3c700]"
+                />
+                Hide Out-of-Service Vehicles
+              </label>
+              {isAdmin && (
+                <button
+                  className="button-primary flex items-center gap-2 px-4 py-2"
+                  onClick={openAddVehicleForm}
+                >
+                  <FaPlus /> Add Vehicle
+                </button>
+              )}
+            </div>
 
-        {!loading && !error && (
-          <div className="overflow-x-auto custom-scrollbar shadow-lg border border-gray-800 rounded">
-            <table className="min-w-full border-collapse text-sm text-center bg-black bg-opacity-80">
-              <thead className="bg-black text-[#f3c700]">
-                <tr>
-                  <th className="p-3 border-r border-gray-700 text-base">Status</th>
-                  <th className="p-3 border-r border-gray-700 text-base">Plate</th>
-                  <th className="p-3 border-r border-gray-700 text-base">Vehicle</th>
-                  <th className="p-3 border-r border-gray-700 text-base">Division</th>
-                  <th className="p-3 border-r border-gray-700 text-base">Assignee</th>
-                  <th className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-base`}>Restrictions</th>
-                  {isAdmin && (
-                    <th className="p-3 text-base">Actions</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="text-gray-300">
-                {filteredFleet.length > 0 ? (
-                  filteredFleet.map((vehicle) => (
-                    <tr
-                      key={vehicle.id}
-                      className="border-t border-gray-800 hover:bg-gray-900/90"
-                    >
-                      <td className="p-3 border-r border-gray-700 text-center align-middle">
-                        <span
-                          className={`inline-block w-3 h-3 rounded-full ${
-                            vehicle.inService ? "bg-green-500" : "bg-red-500"
-                          }`}
-                          title={
-                            vehicle.inService ? "In Service" : "Out of Service"
-                          }
-                        ></span>
-                      </td>
-                      <td className="p-3 border-r border-gray-700 text-center align-middle font-mono">{vehicle.plate}</td>
-                      <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.vehicle}</td>
-                      <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.division}</td>
-                      <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.assignee}</td>
-                      <td className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-center align-middle`}>{vehicle.restrictions || "-"}</td>
+            {loading && (
+              <p className="text-center text-yellow-400">
+                Loading fleet data...
+              </p>
+            )}
+            {error && <p className="text-center text-red-500">{error}</p>}
+
+            {!loading && !error && (
+              <div className="overflow-x-auto custom-scrollbar shadow-lg border border-gray-800 rounded">
+                <table className="min-w-full border-collapse text-sm text-center bg-black bg-opacity-80">
+                  {/* ... existing table thead ... */}
+                  <thead className="bg-black text-[#f3c700]">
+                    <tr>
+                      <th className="p-3 border-r border-gray-700 text-base">Status</th>
+                      <th className="p-3 border-r border-gray-700 text-base">Plate</th>
+                      <th className="p-3 border-r border-gray-700 text-base">Vehicle</th>
+                      <th className="p-3 border-r border-gray-700 text-base">Division</th>
+                      <th className="p-3 border-r border-gray-700 text-base">Assignee</th>
+                      <th className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-base`}>Restrictions</th>
                       {isAdmin && (
-                        <td className="p-2 text-center align-middle">
-                          <button
-                            onClick={() => setEditingVehicle(vehicle)}
-                            className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
-                            title="Edit Vehicle"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteVehicle(vehicle.id)}
-                            className="bg-red-600 hover:bg-red-500 text-white text-xs py-1 px-2 rounded ml-2"
-                            title="Delete Vehicle"
-                          >
-                            Delete
-                          </button>
-                        </td>
+                        <th className="p-3 text-base">Actions</th>
                       )}
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={isAdmin ? 7 : 6}
-                      className="text-center p-4 text-gray-500 italic"
-                    >
-                      No vehicles found matching criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  {/* ... existing table tbody ... */}
+                  <tbody className="text-gray-300">
+                    {filteredFleet.length > 0 ? (
+                      filteredFleet.map((vehicle) => (
+                        <tr
+                          key={vehicle.id}
+                          className="border-t border-gray-800 hover:bg-gray-900/90"
+                        >
+                          <td className="p-3 border-r border-gray-700 text-center align-middle">
+                            <span
+                              className={`inline-block w-3 h-3 rounded-full ${
+                                vehicle.inService ? "bg-green-500" : "bg-red-500"
+                              }`}
+                              title={
+                                vehicle.inService ? "In Service" : "Out of Service"
+                              }
+                            ></span>
+                          </td>
+                          <td className="p-3 border-r border-gray-700 text-center align-middle font-mono">{vehicle.plate}</td>
+                          <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.vehicle}</td>
+                          <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.division}</td>
+                          <td className="p-3 border-r border-gray-700 text-center align-middle">{vehicle.assignee}</td>
+                          <td className={`p-3 ${isAdmin ? 'border-r border-gray-700' : ''} text-center align-middle`}>{vehicle.restrictions || "-"}</td>
+                          {isAdmin && (
+                            <td className="p-2 text-center align-middle">
+                              <button
+                                onClick={() => setEditingVehicle(vehicle)}
+                                className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
+                                title="Edit Vehicle"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteVehicle(vehicle.id)}
+                                className="bg-red-600 hover:bg-red-500 text-white text-xs py-1 px-2 rounded ml-2"
+                                title="Delete Vehicle"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={isAdmin ? 7 : 6}
+                          className="text-center p-4 text-gray-500 italic"
+                        >
+                          No vehicles found matching criteria.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
 
+        {activeTab === "loadout" && (
+          // Use Shadcn Card and Table for Trunk Loadout Checklist
+          <Card
+            className="border-gray-700 text-white"
+            style={{ backgroundColor: 'var(--color-secondary)' }}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-yellow-400 text-lg font-medium"> {/* Adjusted size */}
+                Standard Communal Trunk Loadout Checklist
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUncheckAll}
+                className="bg-gray-700 border-gray-600 hover:bg-gray-600 text-yellow-400 hover:text-yellow-300"
+              >
+                Uncheck All
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-gray-700 hover:bg-[var(--color-muted)]">
+                    <TableHead className="w-10"></TableHead> {/* Checkbox column */}
+                    <TableHead className="text-yellow-400">Item</TableHead>
+                    <TableHead className="text-yellow-400 text-right">Quantity</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {trunkLoadout.map((item) => (
+                    <TableRow key={item.item} className="border-gray-700 hover:bg-[var(--color-muted)]">
+                      <TableCell>
+                        <Checkbox
+                          id={`check-${item.item}`}
+                          checked={checkedItems[item.item]}
+                          onCheckedChange={(checked) => handleCheckboxChange(item.item, checked)}
+                          className="border-gray-500 data-[state=checked]:bg-yellow-500 data-[state=checked]:text-black"
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium text-gray-300">
+                        <label htmlFor={`check-${item.item}`} className="cursor-pointer">
+                          {item.item}
+                        </label>
+                      </TableCell>
+                      <TableCell className="text-right text-gray-300">{item.quantity}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Modals (Keep outside conditional rendering or ensure they work with tabs) */}
         {editingVehicle && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
             <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md">
@@ -490,7 +633,6 @@ const Fleet: React.FC = () => {
           </div>
         )}
 
-        {/* Modify the Add New Vehicle Modal */}
         {newVehicles.length > 0 && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
             {/* Increase max-w and padding */}
