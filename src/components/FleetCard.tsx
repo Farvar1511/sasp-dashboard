@@ -31,7 +31,6 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
         const division = vehicle.division;
         uniqueDivisions.add(division);
 
-        // Group plates by division
         if (!platesByDivision.has(division)) {
             platesByDivision.set(division, []);
         }
@@ -51,22 +50,20 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
             assigned: vehicle.assignee || "",
         };
         allPlates.push(plateData);
-        platesByDivision.get(division)?.push(plateData); // Add to division group
+        platesByDivision.get(division)?.push(plateData);
     });
 
     const divisionsArray = Array.from(uniqueDivisions).sort();
     const restrictionsArray = Array.from(uniqueRestrictions).sort();
 
-    // Sort plates within each division group
     platesByDivision.forEach((plates) => {
         plates.sort((a, b) => a.plate.localeCompare(b.plate));
     });
-    // Also sort allPlates if needed for the single-division case
     allPlates.sort((a, b) => a.plate.localeCompare(b.plate));
 
     const allVehiclesOutOfService = vehicles.every(v => !v.inService);
     const totalPlates = allPlates.length;
-    const hasMultipleDivisions = divisionsArray.length > 1; // Check if multiple divisions use this model
+    const hasMultipleDivisions = divisionsArray.length > 1;
 
     // Updated renderPlateList helper function
     const renderPlateList = (plates: AggregatedPlateInfo[]) => {
@@ -85,7 +82,6 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
                 badgeVariant = "secondary";
             }
 
-            // Updated badgeTitle without emoji
             let badgeTitle = `Status: ${statusText}`;
             if (isAssigned && !effectiveOOS) {
                 badgeTitle += ` (Assigned: ${plateInfo.assigned})`;
@@ -94,11 +90,10 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
             return (
                 <Badge
                     key={`${plateInfo.vehicleId}-${idx}`}
-                    // Use variant primarily for semantic grouping, apply styles directly
                     variant={badgeVariant}
+                    // Further increased font size and padding: text-base px-3 py-1.5
                     className={cn(
-                        "font-mono text-xs px-2 py-0.5", // Adjusted size
-                        // Specific styles based on status
+                        "font-mono text-base px-3 py-1.5", // Further increased size
                         effectiveOOS
                             ? "bg-red-900/70 border border-red-600/50 text-red-300 line-through" // OOS style
                             : isAssigned
@@ -115,81 +110,112 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
 
     return (
         <Card className={cn(
-            // Darken the background from bg-black/90 to bg-black/98
             "flex flex-col border-[#f3c700]/50 bg-black/98 text-white shadow-md",
             allVehiclesOutOfService ? "opacity-60 border-dashed border-red-600/50" : ""
         )} title={allVehiclesOutOfService ? `${modelName} (All Out of Service)` : modelName}>
-            {/* Updated Header: Model Name and Division Badges */}
-            {/* Removed pr-1 from CardHeader */}
-            <CardHeader className="pb-1 pt-2.5 px-3 flex items-center justify-between gap-2">
-                <div className="text-[#f3c700] text-base font-semibold truncate">{modelName}</div>
-                {/* Division badges moved to header */}
-                {divisionsArray.length > 0 && (
-                    // Added padding-right (pr-3) to the badge container
-                    <div className="flex flex-wrap gap-1 justify-end pr-3">
-                        {divisionsArray.map((division, idx) => (
-                            <Badge
-                                key={`div-${idx}`}
-                                variant="default"
-                                // Increased text size and padding: text-sm px-3 py-1
-                                className="bg-black/50 border border-[#f3c700]/70 text-[#f3c700] text-sm px-3 py-1 font-semibold"
-                            >
-                                {division}
-                            </Badge>
-                        ))}
-                    </div>
-                )}
+            {/* Increased padding bottom pb-3 */}
+            <CardHeader className="pb-3 pt-3 px-3 text-center"> {/* Increased pt-3 */}
+                {/* Increased font size text-2xl */}
+                <h2 className="text-[#f3c700] text-2xl font-bold truncate">{modelName}</h2>
             </CardHeader>
-            {/* Content: Restrictions, Plates */}
-            <CardContent className="flex-grow space-y-1.5 pt-0.5 pb-2.5 px-3">
-                {/* Restriction Badges Row (only if restrictions exist) */}
+
+            {/* Increased overall spacing space-y-6 */}
+            <CardContent className="flex-grow space-y-6 pt-1 pb-4 px-4"> {/* Increased pb-4, px-4, pt-1 */}
+
+                {/* Divisions Section */}
+                {divisionsArray.length > 0 && (
+                    // Increased spacing space-y-2
+                    <div className="space-y-2">
+                        {/* Increased font size text-lg */}
+                        <h3 className="text-lg font-semibold text-gray-400 text-center">Division</h3>
+                        {/* Increased margin my-2 */}
+                        <hr className="border-t border-[#f3c700]/50 my-2" />
+                        {/* Increased gap gap-2 */}
+                        <div className="flex flex-wrap gap-2 justify-center">
+                            {divisionsArray.map((division, idx) => (
+                                <Badge
+                                    key={`div-${idx}`}
+                                    variant="default"
+                                    // Increased size: text-base px-3.5 py-1.5
+                                    className="bg-black/50 border border-[#f3c700]/70 text-[#f3c700] text-base px-3.5 py-1.5 font-semibold"
+                                >
+                                    {division}
+                                </Badge>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Restrictions Section */}
                 {restrictionsArray.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-0.5">
-                        {restrictionsArray.map((restriction, idx) => (
-                             <Badge
-                                key={`res-${idx}`}
-                                variant="default"
-                                className="bg-orange-900/70 border border-orange-700/50 text-orange-300 text-xs px-2 py-0.5 font-semibold" // Orange theme styling
-                            >
-                                {restriction}
-                            </Badge>
-                        ))}
+                    // Increased spacing space-y-2
+                    <div className="space-y-2">
+                        {/* Increased font size text-lg */}
+                        <h3 className="text-lg font-semibold text-gray-400 text-center">Restrictions</h3>
+                        {/* Increased margin my-2 */}
+                        <hr className="border-t border-[#f3c700]/50 my-2" />
+                        {/* Increased gap gap-2 */}
+                        <div className="flex flex-wrap gap-2 justify-center">
+                            {restrictionsArray.map((restriction, idx) => (
+                                <Badge
+                                    key={`res-${idx}`}
+                                    variant="default"
+                                    // Increased font size and padding: text-base px-3 py-1.5
+                                    className="bg-orange-900/70 border border-orange-700/50 text-orange-300 text-base px-3 py-1.5 font-semibold"
+                                >
+                                    {restriction}
+                                </Badge>
+                            ))}
+                        </div>
                     </div>
                 )}
 
-                {/* Plates Section - Now conditionally grouped */}
+                {/* Plates Section */}
                 {totalPlates > 0 && (
-                    <div className="pt-1.5 mt-1.5 border-t border-white/10 max-h-32 overflow-y-auto custom-scrollbar pr-1"> {/* Adjusted max-h */}
-                        {/* Check if multiple divisions exist */}
-                        {hasMultipleDivisions ? (
-                            <div className="space-y-1.5"> {/* Space between division groups */}
-                                {divisionsArray.map(division => {
-                                    const platesForDivision = platesByDivision.get(division) || [];
-                                    if (platesForDivision.length === 0) return null; // Skip if no plates for this division
+                    // Increased spacing space-y-2
+                    <div className="space-y-2">
+                        {/* Increased font size text-lg */}
+                        <h3 className="text-lg font-semibold text-gray-400 text-center">Plates</h3>
+                        {/* Increased margin my-2 */}
+                        <hr className="border-t border-[#f3c700]/50 my-2" />
+                        {/* Increased max-h-40, pt-2.5 */}
+                        <div className="pt-2.5 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                            {hasMultipleDivisions ? (
+                                // Increased space-y-4
+                                <div className="space-y-4">
+                                    {divisionsArray.map(division => {
+                                        const platesForDivision = platesByDivision.get(division) || [];
+                                        if (platesForDivision.length === 0) return null;
 
-                                    return (
-                                        <div key={division}>
-                                            {/* Division Header */}
-                                            <h4 className="text-xs font-bold text-[#f3c700]/80 mb-1 uppercase">{division}</h4>
-                                            {/* Plates for this division */}
-                                            <div className="flex flex-wrap gap-1">
-                                                {renderPlateList(platesForDivision)}
+                                        return (
+                                            // Increased space-y-2, pt-2.5
+                                            <div key={division} className="space-y-2 pt-2.5 first:pt-0">
+                                                {/* Increased font size text-base, mb-2 */}
+                                                <h4 className="text-base font-bold text-[#f3c700]/80 mb-2 uppercase text-center">{division}</h4>
+                                                {/* Increased gap gap-2 */}
+                                                <div className="flex flex-wrap gap-2 justify-center">
+                                                    {renderPlateList(platesForDivision)}
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            /* Only one division, list all plates directly */
-                            <div className="flex flex-wrap gap-1">
-                                {renderPlateList(allPlates)}
-                            </div>
-                        )}
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                // Increased gap gap-2, pt-2.5
+                                <div className="flex flex-wrap gap-2 pt-2.5 justify-center">
+                                    {renderPlateList(allPlates)}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
-                 {totalPlates === 0 && (
-                    <p className="text-xs italic text-white/50 pt-1 border-t border-white/10 mt-1.5">No vehicles of this model found.</p>
-                 )}
+
+                {totalPlates === 0 && (
+                    // Increased text-base
+                    <p className="text-base italic text-white/50 pt-1 border-t border-white/10 mt-1.5 text-center">
+                        No vehicles of this model found.
+                    </p>
+                )}
             </CardContent>
         </Card>
     );

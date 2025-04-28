@@ -94,7 +94,8 @@ const Fleet: React.FC = () => {
   const [newVehicles, setNewVehicles] = useState<Partial<FleetVehicle>[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDivision, setFilterDivision] = useState("All");
-  const [hideOutOfService, setHideOutOfService] = useState(true);
+  // Default hideOutOfService to false
+  const [hideOutOfService, setHideOutOfService] = useState(false);
   const [activeTab, setActiveTab] = useState<"fleet" | "loadout">("fleet"); // State for active tab
   const [checkedItems, setCheckedItems] = useState<{ [key: string]: boolean }>(initializeCheckedState); // State for checklist
   const [viewMode, setViewMode] = useState<"card" | "table">("card"); // Add view mode state, default to 'card'
@@ -475,7 +476,8 @@ const Fleet: React.FC = () => {
               <>
                 {/* Card View - Uses FleetCard with grouped data */}
                 {viewMode === 'card' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  // Changed lg:grid-cols-3 to lg:grid-cols-4
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {groupedFleetData.size > 0 ? (
                       Array.from(groupedFleetData.entries()).map(([modelName, vehicles]) => (
                         <FleetCard
