@@ -12,6 +12,8 @@ export const computeIsAdmin = (user?: User | null): boolean => {
 
   // Define ranks that qualify as admin
   const adminRanks = [
+    "sergeant", // Added
+    "staff sergeant", // Added
     "lieutenant",
     "captain",
     "commander",

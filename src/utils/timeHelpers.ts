@@ -229,8 +229,8 @@ export const convertFirestoreDate = (dateString: string): string => {
 export const formatDateToMMDDYY = (
   dateValue: string | Timestamp | Date | null | undefined
 ): string => {
-  // Handle null, undefined, or empty/whitespace strings first
-  if (!dateValue || (typeof dateValue === 'string' && !dateValue.trim())) {
+  // Handle null, undefined, empty/whitespace strings, or the literal "N/A" or "-" first
+  if (!dateValue || (typeof dateValue === 'string' && (!dateValue.trim() || dateValue.trim() === "N/A" || dateValue.trim() === "-"))) {
     return "";
   }
 
@@ -284,7 +284,10 @@ export const formatDateToMMDDYY = (
 
       // If still no valid date after trying both formats
       if (!date) {
-          console.warn(`Unrecognized or invalid date string format: ${cleanedString}`);
+          // Avoid logging the warning for "-" as it's now explicitly handled
+          if (cleanedString !== "-") {
+              console.warn(`Unrecognized or invalid date string format: ${cleanedString}`);
+          }
           return ""; // Return empty string for unparseable formats
       }
     }

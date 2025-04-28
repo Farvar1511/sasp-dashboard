@@ -13,7 +13,7 @@
   --color-brand-dark: oklch(0.84 0.1726 92.66);
   --color-neutral: #111827;
   --color-neutral-light: #374151;
-  --color-neutral-dark: #1f2937;
+  --color-neutral-dark: oklch(0.22 0 220.59 / 98.97%);
   --color-accent: oklch(0.84 0.1726 92.66);
   --color-accent-light: rgba(243, 199, 0, 0.5);
   --color-accent-dark: rgba(243, 199, 0, 0.8);
@@ -146,14 +146,47 @@
 }
 
 @layer base {
+  /* ... other base styles ... */
+
   body {
-    @apply font-sans bg-background text-foreground min-h-screen;
+    /* Apply page-background here - REMOVE THIS LINE */
+    @apply font-sans bg-background text-foreground min-h-screen; /* Removed page-background */
   }
+
+  /* Add or ensure this class exists and uses the variable */
+  /* Keep this definition if needed elsewhere, but it's not applied to body via @apply anymore */
+  .page-background {
+    background-image: var(--background-image-url);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed; /* Optional: keeps background fixed during scroll */
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-card border border-border text-card-foreground rounded-lg shadow;
+  }
+
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black/70 z-40;
+  }
+  /* ... other component styles ... */
 }
 
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Keep the utility definition */
+  .page-background {
+    background-image: var(--background-image-url);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
   }
 
   .no-scrollbar {
@@ -183,32 +216,7 @@
     animation: glow 1.5s infinite alternate;
   }
 
-  .page-background {
-    @apply fixed inset-0 bg-cover bg-center z-[-1];
-  }
-
   .font-inter {
     font-family: "Inter", sans-serif;
-  }
-}
-
-@layer components {
-  .card {
-    @apply bg-black border border-brand text-white rounded-xl p-4;
-  }
-
-  .button-primary {
-    @apply px-4 py-2 bg-brand text-black font-semibold rounded-md shadow hover:bg-brand-dark transition;
-  }
-
-  .button-secondary {
-    @apply px-4 py-2 border border-foreground text-foreground rounded-md font-semibold hover:bg-foreground hover:text-background transition;
-  }
-
-  .bg-background-image {
-    @apply fixed inset-0 bg-cover bg-center z-[-1];
-    background-color: #1f2937;
-    transition: opacity 1s ease-in-out;
-    background-repeat: no-repeat;
   }
 }

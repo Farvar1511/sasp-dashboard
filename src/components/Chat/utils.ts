@@ -1,36 +1,45 @@
-import { User } from '../../types/User';
+import { User } from "../../types/User";
 
-export const formatUserName = (user: User | null): string => {
-    if (!user) return 'Unknown User';
-
-    // Use displayName if available (might be set from Auth)
-    if (user.displayName) {
-         const nameParts = user.displayName.trim().split(' ').filter(part => part.length > 0);
-         if (nameParts.length >= 2) {
-             const firstNameInitial = nameParts[0].charAt(0).toUpperCase();
-             const lastName = nameParts[nameParts.length - 1];
-             return `${firstNameInitial}. ${lastName}`;
-         }
-         if (nameParts.length === 1) {
-             return nameParts[0];
-         }
+/**
+ * Formats a user's name for display.
+ * Handles potential null/undefined user or name.
+ * Returns "Unknown User" if name is unavailable.
+ * Example: John Doe -> John Doe
+ */
+export const formatUserName = (user?: User | null): string => {
+    if (!user || !user.name) {
+        return 'Unknown User';
     }
-    // Fallback to name field from Firestore
-    if (user.name) {
-        const nameParts = user.name.trim().split(' ').filter(part => part.length > 0);
-        if (nameParts.length >= 2) {
-            const firstNameInitial = nameParts[0].charAt(0).toUpperCase();
-            const lastName = nameParts[nameParts.length - 1];
-            return `${firstNameInitial}. ${lastName}`;
-        }
-        if (nameParts.length === 1) {
-            return nameParts[0];
-        }
-    }
-    // Fallback logic: Use callsign, then email, then id
-    return user.callsign || user.email || user.id || 'Unknown User';
+    return user.name;
 };
 
+/**
+ * Formats a user's name for short display (First Initial. Last Name).
+ * Handles potential null/undefined user or name.
+ * Returns "Unknown" if name is unavailable or malformed.
+ * Example: John Doe -> J. Doe
+ */
+export const formatUserNameShort = (user?: User | null): string => {
+    if (!user || !user.name) {
+        return 'Unknown';
+    }
+    const nameParts = user.name.trim().split(' ');
+    if (nameParts.length < 2) {
+        // Handle single names or return as is if preferred
+        return user.name;
+    }
+    const firstNameInitial = nameParts[0].charAt(0).toUpperCase();
+    const lastName = nameParts[nameParts.length - 1]; // Get the last part as last name
+    return `${firstNameInitial}. ${lastName}`;
+};
+
+
+/**
+ * Generates fallback initials for an avatar.
+ * Handles potential null/undefined user or name.
+ * Returns "?" if name is unavailable.
+ * Example: John Doe -> JD
+ */
 export const getAvatarFallback = (user: User | null): string => {
     if (!user) return '?';
 

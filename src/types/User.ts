@@ -96,6 +96,16 @@ export interface User {
   discordId?: string;
   category?: string | null;
   lastSignInTime?: Timestamp | string | null; // Last sign-in time from Firebase Auth
+  hiddenChats?: Set<string>; // Set of chat IDs to hide
+  hiddenChats_department?: Set<string>; // Set of department IDs to hide
+  hiddenChats_ciu?: Set<string>; // Set of CIU IDs to hide
+  isCIU?: boolean; // Add isCIU property
+  isCadet?: boolean; // Add isCadet property
+  isFTOqualified?: boolean; // Add isFTOqualified property
+  isFTO?: boolean; // Add isFTO property
+  isFTOCadet?: boolean; // Add isFTOCadet property
+  canAccessCIU?: boolean; // Optional property for CIU access
+  permissions?: string[]; // Add the permissions property
 }
 
 // -----------------------------

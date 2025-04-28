@@ -18,14 +18,17 @@ interface AggregatedPlateInfo {
     vehicleId: string;
     vehicleInService: boolean;
     assigned: string; // Assignee from the vehicle object
+    // No need for restrictions here as it's the same for the card
 }
 
 const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
-    // Aggregate data: all plates, unique divisions, unique restrictions, group plates by division
+    // Aggregate data: all plates, unique divisions, group plates by division
     const allPlates: AggregatedPlateInfo[] = [];
     const uniqueDivisions = new Set<string>();
-    const uniqueRestrictions = new Set<string>();
     const platesByDivision = new Map<string, AggregatedPlateInfo[]>(); // Ensure this is populated
+
+    // Determine the single restriction for this card (all vehicles share it)
+    const cardRestriction = vehicles[0]?.restrictions?.trim() || null;
 
     vehicles.forEach(vehicle => {
         const division = vehicle.division;
@@ -33,13 +36,6 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
 
         if (!platesByDivision.has(division)) {
             platesByDivision.set(division, []);
-        }
-
-        if (vehicle.restrictions && vehicle.restrictions.trim()) {
-            vehicle.restrictions.split(',').forEach(r => {
-                const trimmed = r.trim();
-                if (trimmed) uniqueRestrictions.add(trimmed);
-            });
         }
 
         const plateData = {
@@ -54,7 +50,6 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
     });
 
     const divisionsArray = Array.from(uniqueDivisions).sort();
-    const restrictionsArray = Array.from(uniqueRestrictions).sort();
 
     platesByDivision.forEach((plates) => {
         plates.sort((a, b) => a.plate.localeCompare(b.plate));
@@ -108,6 +103,7 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
         });
     };
 
+
     return (
         <Card className={cn(
             "flex flex-col border-[#f3c700]/50 bg-black/98 text-white shadow-md", // Removed min-h if present
@@ -146,26 +142,24 @@ const FleetCard: React.FC<FleetCardProps> = ({ modelName, vehicles }) => {
                     </div>
                 )}
 
-                {/* Restrictions Section */}
-                {restrictionsArray.length > 0 && (
+                {/* Restrictions Section - Simplified */}
+                {cardRestriction && ( // Only show if there is a restriction
                     // Reduced spacing: space-y-1
                     <div className="space-y-1">
                         {/* Reduced font size: text-base */}
-                        <h3 className="text-base font-semibold text-gray-400 text-center">Restrictions</h3>
+                        <h3 className="text-base font-semibold text-gray-400 text-center">Restriction</h3>
                         {/* Reduced margin: my-1 */}
                         <hr className="border-t border-[#f3c700]/50 my-1" />
                         {/* Reduced gap: gap-1 */}
                         <div className="flex flex-wrap gap-1 justify-center">
-                            {restrictionsArray.map((restriction, idx) => (
-                                <Badge
-                                    key={`res-${idx}`}
-                                    variant="default"
-                                    // Reduced font size and padding: text-sm px-2 py-0.5
-                                    className="bg-orange-900/70 border border-orange-700/50 text-orange-300 text-sm px-2 py-0.5 font-semibold"
-                                >
-                                    {restriction}
-                                </Badge>
-                            ))}
+                            {/* Display single restriction badge */}
+                            <Badge
+                                variant="default"
+                                // Reduced font size and padding: text-sm px-2 py-0.5
+                                className="bg-orange-900/70 border border-orange-700/50 text-orange-300 text-sm px-2 py-0.5 font-semibold"
+                            >
+                                {cardRestriction}
+                            </Badge>
                         </div>
                     </div>
                 )}

@@ -66,6 +66,8 @@ const ExpandableChat: React.FC<ExpandableChatProps> = ({
         )}
       >
         {children}
+        {/* Comment out the internal close button (sm:hidden) */}
+        {/*
         <Button
           variant="ghost"
           size="icon"
@@ -74,6 +76,7 @@ const ExpandableChat: React.FC<ExpandableChatProps> = ({
         >
           <X className="h-4 w-4" />
         </Button>
+        */}
       </div>
       <ExpandableChatToggle
         icon={icon}
@@ -136,7 +139,8 @@ const ExpandableChatToggle: React.FC<ExpandableChatToggleProps> = ({
     {...props}
   >
     {isOpen ? (
-      <X className="h-6 w-6" />
+      // <X className="h-6 w-6" /> // Comment out the X icon
+      "X" // Placeholder text or remove
     ) : (
       icon || <MessageCircle className="h-6 w-6" />
     )}

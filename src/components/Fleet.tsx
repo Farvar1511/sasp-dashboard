@@ -169,12 +169,14 @@ const Fleet: React.FC = () => {
     });
   }, [fleetData, filterDivision, searchTerm, hideOutOfService]);
 
-  // Keep the memo hook to group filtered data by vehicle model AND division
+  // Keep the memo hook to group filtered data by vehicle model, division, AND restrictions
   const groupedFleetData = useMemo(() => {
     const grouped = new Map<string, FleetVehicle[]>();
     filteredFleet.forEach((vehicle) => {
-      // Use a composite key: model::division
-      const groupKey = `${vehicle.vehicle}::${vehicle.division}`;
+      // Use a composite key: model::division::restrictions
+      // Normalize empty/null restrictions for consistent grouping
+      const restrictionKey = (vehicle.restrictions || "").trim() || "NONE";
+      const groupKey = `${vehicle.vehicle}::${vehicle.division}::${restrictionKey}`;
       if (!grouped.has(groupKey)) {
         grouped.set(groupKey, []);
       }
@@ -482,17 +484,19 @@ const Fleet: React.FC = () => {
                     {groupedFleetData.size > 0 ? (
                       // Modify the loop to handle the new group key
                       Array.from(groupedFleetData.entries()).map(([groupKey, vehicles]) => {
-                        // Extract model name and division from the key
-                        const [modelName, division] = groupKey.split('::');
-                        // Pass the original model name and the filtered vehicles for that specific division
+                        // Extract model name, division, and restriction from the key
+                        const [modelName, division, restrictionKey] = groupKey.split('::');
+                        // The restriction value (if not 'NONE') is implicitly known for this group
+                        // Pass the original model name and the filtered vehicles for this specific group
                         return (
                           <FleetCard
                             key={groupKey} // Use the unique composite key
                             modelName={modelName} // Pass the model name
-                            // Pass the vehicles already filtered for this model AND division
+                            // Pass the vehicles already filtered for this model, division, AND restriction
                             vehicles={vehicles}
-                            // Optionally, pass division if FleetCard needs to display it explicitly
+                            // Optionally, pass division and restriction if FleetCard needs to display them explicitly
                             // division={division}
+                            // restriction={restrictionKey !== 'NONE' ? restrictionKey : undefined}
                           />
                         );
                       })

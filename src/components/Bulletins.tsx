@@ -95,14 +95,9 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
   }, [currentUser, isAdminFromAuth]);
 
   const canManageBulletins = useMemo(() => {
-    if (!currentUser?.role || !currentUser?.rank) return false;
-    const allowedRoles = ["admin"];
-    const allowedRanks = ["admin"];
-    return (
-      allowedRoles.includes(currentUser.role.toLowerCase()) ||
-      allowedRanks.includes(currentUser.rank.toLowerCase())
-    );
-  }, [currentUser]);
+    // Use the isAdmin flag from AuthContext, which already computes admin status based on role, rank, or override.
+    return isAdminFromAuth;
+  }, [isAdminFromAuth]);
 
   const showStatus = (
     type: "success" | "error",

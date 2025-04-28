@@ -1,74 +1,66 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom"; // Import useNavigate
 import { useAuth } from "../context/AuthContext";
-import { getRandomBackgroundImage } from "../utils/backgroundImage";
+import { toast } from "react-toastify";
+import { backgroundImages } from "../data/images";
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { user, login } = useAuth();
-  const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>("");
+  const { login } = useAuth();
+  const navigate = useNavigate(); // Initialize useNavigate
+  const [bgUrl, setBgUrl] = useState("");
 
   useEffect(() => {
-    if (!user) {
-      setBackgroundImageUrl(getRandomBackgroundImage());
+    const lastBg = sessionStorage.getItem("loginBg");
+    if (lastBg) {
+      setBgUrl(lastBg);
+    } else {
+      const randomIndex = Math.floor(Math.random() * backgroundImages.length);
+      const newBg = backgroundImages[randomIndex];
+      setBgUrl(newBg);
+      sessionStorage.setItem("loginBg", newBg);
     }
-  }, [user]);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setLoading(true);
-
-    if (!email || !password) {
-      setError("Please enter both email and password.");
-      setLoading(false);
-      return;
-    }
-
     try {
       await login(email, password);
-    } catch (err) {
-      console.error("Login error:", err);
-      if (err instanceof Error) {
-        switch ((err as any).code) {
+      toast.success("Login successful!");
+      navigate("/"); // Redirect to home page on success
+    } catch (error: any) {
+      console.error("Login failed:", error);
+      // Display specific error messages if available
+      let errorMessage = "Login failed. Please check your credentials.";
+      if (error.code) {
+        switch (error.code) {
           case "auth/user-not-found":
           case "auth/wrong-password":
-          case "auth/invalid-credential":
-            setError("Invalid email or password.");
+          case "auth/invalid-credential": // Catch generic invalid credential error
+            errorMessage = "Invalid email or password.";
             break;
           case "auth/invalid-email":
-            setError("Invalid email format.");
+            errorMessage = "Invalid email format.";
             break;
-          default:
-            setError("Failed to log in. Please try again.");
+          case "auth/too-many-requests":
+            errorMessage = "Too many login attempts. Please try again later.";
+            break;
+          // Add other specific Firebase Auth error codes as needed
         }
-      } else {
-        setError("An unknown error occurred during login.");
       }
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  if (user) {
-    return <Navigate to="/home" replace />;
-  }
-
-  if (!backgroundImageUrl) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        Loading...
-      </div>
-    );
-  }
-
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-cover bg-center"
-      style={{ backgroundImage: `url('${backgroundImageUrl}')` }}
+      style={{ backgroundImage: `url(${bgUrl})` }}
     >
       <div className="bg-black bg-opacity-80 p-10 rounded-lg shadow-xl max-w-md w-full border border-[#f3c700]">
         <img
@@ -114,11 +106,6 @@ const Login: React.FC = () => {
               placeholder="••••••••"
             />
           </div>
-          {error && (
-            <p className="text-sm text-red-500 bg-red-900/50 border border-red-700 p-2 rounded">
-              {error}
-            </p>
-          )}
           <div>
             <button
               type="submit"

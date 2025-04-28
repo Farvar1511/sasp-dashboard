@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useState,
   useMemo,
+  ReactNode, // Import ReactNode
 } from "react";
 import {
   onAuthStateChanged,
@@ -34,7 +35,7 @@ interface AuthContextProps {
   isAdmin: boolean;
   logout: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  updateUserProfilePhoto: (newPhotoURL: string) => Promise<void>; // Add this line
+  updateUserProfilePhoto: (photoURL: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps>({
@@ -43,15 +44,18 @@ const AuthContext = createContext<AuthContextProps>({
   isAdmin: false,
   logout: async () => {},
   login: async () => {},
-  updateUserProfilePhoto: async () => {}, // Add default implementation
+  updateUserProfilePhoto: async () => {},
 });
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+// Define props for AuthProvider
+interface AuthProviderProps {
+  children: ReactNode; // Use ReactNode for children prop type
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate(); // Ensure useNavigate is used correctly
+  const navigate = useNavigate(); // useNavigate is now safe to use here
 
   useEffect(() => {
     console.log("Auth listener attached."); // Log listener attachment
@@ -152,8 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // Function to update user profile photo
-  const updateUserProfilePhoto = async (newPhotoURL: string) => {
+  const updateUserProfilePhoto = async (photoURL: string) => {
     if (!auth.currentUser) {
       throw new Error("No authenticated user found.");
     }
@@ -164,15 +167,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     try {
       // 1. Update Firebase Auth profile
-      await updateProfile(auth.currentUser, { photoURL: newPhotoURL });
+      await updateProfile(auth.currentUser, { photoURL });
 
       // 2. Update Firestore document (using user.id which is the email)
       const userRef = doc(db, "users", user.id);
-      await updateDoc(userRef, { photoURL: newPhotoURL });
+      await updateDoc(userRef, { photoURL });
 
       // 3. Update local state immediately for better UX
       setUser((prevUser) =>
-        prevUser ? { ...prevUser, photoURL: newPhotoURL } : null
+        prevUser ? { ...prevUser, photoURL } : null
       );
     } catch (error) {
       console.error("Error updating profile photo:", error);

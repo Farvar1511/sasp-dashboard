@@ -9,6 +9,7 @@ export interface ChatGroup {
     createdAt: Timestamp | FieldValue; // Allow FieldValue for serverTimestamp() on write
     lastMessageTimestamp?: Timestamp | FieldValue; // Allow FieldValue for serverTimestamp() on write
     typingUsers?: string[]; // Optional: Array of emails of users currently typing
-    lastRead?: { [email: string]: Timestamp | FieldValue }; // Optional: Map of user emails to their last read timestamp
-    // Add other group-specific fields if needed
+    lastRead?: { [email: string]: Timestamp | FieldValue }; 
+    context: 'ciu' | 'department';
+    iconUrl?: string; // Optional icon URL for the group
 }
