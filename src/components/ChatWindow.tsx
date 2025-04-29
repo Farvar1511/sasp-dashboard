@@ -97,13 +97,16 @@ function ChatWindowComponent({
 
   // Effect to refocus input after sending is complete
   useEffect(() => {
-    // Get the previous value
     const prevIsSending = prevIsSendingRef.current;
 
-    // Check if isSending transitioned from true to false
     if (prevIsSending === true && isSending === false) {
-        // Refocus the input field
+      // Add a small delay to ensure the input is ready in production builds
+      const timer = setTimeout(() => {
         inputRef.current?.focus();
+      }, 0); // 0ms delay often works, adjust if needed
+
+      // Cleanup the timer if the component unmounts or isSending changes again quickly
+      return () => clearTimeout(timer);
     }
 
     // Update the ref *after* the check for the *next* render cycle
