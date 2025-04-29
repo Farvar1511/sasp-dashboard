@@ -1,4 +1,5 @@
 import { Timestamp, FieldValue } from 'firebase/firestore'; // Import FieldValue
+import { User } from './User'; // Import User type
 
 export interface ChatGroup {
     id: string; // Firestore document ID
@@ -12,4 +13,6 @@ export interface ChatGroup {
     lastRead?: { [email: string]: Timestamp | FieldValue }; 
     context: 'ciu' | 'department';
     iconUrl?: string; // Optional icon URL for the group
+    participants?: User[]; // Add participants as an optional property
+
 }

@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react'; // Import useRef
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area'; // Import ScrollArea from the correct path
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-// Import ArrowLeft icon
 import { SendIcon, Loader2, Smile, XIcon, ArrowLeft, Users } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import {
@@ -69,45 +68,81 @@ function ChatWindowComponent({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   // State to track component mount status
   const [isMounted, setIsMounted] = useState(false);
+  // Ref for the scrollable message container
+  const messageContainerRef = useRef<HTMLDivElement>(null); // <-- Add this ref
+
+  // --- Add Log 1 ---
+  console.log(`[ChatWindow] Rendering. Message count: ${messages.length}. Last message ID: ${messages[messages.length - 1]?.id}`);
+  // console.log('[ChatWindow] Received messages prop:', messages); // Optional: Log full array
 
   // Effect to set isMounted to true after the component mounts
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    // Optional: Scroll to bottom on initial mount after loading is false
+    if (!isLoading) {
+        requestAnimationFrame(() => {
+            // Add a minimal timeout to ensure layout is fully computed
+            setTimeout(scrollToBottom, 0);
+        });
+    }
+  }, [isLoading]); // Run only when isLoading changes (specifically on initial load completion)
 
-  // Determine chat name, avatar, and fallback based on chatTarget
-  const { chatName, chatAvatarUrl, chatAvatarFallback } = useMemo(() => {
+
+  // Function to scroll the message container to the bottom
+  const scrollToBottom = () => {
+    if (messageContainerRef.current) {
+      // --- Add Log ---
+      console.log(`[ChatWindow] scrollToBottom: Setting scrollTop to ${messageContainerRef.current.scrollHeight}`);
+      messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
+    } else {
+      console.log('[ChatWindow] scrollToBottom: messageContainerRef.current is null');
+    }
+  };
+
+  // Effect to scroll to bottom when messages change (AFTER initial mount)
+  useEffect(() => {
+    // Only scroll if the component is mounted
+    if (isMounted) {
+        // --- Add Log 2 ---
+        console.log('[ChatWindow] Scroll effect triggered (messages changed).');
+        // Use requestAnimationFrame to ensure scrolling happens after render
+        requestAnimationFrame(() => {
+            // --- Add Log 3 ---
+            console.log('[ChatWindow] Calling scrollToBottom inside requestAnimationFrame (messages changed).');
+            // Add a minimal timeout to ensure layout is fully computed after message render
+            setTimeout(scrollToBottom, 0);
+        });
+    }
+    // Only trigger this effect when the messages array itself changes identity
+  }, [messages, isMounted]);
+
+
+  // Determine chat name, avatar, fallback, and participants based on chatTarget
+  const { chatName, chatAvatarUrl, chatAvatarFallback, groupParticipants } = useMemo(() => {
     if ('groupName' in chatTarget) { // It's a ChatGroup
       return {
         chatName: chatTarget.groupName,
         chatAvatarUrl: undefined, // Groups might not have avatars
         chatAvatarFallback: <Users className="h-5 w-5" />, // Use Users icon for groups
+        groupParticipants: chatTarget.participants || [], // Extract participants for groups
       };
     } else { // It's a User
       return {
         chatName: formatUserName(chatTarget),
         chatAvatarUrl: chatTarget.photoURL ?? undefined,
         chatAvatarFallback: getAvatarFallback(chatTarget),
+        groupParticipants: [], // No participants for individual users
       };
     }
   }, [chatTarget]);
-
-  // Memoize group participants for tooltip display (optional, but good practice)
-  const groupParticipants = useMemo(() => {
-    if ('groupName' in chatTarget && allUsers && currentUser) {
-      const participantUsers = chatTarget.members
-        .map(cid => allUsers.find(u => u.cid === cid) || (currentUser.cid === cid ? currentUser : null))
-        .filter((u): u is User => u !== null); // Type guard to filter out nulls
-      return participantUsers;
-    }
-    return [];
-  }, [chatTarget, allUsers, currentUser]);
 
 
   // useEffect to focus input when newMessage is cleared AND sending is complete, after mount
   useEffect(() => {
     // Only focus if mounted, message is empty, sending is false, and ref exists
-    if (isMounted && newMessage === '' && !isSending && inputRef?.current) {
+    // NOTE: The 'isMounted' check was removed in a previous step, let's keep it removed for now
+    // if (isMounted && newMessage === '' && !isSending && inputRef?.current) {
+    if (newMessage === '' && !isSending && inputRef?.current) { // Keep the simplified condition
       // Use requestAnimationFrame to ensure focus happens after browser paint
       requestAnimationFrame(() => {
         const inputElement = inputRef.current;
@@ -117,8 +152,9 @@ function ChatWindowComponent({
         }
       });
     }
-    // Add isMounted, isSending to the dependency array
-  }, [isMounted, newMessage, isSending, inputRef]);
+    // Correct dependency array for this effect
+  }, [newMessage, isSending, inputRef]); // Keep this dependency array
+
 
   // Keydown handler for the input area div
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement | HTMLTextAreaElement>) => { // Update type back
@@ -192,7 +228,7 @@ function ChatWindowComponent({
         </div>
 
         {/* Messages Container */}
-        <div className="flex-grow overflow-hidden">
+        <div ref={messageContainerRef} className="flex-grow overflow-y-auto"> {/* <-- Attach ref here */}
           <ChatMessageList className="p-4 md:px-6 h-full">
             {messages.map((msg) => {
               const isMe = msg.sender === 'me';

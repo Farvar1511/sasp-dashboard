@@ -328,7 +328,7 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
             const lastMsgTimestamp = chatData.lastMessageTimestamp instanceof Timestamp
                 ? chatData.lastMessageTimestamp
                 : null;
-            let stableId: string | null = null; // Initialize stableId as potentially null
+            let stableId: string | null = null;
             let displayChat: DisplayChat | null = null;
 
             if (chatData.type === 'group') {
@@ -521,9 +521,13 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
         // Fetch messages using the stable chatId (group ID or generated directChatId)
         // Firestore security rules should handle context and membership checks.
         const messagesRef = collection(dbFirestore, 'chats', chatId, 'messages');
-        const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(100));
+        // --- Change orderBy to 'desc' ---
+        const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(100));
         const unsubscribeMessages = onSnapshot(q, (snapshot) => {
-            console.log(`[Debug] onSnapshot: chatId=${chatId}, snapshot size=`, snapshot.size);
+            // --- Add Log 1 ---
+            console.log(`[DepartmentChat Listener] Fired for chatId: ${chatId}. Snapshot empty: ${snapshot.empty}, Size: ${snapshot.size}`);
+            // console.log('[DepartmentChat Listener] Docs:', snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); // Optional: Log full data
+
             const fetchedMessages: ChatMessage[] = snapshot.docs.map(doc => {
                 const data = doc.data();
                 const senderCid = data.senderId;
@@ -542,7 +546,17 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                     timestamp: data.timestamp,
                 };
             });
-            setMessages(fetchedMessages); // Update messages state here
+
+            // --- Reverse the array to display oldest first ---
+            const reversedMessages = fetchedMessages.reverse();
+
+            // --- Add Log 2 ---
+            console.log(`[DepartmentChat Listener] Processed ${reversedMessages.length} messages (reversed).`);
+            // console.log('[DepartmentChat Listener] Fetched Messages:', reversedMessages); // Optional: Log the processed array
+
+            // --- Add Log 3 ---
+            console.log('[DepartmentChat Listener] Calling setMessages...');
+            setMessages(reversedMessages); // Update messages state here with the reversed array
             setLoadingMessages(false);
             setError(null);
         }, (err) => {
