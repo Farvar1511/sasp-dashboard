@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area'; // Import ScrollArea from the correct path
@@ -65,6 +67,13 @@ function ChatWindowComponent({
 }: ChatWindowProps) {
   // State for emoji picker visibility
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // State to track component mount status
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Effect to set isMounted to true after the component mounts
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Determine chat name, avatar, and fallback based on chatTarget
   const { chatName, chatAvatarUrl, chatAvatarFallback } = useMemo(() => {
@@ -95,20 +104,22 @@ function ChatWindowComponent({
   }, [chatTarget, allUsers, currentUser]);
 
 
-  // useEffect to focus input when newMessage is cleared AND sending is complete
+  // useEffect to focus input when newMessage is cleared AND sending is complete, after mount
   useEffect(() => {
-    // Only focus if message is empty, sending is false, and ref exists
-    if (newMessage === '' && !isSending && inputRef?.current) {
+    // Only focus if mounted, message is empty, sending is false, and ref exists
+    if (isMounted && newMessage === '' && !isSending && inputRef?.current) {
       // Defer focus to the next microtask
       setTimeout(() => {
         // Check if the input is not already focused to avoid unnecessary focus calls
+        // Optional: Read scrollTop to ensure layout calculation before focus
+        inputRef.current?.scrollTop;
         if (document.activeElement !== inputRef.current) {
            inputRef.current?.focus(); // Use optional chaining inside timeout
         }
       }, 0);
     }
-    // Add isSending to the dependency array
-  }, [newMessage, isSending, inputRef]);
+    // Add isMounted, isSending to the dependency array
+  }, [isMounted, newMessage, isSending, inputRef]);
 
   // Keydown handler for the input area div
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement | HTMLTextAreaElement>) => { // Update type back
