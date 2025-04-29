@@ -99,10 +99,13 @@ function ChatWindowComponent({
   useEffect(() => {
     // Only focus if message is empty, sending is false, and ref exists
     if (newMessage === '' && !isSending && inputRef?.current) {
-      // Check if the input is not already focused to avoid unnecessary focus calls
-      if (document.activeElement !== inputRef.current) {
-         inputRef.current.focus();
-      }
+      // Defer focus to the next microtask
+      setTimeout(() => {
+        // Check if the input is not already focused to avoid unnecessary focus calls
+        if (document.activeElement !== inputRef.current) {
+           inputRef.current?.focus(); // Use optional chaining inside timeout
+        }
+      }, 0);
     }
     // Add isSending to the dependency array
   }, [newMessage, isSending, inputRef]);
