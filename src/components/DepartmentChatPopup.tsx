@@ -89,18 +89,30 @@ interface DepartmentChatPopupProps {
     // onUnreadCountChange: (count: number) => void;
 }
 
-// Define width options - Updated with 4 sizes
+// Define width options - Updated with vw units
 const widthOptions = {
-    small: { label: 'Small (600px)', class: 'sm:w-[600px]' },
-    medium: { label: 'Medium (900px)', class: 'sm:w-[900px]' },
-    large: { label: 'Large (1200px)', class: 'sm:w-[1200px]' },
-    xlarge: { label: 'Extra Large (2000px)', class: 'sm:w-[2000px]' },
+    small: { label: 'Small (20vw)', class: 'sm:w-[20vw]' },
+    medium: { label: 'Medium (40vw)', class: 'sm:w-[40vw]' },
+    large: { label: 'Large (60vw)', class: 'sm:w-[60vw]' },
+    xlarge: { label: 'Extra Large (80vw)', class: 'sm:w-[80vw]' }, // Adjusted to 95vw
 };
-const defaultWidthClass = widthOptions.medium.class; // Default width remains 600px
+const defaultWidthClass = widthOptions.medium.class; // Default width remains medium
+
+// Define font size options - Updated with more realistic percentages
+const fontSizeOptions = {
+    80: { label: '80%' },
+    90: { label: '90%' },
+    100: { label: '100% (Default)' },
+    110: { label: '110%' },
+    120: { label: '120%' },
+};
+const defaultFontSizePercent = 100; // Default font size percentage
 
 export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen, onClose /*, onUnreadCountChange*/ }) => {
     // State for width class, initialized with the default
     const [chatWidthClass, setChatWidthClass] = useState<string>(defaultWidthClass);
+    // State for font size percentage
+    const [fontSizePercent, setFontSizePercent] = useState<number>(defaultFontSizePercent);
     const { user: currentUser, loading: authLoading } = useAuth(); // Add authLoading
     const [users, setUsers] = useState<User[]>([]);
     const [departmentGroups, setDepartmentGroups] = useState<ChatGroup[]>([]);
@@ -514,20 +526,19 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                 // Find sender details in the memoized list
                 const senderDetails = allUsersIncludingSelf.find(u => u.cid === senderCid);
                 return {
+                    // Ensure all necessary properties for ChatMessage are included
                     id: doc.id,
-                    uid: data.recipientId || '',
+                    uid: data.recipientId || '', // Use recipientId or senderId based on context
                     sender: senderCid === currentUser.cid ? "me" : "other",
                     name: data.senderName || formatUserName(senderDetails) || 'Unknown User',
                     avatarUrl: senderDetails?.photoURL ?? undefined,
                     time: data.timestamp instanceof Timestamp ? data.timestamp.toDate().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '...',
-                    type: data.imageUrl ? undefined : "text",
+                    type: data.imageUrl ? 'image' : "text", // Explicitly set type
                     content: data.text || data.imageUrl || "",
                     timestamp: data.timestamp,
-                    text: data.text,
-                    recipientId: data.recipientId,
                 };
             });
-            setMessages(fetchedMessages);
+            setMessages(fetchedMessages); // Update messages state here
             setLoadingMessages(false);
             setError(null);
         }, (err) => {
@@ -544,6 +555,7 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
         };
         // Update dependencies: added displayChats
     }, [currentUser?.cid, selectedChat, getChatDocRef, users, updateLastReadTimestamp, unreadChats, allUsersIncludingSelf, displayChats]);
+
 
     // --- Callbacks ---
     const handleChatSelect = useCallback((chatTarget: User | ChatGroup) => {
@@ -588,8 +600,10 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
         //     // return; // Don't return, proceed with selection
         // }
 
+        // Stop typing indicator logic (if any)
         if (currentChatIdRef.current && currentUser?.cid && currentChatIdRef.current !== firestoreDocId) {
             // Stop typing in the old chat (using firestoreDocId if available)
+            // Example: stopTypingIndicator(currentChatIdRef.current);
         }
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
@@ -599,8 +613,8 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
             // Use the stable generated/group ID for the state ID, which matches the ChatWindow key
             id: newSelectedChatId
         });
-        setMessages([]);
-        setNewMessage('');
+        setMessages([]); // Clear messages for the new chat
+        setNewMessage(''); // Clear the input field
         // Marking as read is handled in the useEffect for selectedChat using firestoreDocId if available
     }, [currentUser?.cid, displayChats, chatContext]); // Added chatContext dependency
 
@@ -669,8 +683,13 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
         };
 
         try {
+            // Add the message first
             await addDoc(messagesRef, messageData);
 
+            // Clear input immediately after successful message add
+            setNewMessage(''); // This state update triggers re-render
+
+            // Then update chat metadata (this can happen slightly after)
             if (chatDocRef) {
                 const chatDocSnap = await getDoc(chatDocRef);
                 const now = serverTimestamp();
@@ -708,16 +727,20 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                     console.log(`DepartmentChat: Created chat doc ${chatId}`);
                 }
             }
-            setNewMessage(''); // Clear input after successful send
+            // setNewMessage(''); // Moved clearing input earlier for better UX
         } catch (err) {
             console.error(`DepartmentChat: Error sending message or updating metadata for ${chatId}:`, err);
             toast.error("Failed to send message.");
+            // If message add failed, potentially restore the input? Or rely on user retry.
+            // setNewMessage(trimmedMessage); // Optional: Restore message on failure
         } finally {
             setIsSending(false);
+            // No explicit blur() call here. Focus should remain on the input
+            // unless the re-render or scrolling logic interferes.
         }
-        // Update dependencies: added displayChats
     }, [
-        newMessage,
+        // ... dependencies ...
+        newMessage, // Ensure newMessage is a dependency
         currentUser,
         selectedChat,
         isSending,
@@ -904,19 +927,8 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
     }, [selectedChat, handleDeselectChat]); // Dependencies: selectedChat state and the callback
 
     // --- Memoized Values for Child Components ---
-    const messagesForChatWindow = useMemo(() => {
-        return messages.map((message): ChatMessage => ({
-            id: message.id ?? '',
-            uid: message.recipientId ?? '', // Ensure 'uid' is included
-            sender: message.sender as "me" | "other",
-            name: message.name ?? 'Unknown User',
-            avatarUrl: message.avatarUrl,
-            time: message.time || '',
-            type: message.type,
-            content: message.content,
-            timestamp: message.timestamp,
-        }));
-    }, [messages]);
+    // Remove messagesForChatWindow memoization as passing raw messages directly
+    // const messagesForChatWindow = useMemo(() => { ... }, [messages]);
 
     // --- Cleanup and Visibility Effect ---
     useEffect(() => {
@@ -941,6 +953,7 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
             {/* Sidebar Container */}
             <div
                 ref={sidebarRef}
+                // Ensure it's fixed to the top and uses full screen height
                 className="fixed top-0 left-0 h-screen w-64 bg-card border-r border-border flex flex-col shadow-lg z-50"
                 onClick={e => e.stopPropagation()} // Keep stopping propagation
             >
@@ -965,7 +978,7 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        title="Chat Window Size"
+                                        title="Chat Settings" // Updated title
                                         className="text-muted-foreground hover:text-foreground"
                                     >
                                         <Settings className="h-4 w-4" />
@@ -982,10 +995,23 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                                 {/* Map over updated widthOptions */}
                                 {Object.entries(widthOptions).map(([key, option]) => (
                                     <DropdownMenuItem
-                                        key={key}
+                                        key={`width-${key}`}
                                         // onClick updates the state with the selected class
                                         onClick={() => setChatWidthClass(option.class)}
                                         disabled={chatWidthClass === option.class}
+                                    >
+                                        {option.label}
+                                    </DropdownMenuItem>
+                                ))}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel>Message Font Size</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {/* Map over UPDATED font size options */}
+                                {Object.entries(fontSizeOptions).map(([percent, option]) => (
+                                    <DropdownMenuItem
+                                        key={`font-${percent}`}
+                                        onClick={() => setFontSizePercent(Number(percent))}
+                                        disabled={fontSizePercent === Number(percent)}
                                     >
                                         {option.label}
                                     </DropdownMenuItem>
@@ -1085,8 +1111,9 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                                                 {/* Name */}
                                                 <div className="flex-grow overflow-hidden text-left"> {/* Removed pl-2 */}
                                                     <span className={cn(
-                                                        "text-sm text-foreground truncate block",
-                                                        isSelected ? "font-medium" : ""
+                                                        "text-sm text-foreground truncate block", // Base text size for list item
+                                                        // Corrected conditional class application
+                                                        { 'font-medium': isSelected }
                                                     )}>
                                                         {name}
                                                     </span>
@@ -1124,12 +1151,11 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                     // Remove key prop
                     ref={sheetContentRef}
                     side="left"
-                    // Keep base classes, especially ml-64 for positioning, but remove dynamic width
+                    // Ensure sheet content is also fixed top, uses screen height, and positioned next to sidebar
                     className={cn(
-                        "p-0 border-l border-border bg-background flex flex-col ml-64 z-50", // Removed w-full, let inner div control width
-                        // REMOVED chatWidthClass from here
-                        // Update class to hide the default Sheet close button using data-slot
-                        "[&_[data-slot=sheet-close]]:hidden" // More specific selector
+                        "fixed top-0 h-screen p-0 border-l border-border bg-background flex flex-col ml-64 z-50", // Added fixed, top-0, h-screen
+                        // REMOVED chatWidthClass from here (it's applied to inner div)
+                        "[&_[data-slot=sheet-close]]:hidden"
                     )}
                     onClick={e => e.stopPropagation()}
                     onEscapeKeyDown={(e) => {
@@ -1137,10 +1163,9 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                         handleDeselectChat(false);
                     }}
                     style={{ pointerEvents: 'auto' }} // Keep pointerEvents style
-                    // Remove width style if previously added
                 >
-                    {/* Inner wrapper div to control width */}
-                    <div className={cn("flex flex-col h-full w-full", chatWidthClass)}> {/* Apply dynamic width class HERE */}
+                    {/* Inner wrapper div to control width and ensure flex column takes full height */}
+                    <div className={cn("flex flex-col h-full w-full", chatWidthClass)}>
                         {/* Add VisuallyHidden Title and Description for SheetContent */}
                         <VisuallyHidden>
                             <DialogTitle>Chat Window</DialogTitle>
@@ -1154,7 +1179,7 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                                 // Use selectedChat.id as key for ChatWindow itself if needed for state reset
                                 key={selectedChat.id}
                                 chatTarget={selectedChat.target}
-                                messages={messagesForChatWindow}
+                                messages={messages} // Pass raw messages array
                                 newMessage={newMessage}
                                 onNewMessageChange={setNewMessage}
                                 onSendMessage={handleSendMessage} // Pass memoized callback
@@ -1164,6 +1189,7 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                                 context={chatContext}
                                 currentUser={currentUser} // Pass non-null currentUser
                                 allUsers={allUsersIncludingSelf} // Pass the user list
+                                fontSizePercent={fontSizePercent} // Pass font size state
                             />
                         )}
                     </div> {/* End of inner wrapper div */}
