@@ -202,6 +202,127 @@
     @apply bg-neutral-dark rounded-full;
   }
 
+  /* --- Consolidated and Corrected ProseMirror Styles --- */
+  .ProseMirror {
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .ProseMirror > * + * { /* Direct children spacing */
+    margin-top: 0.75em;
+  }
+
+  .ProseMirror:focus {
+    outline: none;
+  }
+
+  .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    color: #a0a0a0; /* Use a muted color */
+    pointer-events: none;
+    height: 0;
+  }
+
+  .ProseMirror img {
+    max-width: 100%;
+    height: auto;
+    display: block; /* Prevent extra space below images */
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  .ProseMirror blockquote {
+    padding-left: 1rem;
+    border-left: 3px solid #f3c700; /* SASP yellow */
+    margin-left: 0;
+    margin-right: 0;
+    color: #a0a0a0; /* Muted color for quote text */
+    font-style: italic;
+  }
+
+  .ProseMirror ul,
+  .ProseMirror ol {
+    padding-left: 1.5rem;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  /* Add list style type for unordered lists */
+  .ProseMirror ul {
+    list-style-type: disc; /* Add this line */
+  }
+
+  /* Ensure list items are displayed correctly */
+  .ProseMirror li {
+    display: list-item; /* Add or ensure this line exists */
+  }
+
+  .ProseMirror li > p { /* Remove extra margin for paragraphs inside list items */
+      margin-top: 0.25em;
+      margin-bottom: 0.25em;
+  }
+
+  .ProseMirror code {
+    background-color: #1f2937; /* Dark background */
+    color: #f3c700; /* SASP yellow */
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace; /* Use a common monospace font */
+    font-size: 0.9em; /* Slightly smaller */
+  }
+
+  .ProseMirror pre {
+    background: #1f2937; /* Dark background */
+    color: #f3c700; /* SASP yellow */
+    padding: 1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: 'Courier New', monospace; /* Use a common monospace font */
+    margin-top: 1em;
+    margin-bottom: 1em;
+  }
+
+  .ProseMirror pre code { /* Code inside pre should not have extra padding/background */
+      background: none;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+  }
+
+  /* Heading Styles with User-Requested Sizes */
+  .ProseMirror h1 {
+    font-size: 32px; /* User requested */
+    font-weight: bold;
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    line-height: 1.1;
+  }
+
+  .ProseMirror h2 {
+    font-size: 24px; /* User requested */
+    font-weight: bold;
+    margin-top: 0.8em;
+    margin-bottom: 0.4em;
+    line-height: 1.2;
+  }
+
+  .ProseMirror h3 {
+    font-size: 18px; /* User requested */
+    font-weight: bold;
+    margin-top: 0.7em;
+    margin-bottom: 0.35em;
+    line-height: 1.3;
+  }
+
+  .ProseMirror p {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    /* Default font size will apply unless overridden by FontSize extension */
+  }
+
   @keyframes glow {
     from {
       text-shadow: 0 0 2px var(--color-brand), 0 0 4px var(--color-brand);

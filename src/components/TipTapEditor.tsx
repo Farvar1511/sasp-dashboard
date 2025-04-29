@@ -26,7 +26,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit, // Use default StarterKit configuration
       Underline,
       Link.configure({ openOnClick: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -80,11 +80,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             className={toolbarItemStyle}
           >
             <option value="">Size</option>
+            {/* Updated Font Sizes */}
             <option value="12px">12</option>
             <option value="14px">14</option>
             <option value="16px">16</option>
+            <option value="18px">18</option>
             <option value="20px">20</option>
             <option value="24px">24</option>
+            <option value="30px">30</option>
+            <option value="36px">36</option>
+            <option value="48px">48</option>
+            <option value="60px">60</option>
           </select>
 
           <select
@@ -102,6 +108,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
           <button onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={`${toolbarItemStyle} ${editor.isActive('heading', { level: 1 }) ? activeToolbarItemStyle : ''}`}>H1</button>
           <button onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={`${toolbarItemStyle} ${editor.isActive('heading', { level: 2 }) ? activeToolbarItemStyle : ''}`}>H2</button>
+          {/* Added H3 Button */}
+          <button onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={`${toolbarItemStyle} ${editor.isActive('heading', { level: 3 }) ? activeToolbarItemStyle : ''}`}>H3</button>
           <button onClick={() => editor.chain().focus().setParagraph().run()} className={`${toolbarItemStyle} ${editor.isActive('paragraph') ? activeToolbarItemStyle : ''}`}>P</button>
           <button onClick={() => editor.chain().focus().toggleBulletList().run()} className={`${toolbarItemStyle} ${editor.isActive('bulletList') ? activeToolbarItemStyle : ''}`}>• List</button>
           <button onClick={() => editor.chain().focus().toggleOrderedList().run()} className={`${toolbarItemStyle} ${editor.isActive('orderedList') ? activeToolbarItemStyle : ''}`}>1. List</button>
@@ -133,7 +141,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       {/* Editor Content Area - Apply border matching the toolbar, add caret color and focus ring */}
       <EditorContent
         editor={editor}
-        className={`ProseMirror p-2 bg-black/95 border border-t-0 border-[#f3c700] rounded-b-lg min-h-[150px] focus:outline-none focus:ring-1 focus:ring-[#f3c700] caret-white ${editorClassName}`} // Added caret-white and focus ring
+        className={`ProseMirror p-2 bg-black/95 border border-t-0 border-[#f3c700] rounded-b-lg min-h-[250px] focus:outline-none focus:ring-1 focus:ring-[#f3c700] caret-white ${editorClassName}`} // Increased min-h-[150px] to min-h-[250px]
         data-placeholder="Start typing..."
       />
 

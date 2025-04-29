@@ -414,17 +414,32 @@ const Fleet: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
-              {/* Hide Out-of-Service Checkbox */}
-              <div className="flex items-center space-x-2 bg-black/80 border border-gray-700 rounded px-3 h-9">
+              {/* Hide Out-of-Service Checkbox - Restyled */}
+              <div
+                className={cn(
+                  "flex items-center space-x-2 rounded-md border border-gray-700 bg-black/80 px-3 h-9", // Base style matching other filters
+                  "cursor-pointer select-none", // Make clickable, prevent text selection
+                  "hover:border-gray-600 hover:bg-gray-700/70", // Hover effect
+                  "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background" // Focus styling
+                )}
+                onClick={() => setHideOutOfService(!hideOutOfService)}
+                role="checkbox"
+                aria-checked={hideOutOfService}
+                tabIndex={0} // Make it focusable
+                onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setHideOutOfService(!hideOutOfService); } }} // Keyboard activation
+              >
                 <Checkbox
-                  id="hide-oos"
+                  id="hide-oos" // Keep ID for semantics
                   checked={hideOutOfService}
-                  onCheckedChange={(checked) => setHideOutOfService(Boolean(checked))}
-                  className="border-gray-500 data-[state=checked]:bg-[#f3c700] data-[state=checked]:text-black"
+                  // Checkbox is now purely visual indicator
+                  className="border-gray-500 data-[state=checked]:bg-[#f3c700] data-[state=checked]:text-black pointer-events-none"
+                  aria-hidden="true" // Hide from accessibility tree as div handles interaction
+                  tabIndex={-1} // Remove from tab order
                 />
-                <Label htmlFor="hide-oos" className="text-sm font-medium text-yellow-400 cursor-pointer whitespace-nowrap">
+                {/* Use a span instead of Label */}
+                <span className="text-sm font-medium text-yellow-400 whitespace-nowrap">
                   Hide OOS
-                </Label>
+                </span>
               </div>
 
               {/* View Toggle Buttons */}
