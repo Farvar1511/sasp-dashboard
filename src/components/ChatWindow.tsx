@@ -108,15 +108,14 @@ function ChatWindowComponent({
   useEffect(() => {
     // Only focus if mounted, message is empty, sending is false, and ref exists
     if (isMounted && newMessage === '' && !isSending && inputRef?.current) {
-      // Defer focus to the next microtask
-      setTimeout(() => {
-        // Check if the input is not already focused to avoid unnecessary focus calls
-        // Optional: Read scrollTop to ensure layout calculation before focus
-        inputRef.current?.scrollTop;
-        if (document.activeElement !== inputRef.current) {
-           inputRef.current?.focus(); // Use optional chaining inside timeout
+      // Use requestAnimationFrame to ensure focus happens after browser paint
+      requestAnimationFrame(() => {
+        const inputElement = inputRef.current;
+        // Check if the input exists and is not already the active element
+        if (inputElement && document.activeElement !== inputElement) {
+          inputElement.focus();
         }
-      }, 0);
+      });
     }
     // Add isMounted, isSending to the dependency array
   }, [isMounted, newMessage, isSending, inputRef]);
