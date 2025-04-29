@@ -757,6 +757,14 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
         flushSync(() => {
             handleSendMessage();
         });
+        // Use requestAnimationFrame to ensure focus happens after DOM update
+        requestAnimationFrame(() => {
+            const input = inputRef.current;
+            // Only focus if the input exists and is not already the active element
+            if (input && document.activeElement !== input) {
+                input.focus();
+            }
+        });
     }, [handleSendMessage]);
 
     const handleCreateGroup = useCallback(async (name: string, selectedMemberCids: string[]) => {
