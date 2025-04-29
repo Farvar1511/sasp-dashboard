@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area'; // Import ScrollArea from the correct path
 import { Input } from './ui/input';
@@ -26,6 +26,8 @@ import { ChatMessageList } from './ui/chat/chat-message-list';
 import { ChatBubble } from "./ui/chat/chat-bubble";
 import { ChatBubbleAvatar } from "./ui/chat/chat-bubble";
 import { ChatBubbleMessage } from "./ui/chat/chat-bubble";
+import { ChatInput } from './ui/chat/chat-input'; // Restore ChatInput import
+
 
 // Update interface to include fontSizePercent
 interface ChatWindowProps {
@@ -41,6 +43,7 @@ interface ChatWindowProps {
   context: 'ciu' | 'department';
   allUsers: User[];
   fontSizePercent: number;
+  inputRef?: React.RefObject<HTMLTextAreaElement>; // Change ref type back to HTMLTextAreaElement
 }
 
 
@@ -58,11 +61,8 @@ function ChatWindowComponent({
   allUsers, // Keep allUsers for group participant tooltips if needed
   fontSizePercent,
   context, // Keep context if needed for logic
+  inputRef,
 }: ChatWindowProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const prevIsSendingRef = React.useRef<boolean>();
-
   // State for emoji picker visibility
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
@@ -95,61 +95,43 @@ function ChatWindowComponent({
   }, [chatTarget, allUsers, currentUser]);
 
 
-  // Effect to refocus input after sending is complete
+  // useEffect to focus input when newMessage is cleared AND sending is complete
   useEffect(() => {
-    const prevIsSending = prevIsSendingRef.current;
-
-    if (prevIsSending === true && isSending === false) {
-      // Add a small delay to ensure the input is ready in production builds
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0); // 0ms delay often works, adjust if needed
-
-      // Cleanup the timer if the component unmounts or isSending changes again quickly
-      return () => clearTimeout(timer);
-    }
-
-    // Update the ref *after* the check for the *next* render cycle
-    prevIsSendingRef.current = isSending;
-
-  }, [isSending]); // Dependency array includes isSending
-
-
-  // Effect for closing emoji picker when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
-        setShowEmojiPicker(false);
+    // Only focus if message is empty, sending is false, and ref exists
+    if (newMessage === '' && !isSending && inputRef?.current) {
+      // Check if the input is not already focused to avoid unnecessary focus calls
+      if (document.activeElement !== inputRef.current) {
+         inputRef.current.focus();
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [emojiPickerRef]);
+    // Add isSending to the dependency array
+  }, [newMessage, isSending, inputRef]);
 
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  // Keydown handler for the input area div
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement | HTMLTextAreaElement>) => { // Update type back
+    // Check if the event target is the input/textarea or if the key is Enter
+    // Only send if Enter is pressed WITHOUT Shift
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (!isSending && newMessage.trim()) {
-          onSendMessage();
-          // Focus should remain after onSendMessage triggers state update in parent
+      // Check if the event originated from the ChatInput or allow Enter anywhere in the div
+      // For simplicity, let's assume Enter in the div should trigger send if message is valid
+      e.preventDefault(); // Keep preventing default to avoid newline
+      if (!isSending && newMessage.trim()) { // Keep check for sending state and empty message
+        onSendMessage();
       }
     }
+    // If Shift+Enter is pressed, the default behavior (inserting a newline in textarea) will occur
   };
 
   // Handler for emoji click
-   const onEmojiClick = (emojiData: EmojiClickData, event: MouseEvent) => {
+  const onEmojiClick = (emojiData: EmojiClickData, event: MouseEvent) => {
     onNewMessageChange(newMessage + emojiData.emoji);
-    inputRef.current?.focus(); // Keep focus after emoji click
     setShowEmojiPicker(false);
   };
 
 
   return (
     <TooltipProvider delayDuration={100}>
-      {/* Outermost container: flex-col, h-full, overflow-hidden */}
+      {/* Outermost container */}
       <div className="flex flex-col h-full bg-card text-foreground rounded-lg overflow-hidden shadow border border-border relative p-0">
 
         {/* Header Section */}
@@ -196,10 +178,9 @@ function ChatWindowComponent({
           </Button>
         </div>
 
-        {/* Messages Container: flex-grow AND overflow-hidden */}
-        <div className="flex-grow overflow-hidden"> {/* Add overflow-hidden here */}
-          {/* ChatMessageList handles its own internal scrolling */}
-          <ChatMessageList className="p-4 md:px-6 h-full"> {/* Ensure ChatMessageList fills this container */}
+        {/* Messages Container */}
+        <div className="flex-grow overflow-hidden">
+          <ChatMessageList className="p-4 md:px-6 h-full">
             {messages.map((msg) => {
               const isMe = msg.sender === 'me';
               // Ensure fallbackUser has necessary fields for getAvatarFallback
@@ -236,8 +217,7 @@ function ChatWindowComponent({
                   <ChatBubbleMessage
                      style={{ fontSize: `${fontSizePercent}%` }}
                      className={cn(
-                        'font-inter whitespace-pre-wrap break-words', // Keep font and wrap styles
-                        // Background/text colors are handled by ChatBubble variant
+                        'font-inter whitespace-pre-wrap break-words',
                      )}
                   >
                     {/* Conditional rendering for image vs text */}
@@ -247,6 +227,7 @@ function ChatWindowComponent({
                        msg.content // Render text content
                     )}
                      {/* Timestamp (optional, place inside or outside message content) */}
+                     {/* --- THIS IS WHERE THE TIMESTAMP IS RENDERED --- */}
                      <div className="text-xs text-muted-foreground text-right mt-1">
                        {msg.time}
                      </div>
@@ -264,9 +245,10 @@ function ChatWindowComponent({
           </ChatMessageList>
         </div>
 
-        {/* Input Area (flex-shrink-0) */}
+        {/* Input Area */}
          <div className="p-3 border-t border-border flex-shrink-0">
-          <div className="flex items-center gap-2">
+          {/* Add onKeyDown back to this div */}
+          <div onKeyDown={handleKeyDown} className="flex items-center gap-2">
             {/* Emoji Picker Popover */}
             <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
                 {/* ... PopoverTrigger ... */}
@@ -280,8 +262,8 @@ function ChatWindowComponent({
                         <Smile className="h-5 w-5" />
                     </Button>
                 </PopoverTrigger>
+                {/* ... PopoverContent ... */}
                 <PopoverContent
-                    ref={emojiPickerRef}
                     className="w-auto p-0 border-none shadow-none bg-transparent"
                     side="top"
                     align="start"
@@ -300,20 +282,23 @@ function ChatWindowComponent({
                 </PopoverContent>
             </Popover>
 
-            <Input
-              ref={inputRef} // Keep ref attached
+            {/* Replace Input with ChatInput */}
+            <ChatInput
+              ref={inputRef}
               placeholder="Type a message..."
               value={newMessage}
               onChange={(e) => onNewMessageChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              // Use isLoading from props for disabling input during message fetch
+              // Remove onKeyDown from ChatInput
               disabled={isSending || isLoading}
-              className="flex-grow bg-input border border-border text-foreground placeholder:text-muted-foreground rounded-md font-inter h-10"
+              // Apply the new class and remove h-10
+              className="chat-input flex-grow bg-input border border-border text-foreground placeholder:text-muted-foreground rounded-md font-inter resize-none min-h-[24px] max-h-[140px] overflow-auto"
+                // Remove autoComplete if it was added
             />
             <Button
               size="icon"
-              onClick={() => { if (!isSending && newMessage.trim()) onSendMessage(); }}
-              // Use isLoading from props for disabling send button
+              type="button" // <-- Change type to "button"
+              onClick={onSendMessage} // <-- Add onClick handler
+              onMouseDown={(e) => e.preventDefault()}  // Keep this line
               disabled={!newMessage.trim() || isSending || isLoading}
               className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md flex-shrink-0"
             >

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef, useCallback, ElementRef } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback, ElementRef } from 'react';
 import {
     collection,
     query,
@@ -61,6 +61,8 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from "./ui/context-menu"; // Ensure ContextMenu components are imported
+import { ChatInput } from './ui/chat/chat-input'; // Import ChatInput
+import { flushSync } from 'react-dom'; // <-- Add this import
 
 const chatContext = 'department'; // Define context
 
@@ -108,7 +110,9 @@ const fontSizeOptions = {
 };
 const defaultFontSizePercent = 100; // Default font size percentage
 
-export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen, onClose /*, onUnreadCountChange*/ }) => {
+export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen, onClose }) => {
+    const inputRef = useRef<HTMLTextAreaElement>(null); // Change ref type back to HTMLTextAreaElement
+
     // State for width class, initialized with the default
     const [chatWidthClass, setChatWidthClass] = useState<string>(defaultWidthClass);
     // State for font size percentage
@@ -520,6 +524,7 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
         const messagesRef = collection(dbFirestore, 'chats', chatId, 'messages');
         const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(100));
         const unsubscribeMessages = onSnapshot(q, (snapshot) => {
+            console.log(`[Debug] onSnapshot: chatId=${chatId}, snapshot size=`, snapshot.size);
             const fetchedMessages: ChatMessage[] = snapshot.docs.map(doc => {
                 const data = doc.data();
                 const senderCid = data.senderId;
@@ -618,13 +623,17 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
         // Marking as read is handled in the useEffect for selectedChat using firestoreDocId if available
     }, [currentUser?.cid, displayChats, chatContext]); // Added chatContext dependency
 
+    // --- Message Send Handler ---
     const handleSendMessage = useCallback(async () => {
+        console.log("[Debug] handleSendMessage: newMessage =", newMessage);
         if (!newMessage.trim() || !currentUser?.cid || !selectedChat || isSending) return;
-        const userCid = currentUser.cid; // Assign after check
+        const userCid = currentUser.cid;
 
         setIsSending(true);
         const trimmedMessage = newMessage.trim();
-        // Use the stable ID from selectedChat state (group ID or generated directChatId)
+        // Clear input state immediately
+        setNewMessage('');
+
         const chatId = selectedChat.id;
         let isGroupChat = selectedChat.type === 'group';
         let members: string[] = [];
@@ -633,6 +642,8 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
         if (!chatId) {
             toast.error("Could not determine chat ID to send message.");
             setIsSending(false);
+            // Restore message if needed, though it was cleared above
+            // setNewMessage(trimmedMessage);
             return;
         }
 
@@ -663,84 +674,74 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
             if (!targetUser.cid) {
                 toast.error("Selected user is missing an identifier.");
                 setIsSending(false);
+                // setNewMessage(trimmedMessage); // Restore if needed
                 return;
             }
             recipientCid = targetUser.cid;
-            members = [userCid, recipientCid]; // Use userCid
+            members = [userCid, recipientCid];
         }
 
-        // Use the stable chatId for message sending and document creation/update
         const messagesRef = collection(dbFirestore, 'chats', chatId, 'messages');
-        const chatDocRef = getChatDocRef(chatId); // Use stable ID
+        const chatDocRef = getChatDocRef(chatId);
         const isImageUrl = /\.(jpg|jpeg|png|gif|webp)$/i.test(trimmedMessage) && /^https?:\/\//i.test(trimmedMessage);
 
         const messageData: { [key: string]: any } = {
-            senderId: userCid, // Use userCid
+            senderId: userCid,
             timestamp: serverTimestamp(),
-            senderName: formatUserName(currentUser), // formatUserName handles potential null currentUser
+            senderName: formatUserName(currentUser),
             ...(isImageUrl ? { imageUrl: trimmedMessage } : { text: trimmedMessage }),
             ...(recipientCid && { recipientId: recipientCid }),
         };
 
         try {
-            // Add the message first
+            // Add the message
             await addDoc(messagesRef, messageData);
 
-            // Clear input immediately after successful message add
-            setNewMessage(''); // This state update triggers re-render
-
-            // Then update chat metadata (this can happen slightly after)
+            // Update chat metadata
             if (chatDocRef) {
                 const chatDocSnap = await getDoc(chatDocRef);
                 const now = serverTimestamp();
                 const lastMessagePreview = isImageUrl ? "[Image]" : trimmedMessage.substring(0, 50);
 
-                // Base update data, includes arrayUnion for members
                 const updateData: { [key: string]: any } = {
                     lastMessageTimestamp: now,
-                    [`lastRead.${userCid}`]: now, // Use userCid
+                    [`lastRead.${userCid}`]: now,
                     lastMessageText: lastMessagePreview,
                     context: chatContext,
-                    members: arrayUnion(...members), // Use arrayUnion for updates
+                    members: arrayUnion(...members),
                     type: isGroupChat ? 'group' : 'direct',
                 };
 
                 if (chatDocSnap.exists()) {
-                    // ... existing chat update logic ...
                     if (chatDocSnap.data().context !== chatContext) {
                         console.error(`DepartmentChat: Context mismatch! Chat ${chatId}, expected ${chatContext}, got ${chatDocSnap.data().context}`);
                         toast.error("Error sending message: Context mismatch.");
                     } else {
-                        await updateDoc(chatDocRef, updateData); // Use updateData with arrayUnion
+                        await updateDoc(chatDocRef, updateData);
                     }
-                } else { // Chat doc doesn't exist, create it
-                    // Construct initial data: spread updateData first, then overwrite members
+                } else {
                     const initialChatData = {
-                        ...updateData, // Spread base data (includes members: arrayUnion(...))
+                        ...updateData,
                         createdAt: now,
-                        members: members, // Explicitly set the initial members array, overwriting the arrayUnion version
-                        lastRead: { [userCid]: now } // Use userCid
+                        members: members, // Overwrite arrayUnion with the actual array
+                        lastRead: { [userCid]: now }
                     };
-                    // No need for delete initialChatData.members;
-
                     await setDoc(chatDocRef, initialChatData);
                     console.log(`DepartmentChat: Created chat doc ${chatId}`);
                 }
             }
-            // setNewMessage(''); // Moved clearing input earlier for better UX
+            // Input was already cleared and focus set earlier
         } catch (err) {
             console.error(`DepartmentChat: Error sending message or updating metadata for ${chatId}:`, err);
             toast.error("Failed to send message.");
-            // If message add failed, potentially restore the input? Or rely on user retry.
-            // setNewMessage(trimmedMessage); // Optional: Restore message on failure
+            // Restore message on failure if desired (though focus is already set)
+            // setNewMessage(trimmedMessage);
         } finally {
             setIsSending(false);
-            // No explicit blur() call here. Focus should remain on the input
-            // unless the re-render or scrolling logic interferes.
+            // Focus is now handled by useEffect in ChatWindow
         }
     }, [
-        // ... dependencies ...
-        newMessage, // Ensure newMessage is a dependency
+        newMessage,
         currentUser,
         selectedChat,
         isSending,
@@ -748,8 +749,15 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
         updateLastReadTimestamp,
         getChatDocRef,
         displayChats,
-        chatContext
+        chatContext,
     ]);
+
+    // --- Message Send Focus Wrapper ---
+    const handleSendMessageWithFocus = useCallback(() => {
+        flushSync(() => {
+            handleSendMessage();
+        });
+    }, [handleSendMessage]);
 
     const handleCreateGroup = useCallback(async (name: string, selectedMemberCids: string[]) => {
         if (!currentUser?.cid) {
@@ -1036,6 +1044,7 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
                             <SearchIcon className="h-4 w-4 text-muted-foreground" />
                         </span>
                         <Input
+                            id="department-chat-search" // <-- Add unique ID
                             placeholder="Search chats..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -1176,20 +1185,19 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({ isOpen
 
                         {selectedChat && currentUser && ( // Ensure currentUser is also available
                             <ChatWindow
-                                // Use selectedChat.id as key for ChatWindow itself if needed for state reset
-                                key={selectedChat.id}
                                 chatTarget={selectedChat.target}
-                                messages={messages} // Pass raw messages array
+                                messages={messages}
                                 newMessage={newMessage}
                                 onNewMessageChange={setNewMessage}
-                                onSendMessage={handleSendMessage} // Pass memoized callback
-                                onClose={() => handleDeselectChat(false)} // Pass memoized callback
+                                onSendMessage={handleSendMessageWithFocus} // <-- Use wrapper here
+                                onClose={() => handleDeselectChat(false)}
                                 isLoading={loadingMessages}
                                 isSending={isSending}
                                 context={chatContext}
-                                currentUser={currentUser} // Pass non-null currentUser
-                                allUsers={allUsersIncludingSelf} // Pass the user list
-                                fontSizePercent={fontSizePercent} // Pass font size state
+                                currentUser={currentUser}
+                                allUsers={allUsersIncludingSelf}
+                                fontSizePercent={fontSizePercent}
+                                inputRef={inputRef} // Ensure inputRef is passed down (type now matches)
                             />
                         )}
                     </div> {/* End of inner wrapper div */}

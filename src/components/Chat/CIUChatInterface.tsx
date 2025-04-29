@@ -28,7 +28,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLab
 import { ScrollArea } from '../ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ChatMessageList } from '../ui/chat/chat-message-list';
-import { ChatBubble, ChatBubbleAvatar, ChatBubbleMessage, ChatBubbleTimestamp } from '../ui/chat/chat-bubble';
+import { ChatBubble, ChatBubbleAvatar, ChatBubbleMessage } from '../ui/chat/chat-bubble';
 import { ChatInput } from '../ui/chat/chat-input';
 import { toast } from 'react-toastify';
 import { hasCIUPermission } from '../../utils/ciuUtils';
@@ -1229,12 +1229,14 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                                                         {msg.text}
                                                     </ChatBubbleMessage>
                                                 )}
+                                                {/* Replace ChatBubbleTimestamp with a div */}
                                                 {timestamp && (
-                                                    <ChatBubbleTimestamp
-                                                        timestamp={timestamp}
-                                                        className="text-xs mt-1 opacity-70"
+                                                    <div
+                                                        className="text-xs mt-1 opacity-70 text-right" // Added text-right
                                                         style={{ color: isSent ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)', opacity: 0.8 }}
-                                                    />
+                                                    >
+                                                        {timestamp}
+                                                    </div>
                                                 )}
                                             </div>
                                         </ChatBubble>

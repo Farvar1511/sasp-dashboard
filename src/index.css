@@ -172,7 +172,6 @@
   .modal-backdrop {
     @apply fixed inset-0 bg-black/70 z-40;
   }
-  /* ... other component styles ... */
 }
 
 @layer utilities {
