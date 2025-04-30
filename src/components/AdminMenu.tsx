@@ -17,7 +17,7 @@ import { db as dbFirestore } from "../firebase";
 import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime, getCurrentDateTimeStrings } from "../utils/timeHelpers";
 import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash, FaCheckCircle } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
-import { RosterUser, DisciplineEntry, NoteEntry, UserTask } from "../types/User"; // Ensure UserTask is imported from the correct location
+import { RosterUser, DisciplineEntry, NoteEntry, UserTask, FirestoreUserWithDetails } from "../types/User";
 import EditUserModal from "./EditUserModal";
 import AddUserModal from "./AddUserModal"; // Import the new modal
 import EditTaskModal from "./EditTaskModal"; // Import the new task modal
@@ -34,7 +34,6 @@ import {
   AccordionTrigger,
 } from "../components/ui/accordion"; // Keep for now if used elsewhere, otherwise remove
 
-// Export these for use in AddUserModal
 export const rankCategories = {
   CADET: "Cadets",
   TROOPER: "State Troopers",
@@ -76,7 +75,6 @@ const eligibleVoterRanks = [
   "Commissioner",
 ].map(rank => rank.toLowerCase());
 
-// Export this for use in AddUserModal
 export const getRankCategory = (rank: string): keyof typeof rankCategories | null => {
   const lowerRank = rank.toLowerCase();
   if (lowerRank === "cadet") return "CADET";
@@ -103,18 +101,6 @@ const convertToString = (
   }
   return value || "";
 };
-
-interface FirestoreUserWithDetails extends RosterUser {
-  tasks: UserTask[];
-  disciplineEntries: DisciplineEntry[];
-  generalNotes: NoteEntry[];
-  lastSignInTime?: Timestamp | string | null;
-  promotionStatus?: {
-    votes?: { [voterId: string]: 'Approve' | 'Deny' | 'Needs Time' };
-    hideUntil?: Timestamp | null;
-    lastVoteTimestamp?: Timestamp;
-  };
-}
 
 const availableRanks = [
   "Cadet",
@@ -182,11 +168,10 @@ const formatIssuerName = (rank: string | undefined, name: string | undefined): s
   return `${rankAbbreviation} ${firstInitial}. ${lastName}`;
 };
 
-export type { FirestoreUserWithDetails };
-
 export default function AdminMenu(): JSX.Element {
   const { user: currentUser } = useAuth(); // Get currentUser
   const location = useLocation();
+  // Update state type to use FirestoreUserWithDetails
   const [usersData, setUsersData] = useState<FirestoreUserWithDetails[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
@@ -195,6 +180,7 @@ export default function AdminMenu(): JSX.Element {
   const [bulkTaskType, setBulkTaskType] = useState<"goal" | "normal">("normal");
   const [bulkTaskGoal, setBulkTaskGoal] = useState<number>(1); // Default goal to 1
   const [isAssigning, setIsAssigning] = useState(false);
+  // Update state type to use FirestoreUserWithDetails
   const [editingUser, setEditingUser] = useState<FirestoreUserWithDetails | null>(null);
   const [editingTask, setEditingTask] = useState<(UserTask & { userId: string }) | null>(null); // State for editing task
   const [taskToDelete, setTaskToDelete] = useState<{ userId: string; taskId: string } | null>(null); // State still useful for rendering logic
@@ -418,7 +404,7 @@ export default function AdminMenu(): JSX.Element {
       setUsersData(
         resolvedUsersData.filter(
           (user) => user !== null && !user.isPlaceholder
-        ) as FirestoreUserWithDetails[]
+        ) as FirestoreUserWithDetails[] // Keep cast here as filter might change type slightly
       );
     } catch (error) {
       setUsersError("Failed to load user, task, or discipline data.");
@@ -467,7 +453,8 @@ export default function AdminMenu(): JSX.Element {
 
 
   const filteredUsersData = useMemo(() => {
-    let filtered = [...usersData].sort((a, b) => {
+    // Ensure the type used within this function matches the state
+    let filtered: FirestoreUserWithDetails[] = [...usersData].sort((a, b) => {
       if (sortBy === "rank") {
         const rankOrder: { [key: string]: number } = {
           Commissioner: 1,
@@ -522,7 +509,7 @@ export default function AdminMenu(): JSX.Element {
 
     if (showOnlyUsersWithCompletedTasks) {
       filtered = filtered.filter(user =>
-        user.tasks?.some(task => task.completed)
+        user.tasks?.some(task => task.completed) // Check only for completed, ignore archived status
       );
     }
 

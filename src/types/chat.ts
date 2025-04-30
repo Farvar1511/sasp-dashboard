@@ -11,12 +11,11 @@ export interface ChatMessage {
     timestamp: Timestamp | FieldValue; // Firestore timestamp for sorting/ordering
     uid: string; // User ID (e.g., CID or email)
     groupId?: string; // Group ID for group messages (optional)
-
-    // Optional original Firestore fields if needed elsewhere
     senderId?: string; // Original sender ID (e.g., CID)
     recipientId?: string; // Original recipient ID (for direct messages)
     text?: string; // Original text content
     imageUrl?: string; // Original image URL
     senderName?: string; // Original sender name from Firestore message doc
+    isEmbedded?: boolean; // Add this optional property
 }
 

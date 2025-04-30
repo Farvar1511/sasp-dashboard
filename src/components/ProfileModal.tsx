@@ -1,34 +1,30 @@
-import React, { useState, useEffect } from 'react'; // Removed useRef, added useEffect
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-// Removed storage, ref, uploadBytesResumable, getDownloadURL imports
 import { toast } from 'react-toastify';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Button } from './ui/button';
-import { Input } from './ui/input'; // Keep Input for text input
-// Removed Progress import
+import { Input } from './ui/input';
 import { getInitials } from '../utils/getInitials';
 import { User } from '../types/User';
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  user: User; // Pass the user object
+  user: User;
 }
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, user }) => {
   const { updateUserProfilePhoto } = useAuth();
-  // Removed file-related state
-  const [imageUrl, setImageUrl] = useState<string>(''); // State for the image URL input
-  const [isSaving, setIsSaving] = useState<boolean>(false); // State for saving process
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Pre-fill input with current photoURL when modal opens or user changes
   useEffect(() => {
     if (user?.photoURL) {
       setImageUrl(user.photoURL);
     } else {
-      setImageUrl(''); // Clear if no current photoURL
+      setImageUrl('');
     }
-  }, [user, isOpen]); // Re-run if user or isOpen changes
+  }, [user, isOpen]);
 
   const userInitials = user?.name ? getInitials(user.name) : '?';
 
@@ -37,9 +33,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, user }) =>
       toast.error('Please enter an image URL.');
       return;
     }
-    // Basic URL validation (optional but recommended)
     try {
-      new URL(imageUrl); // Check if it's a valid URL structure
+      new URL(imageUrl);
     } catch (_) {
       toast.error('Please enter a valid image URL (e.g., https://example.com/image.png)');
       return;
@@ -49,7 +44,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, user }) =>
     try {
       await updateUserProfilePhoto(imageUrl);
       toast.success('Profile picture updated successfully!');
-      onClose(); // Close modal on success
+      onClose();
     } catch (error) {
       console.error('Failed to update profile:', error);
       toast.error(`Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -74,12 +69,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, user }) =>
 
         <div className="flex flex-col items-center space-y-4">
           <Avatar className="h-24 w-24 mb-4 ring-2 ring-offset-2 ring-offset-card ring-primary">
-            {/* Preview the entered URL if it's valid, otherwise show current/fallback */}
             <AvatarImage src={imageUrl.trim() || user.photoURL || undefined} alt={user.name ?? 'User'} />
             <AvatarFallback className="text-3xl">{userInitials}</AvatarFallback>
           </Avatar>
 
-          {/* Add text input for URL */}
           <div className="w-full px-4">
              <label htmlFor="imageUrlInput" className="block text-sm font-medium text-muted-foreground mb-1">
                 Image URL
@@ -100,7 +93,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, user }) =>
             <Button variant="ghost" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            {/* Update Save button logic and state */}
             <Button onClick={handleSaveLink} disabled={!imageUrl.trim() || isSaving}>
               {isSaving ? 'Saving...' : 'Save Picture'}
             </Button>

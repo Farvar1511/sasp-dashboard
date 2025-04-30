@@ -138,17 +138,10 @@ export default function PromotionsTab(): JSX.Element {
     console.log(`PromotionsTab: Setting up listeners for ${eligibleUsers.length} eligible users.`);
     setLoading(true);
     const unsubscribes: (() => void)[] = [];
-    const initialData: { [userId: string]: EligibleUserPromotionData } = {};
     const promotionDocId = "activePromotion";
 
     const setupListenersForUser = async (eligibleUser: RosterUser) => {
       if (!eligibleUser.id) return;
-
-      initialData[eligibleUser.id] = {
-        ...eligibleUser,
-        voteData: { votes: {} },
-        comments: [],
-      };
 
       const promotionDocRef = doc(dbFirestore, "users", eligibleUser.id, "promotions", promotionDocId);
       const commentsColRef = collection(promotionDocRef, "comments");
@@ -165,6 +158,7 @@ export default function PromotionsTab(): JSX.Element {
       const unsubVotes = onSnapshot(promotionDocRef, (docSnap) => {
         
         const rawVoteData = docSnap.exists() ? (docSnap.data() as PromotionVoteData) : null;
+        console.log(`PromotionsTab: Vote snapshot received for ${eligibleUser.id}. Exists: ${docSnap.exists()}. Data:`, rawVoteData);
 
         const safeVoteData: PromotionVoteData | null = rawVoteData
           ? {
@@ -174,11 +168,17 @@ export default function PromotionsTab(): JSX.Element {
           : null;
 
         setPromotionData(prev => {
-          const existingUserPromoData = prev[eligibleUser.id] || initialData[eligibleUser.id];
+          // Initialize user data if it doesn't exist in the state yet
+          const existingUserPromoData = prev[eligibleUser.id] || {
+            ...eligibleUser, // Spread eligibleUser data here for initialization
+            voteData: null,
+            comments: [],
+          };
           const updatedUserPromoData: EligibleUserPromotionData = {
             ...existingUserPromoData,
             voteData: safeVoteData,
-            comments: existingUserPromoData?.comments || [],
+            // Keep existing comments when updating votes
+            comments: existingUserPromoData.comments || [],
           };
 
           
@@ -200,10 +200,16 @@ export default function PromotionsTab(): JSX.Element {
         })) as PromotionComment[];
 
         setPromotionData(prev => {
-            const existingUserPromoData = prev[eligibleUser.id] || initialData[eligibleUser.id];
+            // Initialize user data if it doesn't exist in the state yet
+            const existingUserPromoData = prev[eligibleUser.id] || {
+              ...eligibleUser, // Spread eligibleUser data here for initialization
+              voteData: null,
+              comments: [],
+            };
             const updatedUserPromoData: EligibleUserPromotionData = {
                 ...existingUserPromoData,
-                voteData: existingUserPromoData?.voteData || null,
+                // Keep existing voteData when updating comments
+                voteData: existingUserPromoData.voteData || null,
                 comments: comments,
             };
 
@@ -220,9 +226,8 @@ export default function PromotionsTab(): JSX.Element {
     };
 
     Promise.all(eligibleUsers.map(setupListenersForUser)).then(() => {
-      console.log("PromotionsTab: All listeners set up, setting initial data.");
-      setPromotionData(initialData);
-      setLoading(false);
+      console.log("PromotionsTab: All listeners set up."); // Removed "setting initial data"
+      setLoading(false); // Keep setting loading false here
     }).catch(err => {
       console.error("Error setting up promotion listeners:", err);
       setError("An error occurred while initializing promotion data.");

@@ -22,9 +22,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'; // Import
 
 interface CreateGroupModalProps {
     isOpen: boolean;
-    onClose: () => void;
+    onClose: () => void; // This should ONLY close the modal
     onCreateGroup: (name: string, memberCids: string[]) => Promise<void>;
-    onStartDirectChat: (memberCid: string) => void; // Add prop for starting direct chat
+    onStartDirectChat: (memberCid: string) => void;
     personnel: User[];
     currentUserCid?: string;
 }
@@ -32,9 +32,9 @@ interface CreateGroupModalProps {
 
 const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
     isOpen,
-    onClose,
+    onClose, // Use this specific onClose for the modal itself
     onCreateGroup,
-    onStartDirectChat, // Destructure new prop
+    onStartDirectChat,
     personnel,
     currentUserCid,
 }) => {
@@ -94,12 +94,10 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
     };
 
     // Handler for starting a direct chat
-    const handleDirectChat = (memberCid: string) => {
+    const handleDirectChat = (e: React.MouseEvent, memberCid: string) => {
+        e.stopPropagation(); // Prevent click from bubbling up
         onStartDirectChat(memberCid);
-        // Optionally reset search and close modal if desired,
-        // but typically handled by parent logic after chat selection
-        setSearchTerm('');
-        // onClose(); // Let parent handle closing
+        // Modal closing is handled by the parent via onStartDirectChat -> setIsCreateGroupModalOpen(false)
     };
 
 
@@ -115,12 +113,12 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
     }, [isOpen]);
 
     return (
+        // Pass the modal-specific `onClose` to Dialog's onOpenChange
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
                 className={
                     "sm:max-w-[500px] bg-card border-border text-foreground p-0 " +
-                    // Update class to hide the default Dialog close button using data-slot
-                    "[&_[data-slot=dialog-close]]:hidden" // More specific selector
+                    "[&_[data-slot=dialog-close]]:hidden"
                 }
             >
                 <DialogHeader className="p-6 pb-4 border-b border-border">
@@ -142,7 +140,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                     */}
                 </DialogHeader>
 
-                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'group' | 'direct')} className="w-full">
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'group' | 'direct')} className="w-full p-6 pt-0"> {/* Add padding here */}
                     <TabsList className="grid w-full grid-cols-2 mb-4">
                         <TabsTrigger value="direct">
                             <UserPlus className="mr-2 h-4 w-4" /> Direct Message
@@ -180,7 +178,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                                             key={user.id}
                                             variant="ghost"
                                             className="w-full flex items-center justify-start space-x-3 p-2 hover:bg-muted rounded h-auto"
-                                            onClick={() => handleDirectChat(user.cid!)}
+                                            onClick={(e) => handleDirectChat(e, user.cid!)} // Pass event to handler
                                             disabled={isCreating}
                                         >
                                             <Avatar className="h-8 w-8">

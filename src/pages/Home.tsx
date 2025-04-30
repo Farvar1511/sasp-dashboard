@@ -254,31 +254,32 @@ const MyDashboard: React.FC = () => {
           tasksSnapshot.docs
             .map((doc) => {
               const data = doc.data();
-              
+              // Add archived check here
               if (
                 typeof data.task === "string" &&
                 (data.type === "goal" || data.type === "normal") &&
                 typeof data.issuedby === "string" &&
                 typeof data.issueddate === "string" &&
-                typeof data.issuedtime === "string"
+                typeof data.issuedtime === "string" &&
+                data.archived !== true // <-- Add this condition
               ) {
                 return {
-                  id: doc.id, 
+                  id: doc.id,
                   task: data.task,
                   type: data.type,
                   issuedby: data.issuedby,
                   issueddate: data.issueddate,
                   issuedtime: data.issuedtime,
-                  
                   completed: typeof data.completed === "boolean" ? data.completed : false,
                   progress: data.type === "goal" ? (typeof data.progress === "number" ? data.progress : 0) : undefined,
                   goal: data.type === "goal" ? (typeof data.goal === "number" ? data.goal : undefined) : undefined,
+                  archived: data.archived ?? false, // Keep archived field if needed elsewhere, but filter based on it
                 } as UserTask;
               }
-              console.warn("Skipping invalid task data:", doc.id, data); 
+              console.warn("Skipping invalid or archived task data:", doc.id, data);
               return null;
             })
-            .filter((task): task is UserTask => task !== null)
+            .filter((task): task is UserTask => task !== null) // Filter out nulls and archived tasks
         );
 
         

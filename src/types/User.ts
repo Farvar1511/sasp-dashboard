@@ -1,4 +1,14 @@
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from 'firebase/firestore'; // Ensure Timestamp is imported
+
+// Define SizePresetKey type (copy from DepartmentChatPopup if not already globally defined)
+const sizePresets = {
+  Small: { listWidth: 280, chatWidth: 380, height: 500 },
+  Medium: { listWidth: 340, chatWidth: 450, height: 600 },
+  Large: { listWidth: 400, chatWidth: 550, height: 700 },
+  'Extra Large': { listWidth: 450, chatWidth: 650, height: 800 },
+};
+export type SizePresetKey = keyof typeof sizePresets;
+
 
 // -----------------------------
 // 🔐 Certification Types
@@ -106,6 +116,14 @@ export interface User {
   isFTOCadet?: boolean; // Add isFTOCadet property
   canAccessCIU?: boolean; // Optional property for CIU access
   permissions?: string[]; // Add the permissions property
+  // Add chat settings structure
+  chatSettings?: {
+      department?: {
+          fontSizePercent?: number;
+          sizePreset?: SizePresetKey;
+      };
+      // Add other contexts like 'ciu' here if needed later
+  };
 }
 
 // -----------------------------
@@ -118,29 +136,23 @@ export interface RosterUser {
   badge?: string;
   callsign?: string;
   certifications?: { [key: string]: CertStatus };
-
   isActive?: boolean;
   discordId?: string;
   cid?: string; // Character ID?
-
   email?: string; // Often the same as id
   joinDate?: string | Timestamp | null;
   lastPromotionDate?: string | Timestamp | null;
   loaStartDate?: string | Timestamp | null;
   loaEndDate?: string | Timestamp | null;
-
-  isPlaceholder?: boolean; // For template entries
-  category?: string | null; // UI grouping (High Command, etc.)
-
-  role?: string; // e.g., 'admin', 'user'
-  isAdmin?: boolean; // derived/calculated field
-
   tasks?: UserTask[]; // Populated in AdminMenu/Home
   disciplineEntries?: DisciplineEntry[]; // Populated in AdminMenu/Home
   generalNotes?: NoteEntry[]; // Populated in AdminMenu/Home
+  isPlaceholder?: boolean; // For template entries
+  category?: string | null; // UI grouping (High Command, etc.)
+  role?: string; // e.g., 'admin', 'user'
+  isAdmin?: boolean; // derived/calculated field
   assignedVehicleId?: string | null; // Assigned vehicle ID (plate)
   photoURL?: string | null; // Add photoURL for consistency
-
   lastSignInTime?: Timestamp | string | null; // Ensure this exists if used in AdminMenu
   promotionStatus?: {
     votes?: { [voterId: string]: 'Approve' | 'Deny' | 'Needs Time' };
@@ -169,12 +181,22 @@ export interface FleetVehicle {
 // 📝 FTO Cadet Note Interface (Collection: /ftoCadetNotes)
 // -----------------------------
 export interface FTOCadetNote {
-  id: string;
-  cadetId: string;      // ID of the cadet the note is for
-  cadetName: string;    // Name of the cadet
-  ftoId: string;        // ID of the FTO writing the note
-  ftoName: string;      // Name of the FTO
-  ftoRank: string;      // Rank of the FTO
-  note: string;         // The content of the note
-  createdAt: Timestamp; // When the note was created
+  id: string; // Firestore document ID
+  cadetId: string; // ID of the cadet the note is for
+  cadetName: string; // Name of the cadet
+  ftoId: string; // ID of the FTO who wrote the note
+  ftoName: string; // Name of the FTO
+  ftoRank: string; // Rank of the FTO
+  note: string; // Content of the note
+  createdAt: Timestamp; // Firestore timestamp
+}
+
+// -----------------------------
+// ✨ Firestore User with Details (Extended RosterUser for components like AdminMenu)
+// -----------------------------
+export interface FirestoreUserWithDetails extends RosterUser {
+  tasks: UserTask[];
+  generalNotes: NoteEntry[];
+  disciplineEntries: DisciplineEntry[];
+  displayName?: string; // Add displayName if used in AdminMenu rendering
 }

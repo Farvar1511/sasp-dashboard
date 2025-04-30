@@ -15,7 +15,7 @@ const ChatMessageList = React.forwardRef<HTMLDivElement, ChatMessageListProps>(
       isAtBottom,
       autoScrollEnabled,
       scrollToBottom,
-      disableAutoScroll,
+      scrollToBottomAndEnableAutoScroll,
     } = useAutoScroll({
       smooth,
       content: children,
@@ -26,8 +26,8 @@ const ChatMessageList = React.forwardRef<HTMLDivElement, ChatMessageListProps>(
         <div
           className={`flex flex-col w-full h-full p-4 overflow-y-auto ${className}`}
           ref={scrollRef}
-          onWheel={disableAutoScroll}
-          onTouchMove={disableAutoScroll}
+          onWheel={scrollToBottomAndEnableAutoScroll}
+          onTouchMove={scrollToBottomAndEnableAutoScroll}
           {...props}
         >
           <div className="flex flex-col gap-6">{children}</div>

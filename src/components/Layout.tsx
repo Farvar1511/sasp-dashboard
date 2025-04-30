@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, ReactNode } from "react"; // Removed useRef, ElementRef if no longer needed
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom"; // Added useNavigate
 import { useAuth } from "../context/AuthContext";
 import { hasCIUPermission } from "../utils/ciuUtils";
@@ -13,11 +13,12 @@ import {
   GraduationCap,
   ShieldCheck,
   UserCog,
-  User,
+  User as UserIcon, // Renamed User to UserIcon to avoid conflict
   MessagesSquare, // Use for Department Chat
   GanttChartSquare, // Use for Gangs
   Briefcase,
   Clipboard, // Use for Cases
+  XIcon, // Added XIcon - Can remove if not used elsewhere
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button"; // Import Button component
@@ -35,16 +36,23 @@ import { NavItemProps } from "../components/Sidebar";
 import { backgroundImages } from "../data/images";
 import { FaTachometerAlt, FaUsers, FaCar, FaFileAlt, FaChalkboardTeacher, FaUserSecret, FaUserShield, FaGavel, FaBullhorn, FaSignOutAlt, FaComments, FaBell } from 'react-icons/fa'; // Added FaFileAlt
 // Helper function to format name
-import { formatUserNameShort } from "./Chat/utils"; // Assuming formatUserNameShort exists or create it
+import { formatUserNameShort, formatUserName, getAvatarFallback } from "./Chat/utils"; // Assuming formatUserNameShort exists or create it, Added formatUserName, getAvatarFallback
+// Import types for chat
+import { User } from "../types/User"; // Keep User type
+// REMOVED ChatGroup, ChatMessage types if only used for bubble
+// REMOVED ExpandableChat imports
+// REMOVED ChatWindow import
+// Import Firestore functions and types
+import {
+    collection, query, where, orderBy, onSnapshot, addDoc,
+    serverTimestamp, doc, updateDoc, getDoc, setDoc, Timestamp, getDocs
+} from 'firebase/firestore'; // Keep getDocs for allUsers
+import { db as dbFirestore } from '../firebase'; // Assuming db export
+import { toast } from 'react-toastify'; // Keep for potential other uses
 
-const saspLogo = "/SASPLOGO2.png";
+// REMOVED getDirectChatId if only used for bubble chat
 
-// Removed NavItem interface (using imported NavItemProps)
-
-// Removed ClockDisplay component
-
-// Removed unreadChatCount prop from Layout props
-import { ReactNode } from "react";
+// REMOVED ActiveChatInfo interface
 
 const Layout = ({ children }: { children: ReactNode }) => {
   const { user: currentUser, loading, logout } = useAuth();
@@ -60,6 +68,8 @@ const Layout = ({ children }: { children: ReactNode }) => {
   const [currentBgImage, setCurrentBgImage] = useState<string>(initialBgImage);
   const [bgOpacity, setBgOpacity] = useState(initialOpacity); // Initialize opacity based on stored image
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // State for profile modal
+  const [allUsers, setAllUsers] = useState<User[]>([]); // State for all users - KEEP for DepartmentChatPopup
+
   // Initialize isCollapsed from localStorage, default to false (expanded)
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     const savedState = localStorage.getItem('sidebarCollapsed');
@@ -82,10 +92,28 @@ const Layout = ({ children }: { children: ReactNode }) => {
   }, [currentUser, isAdmin]);
 
 
+  // --- Effects ---
+
   // Effect to save isCollapsed state to localStorage
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(isCollapsed));
   }, [isCollapsed]);
+
+  // Effect to fetch all users (needed for DepartmentChatPopup potentially) - KEEP
+  useEffect(() => {
+    const fetchUsers = async () => {
+        try {
+            const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
+            const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+            setAllUsers(usersData); // Keep updating allUsers
+        } catch (error) {
+            console.error("Error fetching all users:", error);
+            // Handle error appropriately, maybe set an error state
+        }
+    };
+    fetchUsers();
+  }, []);
+
 
   // Effect for background image loading and transition with persistence
   useEffect(() => {
@@ -157,6 +185,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
     }
   }, [loading, currentUser, navigate]);
 
+
   // --- Event Handlers ---
   const toggleProfileModal = () => setIsProfileModalOpen(!isProfileModalOpen); // Handler for profile modal
 
@@ -200,7 +229,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
     },
     {
       name: "CIU",
-      icon: User,
+      icon: UserIcon, // Use renamed UserIcon
       href: "/ciu",
       showCondition: "canAccessCIU",
       title: "CIU Management",
@@ -255,6 +284,8 @@ const Layout = ({ children }: { children: ReactNode }) => {
           isFTOQualified={isFTOQualified}
           canAccessCIU={canAccessCIU}
           isCadet={isCadet}
+          // REMOVED onOpenChat prop
+          allUsers={allUsers} // Pass allUsers down
         />
 
         {/* Main Content Area */}

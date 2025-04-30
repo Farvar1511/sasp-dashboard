@@ -8,65 +8,8 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
-
-/** Certification Status for each key in "certifications" map */
-export type CertStatus = "CERT" | "LEAD" | "SUPER" | "TRAIN" | null;
-
-/** A single user task document stored in /users/:email/tasks */
-export interface UserTask {
-  id: string;
-  task: string;
-  type: "goal" | "normal";
-  issuedby: string;
-  issueddate: string;
-  issuedtime: string;
-  progress?: number;
-  completed: boolean;
-  goal?: number;
-  archived?: boolean; // Added archived field
-}
-
-/** A single discipline doc from /users/:email/discipline */
-export interface DisciplineEntry {
-  id: string;
-  type: string;
-  disciplinenotes: string;
-  issuedby: string;
-  issueddate: string;
-  issuedtime: string;
-}
-
-/** A single note doc from /users/:email/notes */
-export interface NoteEntry {
-  id: string;
-  note: string;
-  issuedby: string;
-  issueddate: string;
-  issuedtime: string;
-}
-
-/** The main user doc from /users/:email */
-export interface RosterUser {
-  id: string;
-  email?: string;
-  name: string;
-  rank: string;
-  badge?: string;
-  callsign?: string;
-  category?: string;
-  certifications?: { [key: string]: CertStatus };
-  loaStartDate?: Timestamp | null;
-  loaEndDate?: Timestamp | null;
-  joinDate?: Timestamp | null;
-  lastPromotionDate?: Timestamp | null;
-  isActive?: boolean;
-  isPlaceholder?: boolean;
-  isadmin?: boolean;
-  cid?: string;
-  discordId?: string;
-  role?: string;
-  assignedVehicleId?: string | null;
-}
+// Import types from the central location
+import { CertStatus, UserTask, DisciplineEntry, NoteEntry, RosterUser } from '../types/User';
 
 /**
  * Fetch user + subcollections (tasks, discipline, notes) from Firestore,

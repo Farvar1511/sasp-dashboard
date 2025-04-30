@@ -34,10 +34,12 @@ import { toast } from 'react-toastify';
 import { hasCIUPermission } from '../../utils/ciuUtils';
 import { cn } from '../../lib/utils';
 import { FaUsers, FaUser, FaPlus, FaSmile, FaTimes, FaEyeSlash } from 'react-icons/fa';
+import { BellOff } from 'lucide-react'; // Import BellOff
 import CreateGroupModal from './CreateGroupModal';
 import { formatUserName, getAvatarFallback } from './utils';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
-import { useNotificationStore, UnreadNotification } from '../../store/notificationStore';
+// Import removeNotification action from the store
+import { useNotificationStore, UnreadNotification } from '../../store/notificationStore'; // Keep existing imports
 
 export const getDirectChatId = (cid1: string, cid2: string, context: 'ciu' | 'department'): string => {
     if (!cid1 || !cid2 || !context) {
@@ -98,6 +100,10 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
 
     const chatContext = 'ciu';
     const setNotifications = useNotificationStore(state => state.setNotifications);
+    // Get the removeNotification action
+    const removeNotification = useNotificationStore(state => state.removeNotification);
+    const clearNotifications = useNotificationStore(state => state.clearNotifications); // Import clearNotifications
+    const getUnreadCount = useNotificationStore(state => state.getUnreadCount); // Import getUnreadCount
 
     const scrollToBottom = () => {
         if (messageContainerRef.current) {
@@ -115,33 +121,33 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
     // Fetch CIU Personnel
     useEffect(() => {
         if (!currentUser?.cid) {
-             console.log("CIUChat: Current user or CID not available yet.");
+             // console.log("CIUChat: Current user or CID not available yet."); // Removed
              setLoadingUsers(false);
              setCiuPersonnel([]);
              return;
         }
-        console.log("CIUChat: Current User CID:", currentUser.cid);
+        // console.log("CIUChat: Current User CID:", currentUser.cid); // Removed
 
         setLoadingUsers(true);
         const fetchPersonnel = async () => {
             try {
                 const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
-                console.log(`CIUChat: Fetched ${usersSnapshot.docs.length} total user documents.`);
+                // console.log(`CIUChat: Fetched ${usersSnapshot.docs.length} total user documents.`); // Removed
 
                 const usersData = usersSnapshot.docs
                     .map(doc => {
                         const data = doc.data();
-                        console.log(`CIUChat: Processing doc ID: ${doc.id}, Data:`, data);
+                        // console.log(`CIUChat: Processing doc ID: ${doc.id}, Data:`, data); // Removed
                         return { id: doc.id, cid: data.cid, ...data } as User; // Expect 'cid' field
                     })
                     .filter(u => {
                         const isCurrentUser = u.cid === currentUser.cid;
                         const hasPermission = hasCIUPermission(u);
                         if (!u.cid) {
-                            console.warn(`CIUChat: User doc ${u.id} missing CID, excluding.`);
+                            // console.warn(`CIUChat: User doc ${u.id} missing CID, excluding.`); // Removed
                             return false;
                         }
-                        console.log(`CIUChat: Filtering user ${u.id} (CID: ${u.cid}). Is current user? ${isCurrentUser}. Has CIU permission? ${hasPermission}. Keep? ${!isCurrentUser && hasPermission}`);
+                        // console.log(`CIUChat: Filtering user ${u.id} (CID: ${u.cid}). Is current user? ${isCurrentUser}. Has CIU permission? ${hasPermission}. Keep? ${!isCurrentUser && hasPermission}`); // Removed
                         return !isCurrentUser && hasPermission;
                     });
 
@@ -218,7 +224,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                 }
 
                 if (stableId && isUnread && hiddenChatIds.has(stableId)) {
-                    console.log(`CIUChat: Chat ${stableId} is unread and hidden, unhiding persistently.`);
+                    // console.log(`CIUChat: Chat ${stableId} is unread and hidden, unhiding persistently.`); // Removed
                     changedHiddenIds = true;
                     hiddenChatsUpdate[`hiddenChats_${chatContext}`] = arrayRemove(stableId);
                     setHiddenChatIds(prev => {
@@ -237,7 +243,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                 const userDocRef = doc(dbFirestore, 'users', currentUser.uid);
                 try {
                     await updateDoc(userDocRef, hiddenChatsUpdate);
-                    console.log(`CIUChat: Updated hidden chats in Firestore for user ${currentUser.uid}`);
+                    // console.log(`CIUChat: Updated hidden chats in Firestore for user ${currentUser.uid}`); // Removed
                 } catch (error) {
                     console.error(`CIUChat: Failed to update hidden chats in Firestore:`, error);
                 }
@@ -277,7 +283,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
 
                     // Ensure targetId and stableId are assigned before returning
                     if (!targetId || !stableId) {
-                        console.warn("CIUChat: Could not determine targetId or stableId for notification:", chatData);
+                        // console.warn("CIUChat: Could not determine targetId or stableId for notification:", chatData); // Removed
                         return null; // Return null if essential IDs are missing
                     }
 
@@ -322,10 +328,10 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
             await updateDoc(chatDocRef, {
                 [`lastRead.${currentUser.cid}`]: serverTimestamp()
             });
-            console.log(`Updated lastRead for ${currentUser.cid} in chat ${chatId}`);
+            // console.log(`Updated lastRead for ${currentUser.cid} in chat ${chatId}`); // Removed
         } catch (err) {
             if (err instanceof Error && (err.message.includes("No document to update") || err.message.includes("not found"))) {
-                console.warn(`Chat doc ${chatId} might not exist yet for updating lastRead.`);
+                // console.warn(`Chat doc ${chatId} might not exist yet for updating lastRead.`); // Removed
             } else {
                 console.error(`Error updating lastRead timestamp for chat ${chatId}:`, err);
             }
@@ -590,7 +596,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                     }
                     // Add members update specifically for existing docs
                     await updateDoc(chatDocRef, { ...updateData, members: arrayUnion(...members) });
-                    console.log("Chat metadata updated for existing chat:", chatId);
+                    // console.log("Chat metadata updated for existing chat:", chatId); // Removed
                 } else {
                     // Construct initialChatData directly without delete
                     const initialChatData = {
@@ -609,7 +615,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                     };
 
                     await setDoc(chatDocRef, initialChatData);
-                    console.log("Chat document created for new chat:", chatId);
+                    // console.log("Chat document created for new chat:", chatId); // Removed
                 }
             }
         } catch (err) {
@@ -704,39 +710,53 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
         setShowEmojiPicker(false); // Hide emoji picker
 
         // Determine chatId for the selected chat (using CID)
-        let chatIdToMarkRead = '';
+        let chatIdToMarkRead = ''; // This will be the Firestore Doc ID
         let targetCid: string | undefined = undefined;
 
         if ('groupName' in chatTarget) {
-            chatIdToMarkRead = chatTarget.id;
+            chatIdToMarkRead = chatTarget.id; // Group ID is the Firestore Doc ID
         } else if (currentUser?.cid) {
             if (chatTarget.cid !== undefined) {
                 targetCid = chatTarget.cid;
-                chatIdToMarkRead = getDirectChatId(currentUser.cid, targetCid, chatContext);
+                // Find the corresponding chat document ID from allUserChats
+                const directChatData = allUserChats.find(chat =>
+                    chat.type === 'direct' &&
+                    chat.members.includes(currentUser.cid) &&
+                    chat.members.includes(targetCid)
+                );
+                chatIdToMarkRead = directChatData?.id || ''; // Get the Firestore Doc ID
+                if (!chatIdToMarkRead) {
+                    // If no existing chat doc, generate the ID (though it might not exist yet)
+                    // This case is less likely if the chat appears in the list, but handle defensively
+                    chatIdToMarkRead = getDirectChatId(currentUser.cid, targetCid, chatContext);
+                    // console.warn(`CIUChat: Could not find existing Firestore doc ID for direct chat with ${targetCid}, using generated ID ${chatIdToMarkRead} for potential read update.`); // Removed
+                }
             } else {
                 console.error("Selected user is missing CID:", chatTarget);
                 toast.error("Cannot select user without a valid identifier.");
             }
         }
 
-        // Mark the selected chat as read
+        // Mark the selected chat as read in Firestore and remove from local/global state
         if (chatIdToMarkRead) {
-            updateLastReadTimestamp(chatIdToMarkRead);
-            setUnreadChats(prev => {
+            updateLastReadTimestamp(chatIdToMarkRead); // Update Firestore lastRead
+            setUnreadChats(prev => { // Update local unread set
                 const newSet = new Set(prev);
                 newSet.delete(chatIdToMarkRead);
                 return newSet;
             });
+            // Remove notification from Zustand store using Firestore Doc ID
+            removeNotification(chatIdToMarkRead);
         }
 
-    }, [currentUser?.cid, getChatDocRef, updateLastReadTimestamp, chatContext]);
+    }, [currentUser?.cid, getChatDocRef, updateLastReadTimestamp, chatContext, allUserChats, removeNotification]); // Added allUserChats and removeNotification to dependencies
 
 
     // --- Direct Chat Start Logic (from Modal) ---
     const handleStartDirectChatFromModal = useCallback((memberCid: string) => {
         const targetUser = ciuPersonnel.find(p => p.cid === memberCid);
         if (targetUser) {
-            console.log("Starting direct chat via modal with:", targetUser);
+            // console.log("Starting direct chat via modal with:", targetUser); // Removed
             handleChatSelect(targetUser);
             handleCloseCreateGroupModal(); // Use the function defined below
         } else {
@@ -800,42 +820,130 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
 
     }, [currentUser?.cid, signalStoppedTyping]);
 
-    // --- Hide Chat Handler ---
-    const handleHideChat = useCallback((stableChatId: string) => {
-        if (!currentUser?.uid) return; // Need UID to update user doc
-        const userDocRef = doc(dbFirestore, 'users', currentUser.uid);
+    // --- Hide/Unhide Chat Logic ---
+    const handleHideChat = useCallback(async (stableChatId: string) => {
+        // Use email instead of uid
+        if (!currentUser?.email) {
+            console.error(`CIUChat: Cannot hide chat, missing current user's email.`);
+            toast.error("Could not hide chat. User identifier missing.");
+            return;
+        }
+        // Check if already hidden
+        if (hiddenChatIds.has(stableChatId)) {
+            // console.log(`CIUChat: Chat ${stableChatId} is already hidden.`); // Removed
+            return;
+        }
+
+        const userDocRef = doc(dbFirestore, 'users', currentUser.email); // Use email
 
         // Optimistically update UI
         setHiddenChatIds(prev => new Set(prev).add(stableChatId));
 
-        // Deselect chat if it's the one being hidden
-        const currentSelectedStableId = selectedChat
-            ? ('groupName' in selectedChat
-                ? selectedChat.id
-                : (selectedChat.cid && currentUser?.cid ? getDirectChatId(currentUser.cid, selectedChat.cid, chatContext) : null))
+        // Deselect chat if it's the one being hidden AND showHiddenChats is false
+        const selectedChatStableId = selectedChat && 'groupName' in selectedChat
+            ? selectedChat.id // For groups, use the group ID as stableId
+            : currentUser?.cid && selectedChat && selectedChat.cid
+            ? getDirectChatId(currentUser.cid, selectedChat.cid, chatContext) // For direct chats, compute the stableId
             : null;
-        if (currentSelectedStableId === stableChatId) {
-            handleCloseChat();
+
+        if (selectedChatStableId === stableChatId) {
+            handleReturnToList();
         }
 
-        // Update Firestore persistently
-        updateDoc(userDocRef, {
-            [`hiddenChats_${chatContext}`]: arrayUnion(stableChatId)
-        }).then(() => {
-            console.log(`CIUChat: Chat ${stableChatId} hidden persistently for user ${currentUser.uid}`);
+        try {
+            await updateDoc(userDocRef, {
+                [`hiddenChats_${chatContext}`]: arrayUnion(stableChatId)
+            });
+            // console.log(`CIUChat: Chat ${stableChatId} hidden persistently for user ${currentUser.email}`); // Removed
             toast.info("Chat hidden. New messages will unhide it.");
-        }).catch((error) => {
-            console.error("Error hiding chat persistently:", error);
-            toast.error("Failed to save hidden chat status.");
+        } catch (error) {
+            console.error(`Error hiding chat persistently for user ${currentUser.email} and chat ${stableChatId}:`, error); // Log email and chat ID
+            // Check if the error is specifically about the document not existing
+            if (error instanceof Error && ('code' in error && (error as any).code === 'not-found' || (error.message && error.message.includes("No document to update")))) {
+                 toast.error("Failed to save hidden chat status: User profile not found.");
+            } else {
+                 toast.error("Failed to save hidden chat status.");
+            }
             // Revert optimistic UI update on error
             setHiddenChatIds(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(stableChatId);
                 return newSet;
             });
+        }
+
+    }, [currentUser?.email, chatContext, hiddenChatIds, selectedChat, handleReturnToList]); // Update dependency
+
+    const handleUnhideChat = useCallback(async (stableChatId: string) => {
+        // Use email instead of uid
+        if (!currentUser?.email) {
+            console.error(`CIUChat: Cannot unhide chat, missing current user's email.`);
+            toast.error("Could not unhide chat. User identifier missing.");
+            return;
+        }
+        const userDocRef = doc(dbFirestore, 'users', currentUser.email); // Use email
+
+        // Optimistically update UI
+        setHiddenChatIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(stableChatId);
+            return newSet;
         });
 
-    }, [selectedChat, currentUser?.cid, currentUser?.uid, handleCloseChat, chatContext]);
+        // Select chat if it was selected before hiding
+        const selectedChatStableId = selectedChat && 'groupName' in selectedChat
+            ? selectedChat.id // For groups, use the group ID as stableId
+            : currentUser?.cid && selectedChat?.cid
+            ? getDirectChatId(currentUser.cid, selectedChat.cid, chatContext) // For direct chats, compute the stableId
+            : null;
+
+        if (selectedChatStableId === stableChatId) {
+            if (selectedChat) {
+                handleChatSelect(selectedChat); // Re-select the chat
+            }
+        }
+
+        try {
+            await updateDoc(userDocRef, {
+                [`hiddenChats_${chatContext}`]: arrayRemove(stableChatId)
+            });
+            // console.log(`CIUChat: Chat ${stableChatId} unhidden persistently for user ${currentUser.email}.`); // Removed
+            toast.success("Chat unhidden.");
+        } catch (error) {
+            console.error(`Error unhiding chat persistently for user ${currentUser.email} and chat ${stableChatId}:`, error); // Log email and chat ID
+            toast.error("Failed to unhide chat.");
+            // Revert optimistic UI update on error
+            setHiddenChatIds(prev => {
+                const newSet = new Set(prev);
+                newSet.add(stableChatId);
+                return newSet;
+            });
+        }
+    }, [currentUser?.email, chatContext]); // Update dependency
+
+    // --- Save Settings Logic ---
+    const handleSaveSettings = async () => {
+        if (!currentUser?.email) {
+            console.error(`CIUChat: Cannot save settings, missing current user's email.`);
+            toast.error("Could not save settings. User identifier missing.");
+            return;
+        }
+        const userDocRef = doc(dbFirestore, 'users', currentUser.email); // Use email
+
+        try {
+            await updateDoc(userDocRef, {
+                [`settings.${chatContext}`]: {
+                    showHiddenChats: true, // Example setting
+                    // Add other settings here
+                }
+            });
+            // console.log(`CIUChat: Settings saved for user ${currentUser.email}.`); // Removed
+            toast.success("Settings saved.");
+        } catch (error) {
+            console.error(`Error saving settings for user ${currentUser.email}:`, error); // Log email and error
+            toast.error("Failed to save settings.");
+        }
+    };
 
 
     // --- Derive Sorted Chat Lists for Sidebar ---
@@ -870,10 +978,11 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                 };
                 const displayChat: DisplayChat = {
                     id: chatId, // Firestore Doc ID
-                    stableId: stableId || '', // Assign stableId with fallback to an empty string
+                    stableId: stableId || '', // Ensure stableId is always a string
                     type: 'group',
                     target: group,
                     lastMessageTimestamp: effectiveTimestamp,
+                    // Check unread using Firestore Doc ID
                     isUnread: unreadChats.has(chatId),
                 };
 
@@ -899,7 +1008,8 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                             type: 'direct',
                             target: user,
                             lastMessageTimestamp: effectiveTimestamp,
-                            isUnread: unreadChats.has(chatId), // Check unread using Firestore Doc ID
+                            // Check unread using Firestore Doc ID
+                            isUnread: unreadChats.has(chatId),
                         };
 
                         // Use stableId (generated direct ID) as the map key
@@ -910,13 +1020,13 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                              accMap.set(stableId, { ...existing, isUnread: true, id: chatId }); // Update unread status and Firestore ID
                         }
                     } else {
-                         console.warn(`Direct chat ${chatId}: Could not find user data for CID ${otherMemberCid}`);
+                         // console.warn(`Direct chat ${chatId}: Could not find user data for CID ${otherMemberCid}`); // Removed
                     }
                 } else {
-                     if (!otherMemberCid) console.warn(`Direct chat ${chatId}: Could not determine other member CID.`);
+                     // if (!otherMemberCid) console.warn(`Direct chat ${chatId}: Could not determine other member CID.`); // Removed
                 }
             } else {
-                 console.warn(`Chat ${chatId}: Unknown or invalid type "${chatData.type}"`);
+                 // console.warn(`Chat ${chatId}: Unknown or invalid type "${chatData.type}"`); // Removed
             }
 
             return accMap;
@@ -945,10 +1055,20 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
 
         return processedChats;
 
-    }, [allUserChats, ciuPersonnel, currentUser?.cid, unreadChats, chatContext]);
+    }, [allUserChats, ciuPersonnel, currentUser?.cid, unreadChats, chatContext]); // Keep dependencies as they are
 
 
     // --- Render ---
+    // Get CIU unread count
+    const ciuUnreadCount = getUnreadCount(chatContext);
+
+    function handleClearAllCiuNotifications(event: React.MouseEvent<HTMLButtonElement>): void {
+        // Clear all CIU notifications from the Zustand store
+        clearNotifications('ciu');
+        // Optionally, provide user feedback
+        toast.success('All CIU notifications cleared.');
+    }
+
     return (
         <div
             className="flex h-[calc(100vh-220px)] border rounded-lg overflow-hidden"
@@ -970,6 +1090,18 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                 <div className="flex justify-between items-center mb-2 px-2">
                     <h3 className="text-lg font-semibold" style={{ color: 'var(--color-foreground)' }}>Chats</h3>
                     <div className="flex items-center space-x-1">
+                        {/* Clear All Notifications Button */}
+                        {ciuUnreadCount > 0 && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={handleClearAllCiuNotifications}
+                                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full"
+                                title="Clear All CIU Notifications"
+                            >
+                                <BellOff className="h-4 w-4" />
+                            </Button>
+                        )}
                         {/* Create Group Button - Keep variant/size, adjust color if needed */}
                         <Button
                             variant="ghost"
@@ -1001,6 +1133,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                                     .filter(chat => chat.type === 'group' && !hiddenChatIds.has(chat.stableId)) // Use stableId
                                     .map(displayChat => {
                                         const group = displayChat.target as ChatGroup;
+                                        // Use displayChat.isUnread which is derived from unreadChats set (keyed by Firestore ID)
                                         const isUnread = displayChat.isUnread;
                                         const isSelected = selectedChatId === group.id; // Selection still uses Firestore ID for groups
                                         return (
@@ -1014,7 +1147,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                                                     backgroundColor: isSelected ? 'var(--color-muted)' : undefined,
                                                     color: isUnread && !isSelected ? 'var(--color-foreground)' : 'var(--color-muted-foreground)',
                                                 }}
-                                                onClick={() => handleChatSelect(group)}
+                                                onClick={() => handleChatSelect(group)} // Pass the group object
                                             >
                                                 {isUnread && !isSelected && (
                                                     <span
@@ -1058,6 +1191,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                                     .map(displayChat => {
                                         const user = displayChat.target as User;
                                         const stableId = displayChat.stableId; // This is the generated direct chat ID
+                                        // Use displayChat.isUnread which is derived from unreadChats set (keyed by Firestore ID)
                                         const isUnread = displayChat.isUnread;
                                         const isSelected = selectedChat && !('groupName' in selectedChat) && selectedChat.cid === user.cid;
                                         return (
@@ -1071,7 +1205,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
                                                     backgroundColor: isSelected ? 'var(--color-muted)' : undefined,
                                                     color: isUnread && !isSelected ? 'var(--color-foreground)' : 'var(--color-muted-foreground)',
                                                 }}
-                                                onClick={() => handleChatSelect(user)}
+                                                onClick={() => handleChatSelect(user)} // Pass the user object
                                             >
                                                 {isUnread && !isSelected && (
                                                     <span
@@ -1342,4 +1476,8 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
         </div>
     );
 };
+// Removed duplicate implementation of handleReturnToList
+function handleReturnToList() {
+    throw new Error('Function not implemented.');
+}
 

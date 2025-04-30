@@ -14,5 +14,5 @@ export interface ChatGroup {
     context: 'ciu' | 'department';
     iconUrl?: string; // Optional icon URL for the group
     participants?: User[]; // Add participants as an optional property
-
+    isEmbedded?: boolean; // Add this optional property
 }

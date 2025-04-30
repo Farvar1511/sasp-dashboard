@@ -2,53 +2,54 @@ import { create } from 'zustand';
 import { Timestamp } from 'firebase/firestore';
 
 export interface UnreadNotification {
-    id: string;
-    name: string;
-    context: string;
-    timestamp: Timestamp | null;
-    targetType: 'group' | 'direct';
-    targetId: string;
-    stableId: string; // Added stableId property
+    id: string; // Firestore document ID of the chat
+    name: string; // Name of the user or group
+    context: 'ciu' | 'department'; // Context of the chat
+    timestamp: Timestamp | null; // Timestamp of the last unread message
+    targetType: 'direct' | 'group'; // Type of the chat target
+    targetId: string; // CID for direct, Firestore ID for group
+    stableId: string; // Stable ID (direct chat ID or group Firestore ID)
 }
 
-interface NotificationState {
-    ciuNotifications: UnreadNotification[];
-    departmentNotifications: UnreadNotification[];
-    setNotifications: (source: 'ciu' | 'department', notifications: UnreadNotification[]) => void;
-    getAllNotifications: () => UnreadNotification[];
-    getTotalUnreadCount: () => number;
+
+export interface NotificationState {
+    notifications: UnreadNotification[];
+    setNotifications: (type: 'ciu' | 'department', newNotifications: UnreadNotification[]) => void;
+    clearNotifications: (type: 'ciu' | 'department') => void;
+    removeNotification: (stableId: string) => void;
+    getUnreadCount: (type: 'ciu' | 'department') => number; // Add method signature
 }
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
-    ciuNotifications: [],
-    departmentNotifications: [],
-    setNotifications: (source, notifications) => {
-        // Ensure unique notifications per source before setting
-        const uniqueNotifications = Array.from(new Map(notifications.map(n => [n.id, n])).values());
-        if (source === 'ciu') {
-            set({ ciuNotifications: uniqueNotifications });
-        } else {
-            set({ departmentNotifications: uniqueNotifications });
-        }
-        // Log combined count after update
-        // console.log(`Notifications updated (${source}). Total: ${get().getTotalUnreadCount()}`);
-    },
-    getAllNotifications: () => {
-        const { ciuNotifications, departmentNotifications } = get();
-        // Combine and sort by timestamp descending
-        const combined = [...ciuNotifications, ...departmentNotifications];
-        // Ensure unique notifications across both sources before sorting
-        const uniqueCombined = Array.from(new Map(combined.map(n => [n.id, n])).values());
-        return uniqueCombined.sort((a, b) => {
-            const timeA = a.timestamp?.toMillis() ?? 0;
-            const timeB = b.timestamp?.toMillis() ?? 0;
-            return timeB - timeA;
+    notifications: [],
+
+    setNotifications: (type, newNotifications) => {
+        set(state => {
+            // Filter out existing notifications of the same type
+            const otherNotifications = state.notifications.filter(n => n.context !== type);
+            // Combine with new notifications for the type
+            const updatedNotifications = [...otherNotifications, ...newNotifications];
+            // Sort all notifications by timestamp (newest first)
+            updatedNotifications.sort((a, b) => (b.timestamp?.toMillis() ?? 0) - (a.timestamp?.toMillis() ?? 0));
+            return { notifications: updatedNotifications };
         });
     },
-    getTotalUnreadCount: () => {
-        // Count unique notification IDs across both sources
-        const { ciuNotifications, departmentNotifications } = get();
-        const allIds = new Set([...ciuNotifications.map(n => n.id), ...departmentNotifications.map(n => n.id)]);
-        return allIds.size;
+
+    clearNotifications: (type) => {
+        set(state => ({
+            notifications: state.notifications.filter(n => n.context !== type),
+        }));
+    },
+
+    removeNotification: (stableId) => {
+        set(state => ({
+            notifications: state.notifications.filter(n => n.stableId !== stableId),
+        }));
+    },
+
+    // Implement getUnreadCount method
+    getUnreadCount: (type) => {
+        const state = get(); // Get current state
+        return state.notifications.filter(n => n.context === type).length;
     },
 }));

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react"; // Import useCallback
+import React, { useEffect, useState, useMemo } from "react"; // Removed useCallback if handleChatSelect is gone
 import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { showTime } from "../utils/timeHelpers";
@@ -20,30 +20,12 @@ import {
 import { DepartmentChatPopup } from "./DepartmentChatPopup";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge"; // Import Badge
+import { useNotificationStore } from "../store/notificationStore"; // Import store
+import { User } from "../types/User"; // Import User type
 
 const saspLogo = "/SASPLOGO2.png";
 
-// Define the structure for a single nav item prop - EXPORT this type
-export interface NavItemProps { // Added export
-    name: string;
-    href: string;
-    icon: React.ComponentType<any>;
-    showCondition?: 'always' | 'isAdmin' | 'isFTOQualified' | 'isCadet' | 'canAccessCIU' | 'isFTOQualifiedOrCadet';
-    title?: string;
-}
-
-// Updated SidebarProps interface
-interface SidebarProps {
-    isCollapsed: boolean;
-    setIsCollapsed: (isCollapsed: boolean) => void;
-    navItems: NavItemProps[]; // Use the defined structure
-    isAdmin: boolean;
-    isFTOQualified: boolean;
-    canAccessCIU: boolean; // Add this line
-    isCadet: boolean; // Add this line
-}
-
-
+// Define ClockDisplay component here
 const ClockDisplay = React.memo(() => {
     const [clock, setClock] = useState(showTime());
     useEffect(() => {
@@ -64,6 +46,59 @@ const ClockDisplay = React.memo(() => {
     );
 });
 
+
+// Define the structure for a single nav item prop - EXPORT this type
+export interface NavItemProps { // Added export
+    name: string;
+    href: string;
+    icon: React.ComponentType<any>;
+    showCondition?: 'always' | 'isAdmin' | 'isFTOQualified' | 'isCadet' | 'canAccessCIU' | 'isFTOQualifiedOrCadet';
+    title?: string;
+}
+
+// Updated SidebarProps interface
+interface SidebarProps {
+    isCollapsed: boolean;
+    setIsCollapsed: (isCollapsed: boolean) => void;
+    navItems: NavItemProps[]; // Use the defined structure
+    isAdmin: boolean;
+    isFTOQualified: boolean;
+    canAccessCIU: boolean; // Add this line
+    isCadet: boolean; // Add this line
+    allUsers: User[]; // Add allUsers prop
+}
+
+// Helper component for individual navigation items
+const NavItem = ({
+    href,
+    icon: Icon,
+    name,
+    title,
+    isCollapsed, // Receive isCollapsed state
+    getNavLinkClass, // Receive className function
+}: NavItemProps & { isCollapsed: boolean; getNavLinkClass: (props: { isActive: boolean }) => string }) => (
+    <NavLink
+        to={href}
+        // Pass isActive to the function provided by getNavLinkClass
+        className={({ isActive }) => getNavLinkClass({ isActive })}
+        title={title || name} // Use title for tooltip, fallback to name
+    >
+        {/* Use a function child to access isActive state */}
+        {({ isActive }) => (
+            <>
+                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                    {/* Conditionally apply yellow color if not active */}
+                    <Icon className={`text-[18px] ${!isActive ? 'text-[#f3c700]' : ''}`} />
+                </div>
+                {!isCollapsed && (
+                    <span className="ml-3 whitespace-nowrap">{name}</span>
+                )}
+            </>
+        )}
+    </NavLink>
+);
+
+
 const Sidebar: React.FC<SidebarProps> = ({
     isCollapsed,
     setIsCollapsed,
@@ -72,9 +107,11 @@ const Sidebar: React.FC<SidebarProps> = ({
     isFTOQualified,
     canAccessCIU,
     isCadet,
+    allUsers, // Destructure allUsers
 }) => {
     const { user: currentUser, logout } = useAuth();
     const [isDepartmentChatOpen, setIsDepartmentChatOpen] = useState(false);
+    const departmentUnreadCount = useNotificationStore(state => state.getUnreadCount('department')); // Get unread count
 
     const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
   `flex items-center ${isCollapsed ? 'justify-center' : ''} px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out border border-transparent ${
@@ -83,62 +120,34 @@ const Sidebar: React.FC<SidebarProps> = ({
       : "text-white hover:bg-white/10 hover:text-[#f3c700]"
   }`;
 
-    const NavItem = ({
-        href,
-        icon: Icon,
-        name,
-        title,
-    }: { // Use NavItemProps structure
-        href: string;
-        icon: React.ComponentType<any>;
-        name: string;
-        title?: string;
-    }) => (
-        <NavLink
-            to={href}
-            className={({ isActive }) => getNavLinkClass({ isActive })}
-            title={title || name}
-        >
-            {({ isActive }) => (
-                <div className="flex items-center w-full">
-                    <div className="w-10 h-10 flex items-center justify-center">
-                        <Icon className={`${isActive ? 'text-black' : 'text-[oklch(0.84_0.1726_92.66)]'}`} />
-                    </div>
-                    {!isCollapsed && (
-                        <span className="ml-3 whitespace-nowrap">{name}</span>
-                    )}
-                </div>
-            )}
-        </NavLink>
-    );
-
-    // Filter nav items based on user roles/permissions
+    // Filter nav items based on conditions
     const filteredNavItems = useMemo(() => {
         return navItems.filter(item => {
             switch (item.showCondition) {
-                case 'isAdmin':
-                    return isAdmin; // Use prop
-                case 'isFTOQualified':
-                    return isFTOQualified; // Use prop
-                case 'isCadet':
-                    return isCadet; // Use prop
-                case 'canAccessCIU':
-                    return canAccessCIU; // Use prop
-                case 'isFTOQualifiedOrCadet':
-                    return isFTOQualified || isCadet; // Use props
+                case 'isAdmin': return isAdmin;
+                case 'isFTOQualified': return isFTOQualified;
+                case 'isCadet': return isCadet;
+                case 'canAccessCIU': return canAccessCIU;
+                case 'isFTOQualifiedOrCadet': return isFTOQualified || isCadet;
                 case 'always':
-                default:
-                    return true;
+                default: return true;
             }
         }).map(item => {
-            // Dynamically adjust icon/label for FTO based on cadet status
+            // Dynamically change CIU item name/icon
+            if (item.href === '/ciu' && canAccessCIU) {
+                 // Ensure the icon component itself is passed correctly
+                 return { ...item, name: 'CIU Portal', icon: FaUserSecret, title: 'CIU Management Portal' };
+            }
+            // Ensure FTO icons are passed correctly
             if (item.href === '/fto') {
-                return {
-                    ...item,
-                    icon: isCadet ? FaUserGraduate : FaUserShield, // Use prop isCadet
-                    name: isCadet ? "My Training Progress" : "FTO Management", // Use prop isCadet
-                    title: isCadet ? "My Training Progress" : "FTO Management", // Use prop isCadet
-                };
+                if (isCadet) {
+                    return { ...item, name: 'Cadet Training', icon: FaUserGraduate, title: 'Cadet Training Portal' };
+                } else if (isFTOQualified) {
+                    return { ...item, name: 'FTO Portal', icon: FaUserShield, title: 'FTO Management Portal' };
+                }
+                // Add a fallback if neither condition is met but href is /fto
+                // This might not be necessary depending on your logic, but good practice
+                // return { ...item, name: 'Training Portal', icon: FaUserGraduate, title: 'Training Portal' };
             }
             return item;
         });
@@ -177,11 +186,21 @@ const Sidebar: React.FC<SidebarProps> = ({
             <nav className="flex-grow px-3 py-4 space-y-2 overflow-y-auto custom-scrollbar">
                 {/* Map over regularNavItems */}
                 {regularNavItems.map((item) => (
-                    <NavItem key={item.href} {...item} />
+                    <NavItem
+                        key={item.href}
+                        {...item}
+                        isCollapsed={isCollapsed}
+                        getNavLinkClass={getNavLinkClass} // Pass the function itself
+                    />
                 ))}
                 {/* Render adminItem if it exists */}
                 {adminItem && (
-                    <NavItem key={adminItem.href} {...adminItem} />
+                     <NavItem
+                        key={adminItem.href}
+                        {...adminItem}
+                        isCollapsed={isCollapsed}
+                        getNavLinkClass={getNavLinkClass} // Pass the function itself
+                    />
                 )}
             </nav>
 
@@ -198,7 +217,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     onClick={() => setIsDepartmentChatOpen(prev => !prev)}
                     className={`w-full flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out border border-transparent ${
                         isDepartmentChatOpen
-                            ? "bg-muted text-foreground"
+                            ? "bg-muted text-foreground" // Use theme colors if available, otherwise adjust
                             : "text-white hover:bg-white/10 hover:text-[#f3c700]"
                     } ${isCollapsed ? 'justify-center' : 'justify-start'}`}
                     title="Department Chat"
@@ -210,8 +229,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                     {!isCollapsed && (
                         <span className="ml-3 whitespace-nowrap">Department Chat</span>
                     )}
-                    {/* Unread Count Badge - Needs data from Zustand store now */}
-                    {/* TODO: Replace departmentUnreadCount with count derived from Zustand store */}
+                    {/* Unread Count Badge */}
+                    {departmentUnreadCount > 0 && (
+                        <Badge
+                            variant="destructive"
+                            className={`absolute top-1.5 right-1.5 h-5 min-w-[1.25rem] flex items-center justify-center p-1 text-xs ${
+                                isCollapsed ? "left-auto right-1.5" : "" // Adjust position when collapsed
+                            }`}
+                        >
+                            {departmentUnreadCount > 9 ? '9+' : departmentUnreadCount}
+                        </Badge>
+                    )}
                 </Button>
             </div>
 
@@ -231,12 +259,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </button>
             </div>
 
-
             {/* Department Chat Popup - Render conditionally */}
-            <DepartmentChatPopup
-                isOpen={isDepartmentChatOpen}
-                onClose={() => setIsDepartmentChatOpen(false)}
-            />
+            {isDepartmentChatOpen && (
+                <DepartmentChatPopup
+                    // isOpen prop removed
+                    onClose={() => setIsDepartmentChatOpen(false)}
+                    allUsers={allUsers} // Pass allUsers down
+                />
+            )}
         </div>
     );
 };

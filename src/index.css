@@ -146,32 +146,18 @@
 }
 
 @layer base {
-  /* ... other base styles ... */
+  /* ... existing base styles ... */
 
   body {
     /* Apply page-background here - REMOVE THIS LINE */
     @apply font-sans bg-background text-foreground min-h-screen; /* Removed page-background */
   }
 
-  /* Add or ensure this class exists and uses the variable */
-  /* Keep this definition if needed elsewhere, but it's not applied to body via @apply anymore */
-  .page-background {
-    background-image: var(--background-image-url);
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-attachment: fixed; /* Optional: keeps background fixed during scroll */
-  }
+  /* ... existing base styles ... */
 }
 
 @layer components {
-  .card {
-    @apply bg-card border border-border text-card-foreground rounded-lg shadow;
-  }
-
-  .modal-backdrop {
-    @apply fixed inset-0 bg-black/70 z-40;
-  }
+  /* ... existing components styles ... */
 }
 
 @layer utilities {
@@ -193,12 +179,19 @@
     scrollbar-width: none;
   }
 
-  .custom-scrollbar::-webkit-scrollbar {
-    @apply w-2;
+  /* --- Style the default shadcn/ui ScrollArea thumb --- */
+  [data-slot="scroll-area-thumb"] {
+    @apply bg-muted-foreground; /* Use a more visible color */
+  }
+  /* Optional: Add hover effect */
+  [data-slot="scroll-area-thumb"]:hover {
+     @apply bg-primary; /* Example: Use primary color on hover */
   }
 
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-neutral-dark rounded-full;
+  /* --- Chat Window Scroll Area Height Constraint --- */
+  .chat-scroll-area {
+    max-height: 60vh; /* Keep adjusted height */
+    overflow-y: auto; /* Keep overflow */
   }
 
   /* --- Consolidated and Corrected ProseMirror Styles --- */

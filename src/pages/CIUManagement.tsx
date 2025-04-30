@@ -6,7 +6,6 @@ import CaseFilesTab from '../components/CaseFiles/CaseFilesTab';
 import { CIUChatInterface } from '../components/Chat/CIUChatInterface'; // Import CIUChatInterface
 import CreateCaseModal from '../components/CaseFiles/CreateCaseModal';
 import EditCaseModal from '../components/CaseFiles/CaseDetailsModal'; // Ensure this file exists or update the path
-import CaseFiles from '../components/CaseFiles/CaseFiles';
 import { useAuth } from '../context/AuthContext'; // Import useAuth
 import { collection, getDocs, query, where } from 'firebase/firestore'; // Import Firestore functions
 import { db as dbFirestore } from '../firebase'; // Import Firestore instance
@@ -14,6 +13,7 @@ import { User } from '../types/User'; // Import User type
 import { Badge } from '../components/ui/badge'; // Import Badge
 import { useNotificationStore } from '../store/notificationStore'; // Import Zustand store
 import { CaseFile } from '@/utils/ciuUtils';
+import CIUPersonnelTab from '../components/CIUPersonnel/CIUPersonnelTab'; // Import CIUPersonnelTab
 
 // Define eligible roles for case assignment
 const ELIGIBLE_ROLES_FOR_ASSIGNMENT = ['admin', 'ciu'];
@@ -28,9 +28,9 @@ export default function CIUManagement() {
   // Remove unreadChatCount state
   // const [unreadChatCount, setUnreadChatCount] = useState(0);
 
-  // Get unread count directly from Zustand store
+  // Get unread count directly from Zustand store - corrected property name
   const ciuUnreadCount = useNotificationStore(state =>
-    state.ciuNotifications?.length ?? 0
+    state.notifications?.length ?? 0 // Use 'notifications' instead of 'ciuNotifications'
   );
 
 
@@ -48,7 +48,8 @@ export default function CIUManagement() {
           // Ensure user has necessary fields (id, name, role)
           const data = doc.data();
           if (data.name && data.role) {
-            users.push({ id: doc.id, ...data } as User);
+            // Ensure id is explicitly included
+            users.push({ id: doc.id, name: data.name, role: data.role } as User);
           }
         });
         setEligibleAssignees(users);
@@ -107,11 +108,13 @@ export default function CIUManagement() {
 
         {}
         <Tabs defaultValue="cases" className="w-full">
-          {/* Apply consistent TabsList styling */}
-          <TabsList className="bg-transparent p-0 border-b border-border grid w-full grid-cols-4 mb-4">
+          {/* Apply consistent TabsList styling - updated grid columns */}
+          <TabsList className="bg-transparent p-0 border-b border-border grid w-full grid-cols-5 mb-4"> {/* Changed grid-cols-4 to grid-cols-5 */}
             {/* Update active and hover states: yellow background, black text */}
             <TabsTrigger value="cases" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">Case Files</TabsTrigger>
             <TabsTrigger value="gangs" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">Gang Intel</TabsTrigger>
+            {/* Add Personnel Tab Trigger */}
+            <TabsTrigger value="personnel" className="bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">Personnel</TabsTrigger>
             {/* Chat Tab Trigger with Badge */}
             <TabsTrigger value="chat" className="relative bg-transparent text-brand px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black">
               CIU Chat
@@ -139,6 +142,11 @@ export default function CIUManagement() {
               openEditModal={handleOpenEditCaseModal}
               loadingAssignees={loadingUsers}
             />
+          </TabsContent>
+
+          {/* Add Personnel Tab Content */}
+          <TabsContent value="personnel" className="p-4 rounded-b-md border border-t-0 border-border">
+            <CIUPersonnelTab />
           </TabsContent>
 
           {/* Remove bg-secondary to make transparent */}
