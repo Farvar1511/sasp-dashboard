@@ -160,13 +160,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     <TooltipProvider delayDuration={100}>
       <Card className={cn(
           "relative w-full h-full flex flex-col overflow-hidden", // Added relative
-          isEmbedded ? "shadow-none border-none bg-transparent" : "shadow-lg border border-border rounded-lg bg-card",
+          // If embedded, ensure height is controlled by parent
+          isEmbedded ? "shadow-none border-none bg-transparent h-full" : "shadow-lg border border-border rounded-lg bg-card",
           className
       )}>
         {/* Header */}
-        <CardHeader className="flex flex-row items-center justify-between px-4 py-3 border-b border-border bg-muted/50 flex-shrink-0">
+        <CardHeader className={cn(
+            "flex flex-row items-center justify-between px-4 py-3 border-b border-border bg-muted/50 flex-shrink-0",
+            isEmbedded && "bg-black/80" // Match parent header style if embedded
+        )}>
           <div className="flex items-center gap-3">
-            {/* Back button uses onClose */}
+            {/* Back button uses onClose - CRITICAL for mobile navigation */}
             {onClose && (
                <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-foreground -ml-2">
                   <ArrowLeft className="h-5 w-5" />
@@ -203,8 +207,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                )}
             </div>
           </div>
-          {/* Close button uses onClose */}
-          {onClose && (
+          {/* Close button uses onClose - Only show if NOT embedded (or handled by parent) */}
+          {onClose && !isEmbedded && ( // Hide if embedded (parent handles close)
             <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-foreground -mr-2">
               <X className="h-5 w-5" />
               <span className="sr-only">Close chat</span>
@@ -215,7 +219,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {/* Messages Area */}
         <CardContent
           ref={scrollRef}
-          className="flex flex-col flex-1 p-4 gap-4 bg-background min-h-0 chat-scroll-area custom-scrollbar overflow-y-auto"
+          className={cn(
+              "flex flex-col flex-1 p-4 gap-4 min-h-0 chat-scroll-area custom-scrollbar overflow-y-auto",
+              isEmbedded ? "bg-transparent" : "bg-background" // Adjust background if embedded
+          )}
         >
           <div className="p-4 flex flex-col gap-4">
             {isLoading ? (
@@ -270,7 +277,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       {/* Message Bubble */}
                       <div
                         className={cn(
-                          "rounded-lg px-3 py-2 max-w-[75%] shadow-sm break-words",
+                          "rounded-lg px-3 py-2 shadow-sm break-words",
+                          // Responsive max-width
+                          "max-w-[85%] sm:max-w-[75%]",
                           isSent
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-foreground"
@@ -311,15 +320,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </CardContent>
 
-        {/* Scroll to Bottom Button (Moved outside CardContent, before CardFooter) */}
+        {/* Scroll to Bottom Button */}
         {!isAtBottom && (
           <Button
             onClick={scrollToBottomAndEnableAutoScroll}
             size="icon"
             variant="outline"
-            // Adjust positioning: Place it above the footer (e.g., bottom-20 or adjust as needed)
-            // Keep left-1/2 and transform for horizontal centering
-            className="absolute bottom-[76px] left-1/2 transform -translate-x-1/2 inline-flex rounded-full shadow-md bg-background/80 backdrop-blur-sm hover:bg-muted/80 z-10" // Adjusted bottom, kept z-index
+            // Adjust positioning: Place it above the footer
+            // Use bottom-16 or bottom-20 depending on footer height
+            className="absolute bottom-20 left-1/2 transform -translate-x-1/2 inline-flex rounded-full shadow-md bg-background/80 backdrop-blur-sm hover:bg-muted/80 z-10"
             aria-label="Scroll to bottom"
           >
             <ArrowDown className="h-4 w-4" />
@@ -327,7 +336,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
 
         {/* Input Area */}
-        <CardFooter className="flex items-end gap-3 border-t border-border bg-muted/50 p-3 flex-shrink-0">
+        <CardFooter className={cn(
+            "flex items-end gap-3 border-t border-border p-3 flex-shrink-0",
+            isEmbedded ? "bg-black/80" : "bg-muted/50" // Match parent style if embedded
+        )}>
           <form onSubmit={(e) => {
             e.preventDefault();
             if (!isSending && newMessage.trim()) {

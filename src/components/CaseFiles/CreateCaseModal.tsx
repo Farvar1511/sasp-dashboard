@@ -12,11 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { toast } from 'react-toastify';
-// Import FaSave and FaSync
 import { FaTimes, FaPlus, FaTrash, FaSearch, FaSave, FaSync, FaFileWord, FaFilePdf } from 'react-icons/fa';
 import penalCodesData from './penal_codes.ts';
-// Import formatTimestampForDisplay if needed for updates (though likely not used in create)
-// import { formatTimestampForDisplay } from '../../utils/timeHelpers';
 
 interface PenalCode {
     pc: string;
@@ -57,11 +54,8 @@ const CreateCaseModal: React.FC<CreateCaseModalProps> = ({ onClose, onSuccess, e
     const [searchResults, setSearchResults] = useState<PenalCode[]>([]);
     const [selectedCharges, setSelectedCharges] = useState<PenalCode[]>([]);
 
-    // Add state for warrant preview text
     const [warrantText, setWarrantText] = useState<string>('');
-    // Add state for DOCX generation (might be disabled in create mode)
     const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
-
 
     useEffect(() => {
         setPenalCodes(penalCodesData as PenalCode[]);
@@ -194,7 +188,6 @@ const CreateCaseModal: React.FC<CreateCaseModalProps> = ({ onClose, onSuccess, e
         }
     };
 
-    // Update generateWarrantText to match CaseDetailsModal preview logic
     const generateWarrantTextPreview = (): string => {
         const primarySuspect = namesOfInterest.find(n => n.role?.toLowerCase().includes('suspect'))?.name || '[Suspect Name]';
         const otherSuspects = namesOfInterest.filter(n => n.role?.toLowerCase().includes('suspect') && n.name !== primarySuspect).map(n => n.name).join(', ') || 'None';
@@ -238,54 +231,42 @@ ${videoNotes || 'N/A'}
         return template.trim();
     };
 
-    // Regenerate warrant preview whenever relevant data changes
     useEffect(() => {
         setWarrantText(generateWarrantTextPreview());
     }, [title, incidentReport, location, summary, namesOfInterest, evidence, photos, gangInfo, videoNotes, selectedCharges, currentUser]);
 
-    // Handler to regenerate preview manually
     const handleRegenerateWarrantPreview = () => {
         setWarrantText(generateWarrantTextPreview());
         toast.info("Warrant preview regenerated.");
     };
 
-    // Placeholder for DOCX export (likely disabled/hidden in create mode)
     const exportAsDocx = () => {
         toast.info("DOCX export is available after the case is created.");
     };
-    // Placeholder for PDF export (likely disabled/hidden in create mode)
+
     const exportAsPdf = () => {
         toast.info("PDF export is available after the case is created.");
     };
 
-    // Determine if case is active (always true for create, but keep for consistency)
     const isActive = ['Open - Unassigned', 'Open - Assigned', 'Under Review'].includes(status);
 
-
     return (
-        // Main container styling remains the same
-        <div className="w-[85vw] max-w-none mx-auto p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl transition-all duration-300 ease-in-out border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative">
-            {/* Close button remains the same */}
-            <Button variant="ghost" size="icon" className="absolute top-3 right-3 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
+        <div className="w-[95vw] max-w-5xl mx-auto p-4 sm:p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl transition-all duration-300 ease-in-out border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative">
+            <Button variant="ghost" size="icon" className="absolute top-2 right-2 sm:top-3 sm:right-3 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
                 <FaTimes className="h-5 w-5" />
                 <span className="sr-only">Close</span>
             </Button>
-            {/* Header remains the same */}
             <div className="pb-4 mb-4 border-b-2 border-[#f3c700]">
                 <h2 className="text-xl md:text-2xl font-semibold">Create New Case File</h2>
             </div>
-            {/* Tabs structure */}
             <Tabs defaultValue="details" className="w-full flex-grow flex flex-col overflow-hidden">
-                {/* Tabs List: Add Updates tab */}
                 <TabsList className="mb-4 shrink-0 bg-transparent p-0 border-b border-border">
                     <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Details</TabsTrigger>
                     <TabsTrigger value="updates" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Updates</TabsTrigger>
                     <TabsTrigger value="warrant" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Warrant</TabsTrigger>
                 </TabsList>
 
-                {/* Details Tab Content (Copied from CaseDetailsModal) */}
                 <TabsContent value="details" className="flex-grow space-y-5 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
-                    {/* Basic Info Card */}
                     <Card className="bg-black/95 border-border shadow-sm">
                         <CardHeader>
                             <CardTitle className="text-lg text-white">Basic Information</CardTitle>
@@ -312,7 +293,6 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    {/* Charges Card */}
                     <Card className="bg-black/95 border-border shadow-sm">
                         <CardHeader>
                             <CardTitle className="text-lg text-white">Charges</CardTitle>
@@ -352,15 +332,15 @@ ${videoNotes || 'N/A'}
                                 {selectedCharges.length === 0 ? (
                                     <p className="text-sm text-muted-foreground italic">No charges added yet.</p>
                                 ) : (
-                                    <div className="border rounded-md border-border overflow-hidden">
-                                        <table className="w-full text-sm">
+                                    <div className="border rounded-md border-border overflow-hidden overflow-x-auto">
+                                        <table className="w-full text-sm min-w-[600px]">
                                             <thead className="bg-muted/50">
                                                 <tr>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Code</th>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Title</th>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Fine</th>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Time (Months)</th>
-                                                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">Action</th>
+                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Code</th>
+                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Title</th>
+                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Fine</th>
+                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Time (Months)</th>
+                                                    <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -393,7 +373,6 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    {/* Names of Interest Card */}
                     <Card className="bg-black/95 border-border shadow-sm">
                         <CardHeader>
                             <CardTitle className="text-lg text-white">Names of Interest</CardTitle>
@@ -436,7 +415,6 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    {/* Evidence Card */}
                     <Card className="bg-black/95 border-border shadow-sm">
                         <CardHeader>
                             <CardTitle className="text-lg text-white">Evidence</CardTitle>
@@ -460,7 +438,6 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    {/* Photos Card */}
                     <Card className="bg-black/95 border-border shadow-sm">
                         <CardHeader>
                             <CardTitle className="text-lg text-white">Photos (Links)</CardTitle>
@@ -506,7 +483,6 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                     {/* Video Evidence Notes Card */}
                     <Card className="bg-black/95 border-border shadow-sm">
                         <CardHeader>
                             <CardTitle className="text-lg text-white">Bodycam/Dashcam/Video Notes</CardTitle>
@@ -524,7 +500,6 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    {/* Gang Info Card */}
                     <Card className="bg-black/95 border-border shadow-sm">
                          <CardHeader>
                             <CardTitle className="text-lg text-white">Gang Information</CardTitle>
@@ -534,7 +509,6 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    {/* Status and Assignment Card */}
                     <Card className="bg-black/95 border-border shadow-sm">
                         <CardHeader>
                             <CardTitle className="text-lg text-white">Status & Assignment</CardTitle>
@@ -579,15 +553,12 @@ ${videoNotes || 'N/A'}
                     </Card>
                 </TabsContent>
 
-                {/* Updates Tab Content (Placeholder for Create) */}
                 <TabsContent value="updates" className="flex-grow flex flex-col space-y-4 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
                     <div className="space-y-3 flex-grow overflow-y-auto pr-1 custom-scrollbar">
                         <p className="text-muted-foreground italic text-sm">Updates can be added after the case is created.</p>
                     </div>
-                    {/* No "Add New Update" section in create mode */}
                 </TabsContent>
 
-                {/* Warrant Tab Content (Copied from CaseDetailsModal) */}
                 <TabsContent value="warrant" className="flex-grow flex flex-col space-y-4 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
                      <div className="flex justify-between items-center mb-2">
                         <h3 className="text-lg font-semibold text-white">Arrest Warrant Preview</h3>
@@ -595,7 +566,6 @@ ${videoNotes || 'N/A'}
                              <Button variant="outline" size="sm" onClick={handleRegenerateWarrantPreview} title="Regenerate text preview" className="bg-blue-600 hover:bg-blue-700 text-white border-blue-700" disabled={isSubmitting || isGeneratingDocx}>
                                 <FaSync className="mr-2 h-3 w-3" /> Regenerate Preview
                             </Button>
-                            {/* Disable export buttons in create mode */}
                             <Button variant="outline" size="sm" onClick={exportAsDocx} title="Export as DOCX (Available after creation)" className="bg-sky-600 hover:bg-sky-700 text-white border-sky-700" disabled={true}>
                                 <FaFileWord className="mr-2 h-3 w-3" /> Export DOCX
                             </Button>
@@ -617,7 +587,6 @@ ${videoNotes || 'N/A'}
                 </TabsContent>
             </Tabs>
 
-            {/* Footer (Copied from CaseDetailsModal, adapted for Create) */}
             <div className="pt-4 mt-4 border-t-2 border-[#f3c700] shrink-0 flex justify-end space-x-3">
                 <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
                 <Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="bg-accent hover:bg-accent/90 text-accent-foreground">

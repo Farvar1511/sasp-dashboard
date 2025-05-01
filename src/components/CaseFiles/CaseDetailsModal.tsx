@@ -731,10 +731,10 @@ ${videoNotes || 'N/A'}
 
     // Apply styling similar to CreateCaseModal
     return (
-        // Use black background with opacity
-        <div className="w-[85vw] max-w-none mx-auto p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl transition-all duration-300 ease-in-out border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative">
+        // Adjust width constraints for mobile
+        <div className="w-[95vw] max-w-5xl mx-auto p-4 sm:p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl transition-all duration-300 ease-in-out border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative">
             {/* Close button */}
-            <Button variant="ghost" size="icon" className="absolute top-3 right-3 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="absolute top-2 right-2 sm:top-3 sm:right-3 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
                 <FaTimes className="h-5 w-5" />
                 <span className="sr-only">Close</span>
             </Button>
@@ -827,15 +827,16 @@ ${videoNotes || 'N/A'}
                                 {selectedCharges.length === 0 ? (
                                     <p className="text-sm text-muted-foreground italic">No charges added yet.</p>
                                 ) : (
-                                    <div className="border rounded-md border-border overflow-hidden">
-                                        <table className="w-full text-sm">
+                                    // Wrap table for horizontal scrolling on small screens
+                                    <div className="border rounded-md border-border overflow-hidden overflow-x-auto">
+                                        <table className="w-full text-sm min-w-[600px]"> {/* Added min-width */}
                                             <thead className="bg-muted/50">
                                                 <tr>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Code</th>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Title</th>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Fine</th>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Time (Months)</th>
-                                                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">Action</th>
+                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Code</th>
+                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Title</th>
+                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Fine</th>
+                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Time (Months)</th>
+                                                    <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody>

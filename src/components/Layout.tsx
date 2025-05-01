@@ -292,15 +292,16 @@ const Layout = ({ children }: { children: ReactNode }) => {
         {/* Use main tag and apply dynamic margin */}
         <main className={cn(
             "flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
-            // Removed ml-16/ml-64, using pl-16/pl-64 from example
-            isCollapsed ? "pl-16" : "pl-64" // Dynamic padding based on sidebar state
+            // Use responsive padding: 0 on mobile, adjust based on collapsed state on md+ screens
+            "pl-0 md:pl-16", // Base padding for mobile, default collapsed padding for md+
+            !isCollapsed && "md:pl-64" // Override padding when expanded on md+
         )}>
            {/* Header */}
-           <header className="h-16 border-b border-border flex items-center justify-between px-6 flex-shrink-0 bg-[#0a0a0a]"> {/* Changed background color */}
+           <header className="h-16 border-b border-border flex items-center justify-between px-4 sm:px-6 flex-shrink-0 bg-[#0a0a0a]"> {/* Adjusted padding */}
              {/* Left Spacer (optional, if clock isn't perfectly centered otherwise) */}
-             <div className="w-16"></div> {/* Adjust width as needed */}
+             <div className="w-16 hidden md:block"></div> {/* Hide spacer on mobile */}
              {/* Right side - User Info and Avatar/Profile Button */}
-             <div className="flex items-center gap-3"> {/* Increased gap */}
+             <div className="flex items-center gap-2 sm:gap-3"> {/* Adjusted gap */}
                 {currentUser && (
                     <>
                         {/* User Rank and Name */}
