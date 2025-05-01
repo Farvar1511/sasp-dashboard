@@ -289,19 +289,19 @@ const Layout = ({ children }: { children: ReactNode }) => {
         />
 
         {/* Main Content Area */}
-        {/* Use main tag and apply dynamic margin */}
+        {/* Adjust padding-left classes */}
         <main className={cn(
             "flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
-            // Use responsive padding: 0 on mobile, adjust based on collapsed state on md+ screens
-            "pl-0 md:pl-16", // Base padding for mobile, default collapsed padding for md+
-            !isCollapsed && "md:pl-64" // Override padding when expanded on md+
+            // Apply base padding for collapsed sidebar width (w-20 = 5rem) on ALL screen sizes
+            "pl-20",
+            // On medium screens and up, override padding ONLY when expanded (w-64 = 16rem)
+            !isCollapsed && "md:pl-64"
         )}>
            {/* Header */}
-           <header className="h-16 border-b border-border flex items-center justify-between px-4 sm:px-6 flex-shrink-0 bg-[#0a0a0a]"> {/* Adjusted padding */}
-             {/* Left Spacer (optional, if clock isn't perfectly centered otherwise) */}
-             <div className="w-16 hidden md:block"></div> {/* Hide spacer on mobile */}
+           <header className="h-16 border-b border-border flex items-center justify-between px-4 sm:px-6 flex-shrink-0 bg-[#0a0a0a]">
              {/* Right side - User Info and Avatar/Profile Button */}
-             <div className="flex items-center gap-2 sm:gap-3"> {/* Adjusted gap */}
+             {/* Add ml-auto to push the right side content to the right */}
+             <div className="flex items-center gap-2 sm:gap-3 ml-auto"> {/* Added ml-auto */}
                 {currentUser && (
                     <>
                         {/* User Rank and Name */}
