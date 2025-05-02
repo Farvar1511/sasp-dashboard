@@ -617,16 +617,25 @@ export const convertToTimestampOrNull = (
     return null;
 };
 
-export function formatDateToMMDDYY(dateInput: string | Date | null | undefined): string {
+/**
+ * Formats a date input (string, Date, or Timestamp) into MM/DD/YY format.
+ * Returns "N/A" for invalid or null inputs.
+ * @param dateInput The date value to format (string, Date, Timestamp, null, or undefined).
+ * @returns A string in MM/DD/YY format or "N/A".
+ */
+export function formatDateToMMDDYY(dateInput: string | Date | Timestamp | null | undefined): string {
   if (!dateInput) return "N/A";
 
   try {
-    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
-    if (isNaN(date.getTime())) return "N/A";
+    // Convert Timestamp to Date if necessary
+    const date = dateInput instanceof Timestamp ? dateInput.toDate() : new Date(dateInput);
 
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const day = date.getDate().toString().padStart(2, "0");
-    const year = date.getFullYear().toString().slice(-2);
+    if (isNaN(date.getTime())) return "N/A"; // Check if the resulting date is valid
+
+    // Use UTC methods to avoid timezone shifts affecting the date part
+    const month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+    const day = date.getUTCDate().toString().padStart(2, "0");
+    const year = date.getUTCFullYear().toString().slice(-2);
 
     return `${month}/${day}/${year}`;
   } catch (error) {

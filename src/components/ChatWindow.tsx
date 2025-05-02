@@ -13,7 +13,7 @@ import { Card, CardHeader, CardContent, CardFooter } from './ui/card';
 import { Timestamp, FieldValue } from 'firebase/firestore';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { formatTimestampDateTime, formatDateSeparator, formatTimestampTimeOnly, formatTimestampDateOnly } from '../utils/timeHelpers';
+import { formatDateSeparator, formatTimestampDateOnly, formatTimestampTimeOnly } from '../utils/timeHelpers';
 
 export interface ChatWindowProps {
   chatTarget: User | ChatGroup | null;
@@ -25,11 +25,11 @@ export interface ChatWindowProps {
   isSending: boolean;
   currentUser: User | null;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
-  onClose?: () => void; // Make onClose optional
+  onClose?: () => void;
   fontSizePercent?: number;
-  isEmbedded?: boolean; // Add isEmbedded prop
-  className?: string; // Add className prop
-  allUsers?: User[]; // Add allUsers prop
+  isEmbedded?: boolean;
+  className?: string;
+  allUsers?: User[];
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -42,22 +42,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isSending,
   currentUser,
   inputRef,
-  onClose, // Destructure onClose
+  onClose,
   fontSizePercent = 100,
   isEmbedded = false,
   className,
-  allUsers = [], // Destructure allUsers with default
+  allUsers = [],
 }) => {
-  // Get isAtBottom and scrollToBottomAndEnableAutoScroll
-  const { scrollRef, scrollToBottom, autoScrollEnabled, isAtBottom, scrollToBottomAndEnableAutoScroll } = useAutoScroll({
-    content: messages.length,
-    smooth: true,
-    offset: 50,
-  });
+  const { scrollRef, scrollToBottom, autoScrollEnabled, isAtBottom, scrollToBottomAndEnableAutoScroll } =
+    useAutoScroll({
+      content: messages.length,
+      smooth: true,
+      offset: 50,
+    });
 
   const prevMessagesLengthRef = useRef(messages.length);
   const initialScrollDoneRef = useRef(false);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null); // State for clicked message
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isLoading) {
@@ -65,55 +65,37 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       prevMessagesLengthRef.current = 0;
       return;
     }
-
     if (messages.length > 0) {
       const isInitialLoad = !initialScrollDoneRef.current || prevMessagesLengthRef.current === 0;
-      const shouldScroll = autoScrollEnabled || isInitialLoad; // Scroll if auto-scroll is enabled OR it's the initial load
-
-      if (shouldScroll) { // Check if scrolling should happen
-        const timer = setTimeout(() => {
+      const shouldScroll = autoScrollEnabled || isInitialLoad;
+      if (shouldScroll) {
+        const t = setTimeout(() => {
           scrollToBottom();
-          if (isInitialLoad) {
-            initialScrollDoneRef.current = true;
-          }
-        }, 50); // Keep delay for rendering
-
-        prevMessagesLengthRef.current = messages.length; // Update ref only if scrolled
-
-        return () => clearTimeout(timer);
+          if (isInitialLoad) initialScrollDoneRef.current = true;
+        }, 50);
+        prevMessagesLengthRef.current = messages.length;
+        return () => clearTimeout(t);
       } else {
-        // If not scrolling automatically, still update the ref to prevent future initial load scrolls
         prevMessagesLengthRef.current = messages.length;
       }
-
     } else {
       initialScrollDoneRef.current = false;
       prevMessagesLengthRef.current = 0;
     }
-    // Add autoScrollEnabled to dependency array
   }, [messages.length, isLoading, scrollToBottom, autoScrollEnabled]);
 
-
-  // --- Refocus Logic ---
   const prevIsSendingRef = useRef(isSending);
-
   useEffect(() => {
     if (prevIsSendingRef.current && !isSending && newMessage === '') {
-      requestAnimationFrame(() => {
-        inputRef?.current?.focus();
-      });
+      requestAnimationFrame(() => inputRef?.current?.focus());
     }
     prevIsSendingRef.current = isSending;
   }, [isSending, newMessage, inputRef]);
-  // --- End Refocus Logic ---
-
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isSending && newMessage.trim()) {
-        onSendMessage();
-      }
+      if (!isSending && newMessage.trim()) onSendMessage();
     }
   };
 
@@ -137,256 +119,203 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }, [chatTarget]);
 
   const getParticipantName = (cid: string): string => {
-      const user = allUsers.find(u => u.cid === cid);
-      if (user) {
-          const nameParts = (user.name ?? '').split(' ');
-          const firstNameInitial = nameParts[0]?.[0] ?? '';
-          const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-          if (firstNameInitial && lastName) {
-              return `${firstNameInitial}. ${lastName}`;
-          }
-          return user.name ?? 'Unknown'; // Fallback to full name or 'Unknown' if undefined
-      }
-      return `Unknown (${cid.substring(0, 4)}...)`; // Fallback if user not found
+    const user = allUsers.find(u => u.cid === cid);
+    if (user) {
+      const parts = (user.name ?? '').split(' ');
+      const initial = parts[0]?.[0] ?? '';
+      const last = parts.length > 1 ? parts.pop()! : '';
+      return initial && last ? `${initial}. ${last}` : user.name ?? 'Unknown';
+    }
+    return `Unknown (${cid.slice(0,4)}...)`;
   };
-
 
   return (
     <TooltipProvider delayDuration={100}>
       <Card className={cn(
-          "relative w-full h-full flex flex-col overflow-hidden", // Added relative
-          // If embedded, ensure height is controlled by parent
-          isEmbedded ? "shadow-none border-none bg-transparent h-full" : "shadow-lg border border-border rounded-lg bg-card",
-          className
+        "relative w-full h-full flex flex-col overflow-hidden",
+        isEmbedded ? "shadow-none border-none bg-transparent h-full" : "shadow-lg border border-border rounded-lg bg-card",
+        className
       )}>
         {/* Header */}
         <CardHeader className={cn(
-            "flex flex-row items-center justify-between px-4 py-3 border-b border-border bg-muted/50 flex-shrink-0",
-            isEmbedded && "bg-black/80" // Match parent header style if embedded
+          "flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50 flex-shrink-0",
+          isEmbedded && "bg-black/80"
         )}>
           <div className="flex items-center gap-3">
-            {/* Back button uses onClose - CRITICAL for mobile navigation */}
             {onClose && (
-               <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-foreground -ml-2">
-                  <ArrowLeft className="h-5 w-5" />
-                  <span className="sr-only">Back</span>
-               </Button>
+              <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-foreground -ml-2">
+                <ArrowLeft className="h-5 w-5"/><span className="sr-only">Back</span>
+              </Button>
             )}
             <Avatar className="h-9 w-9 border border-border">
-              {headerInfo.avatarUrl ? (
-                <AvatarImage src={headerInfo.avatarUrl} alt={headerInfo.name} />
-              ) : (
-                <AvatarFallback>{headerInfo.avatarFallback}</AvatarFallback>
-              )}
+              {headerInfo.avatarUrl
+                ? <AvatarImage src={headerInfo.avatarUrl} alt={headerInfo.name}/>
+                : <AvatarFallback>{headerInfo.avatarFallback}</AvatarFallback>
+              }
             </Avatar>
             <div className="flex flex-col">
               <span className="font-semibold text-base text-foreground truncate">{headerInfo.name}</span>
-               {/* Participant Tooltip for Groups */}
-               {headerInfo.groupParticipants.length > 0 && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="text-xs text-muted-foreground cursor-default">
-                        {headerInfo.groupParticipants.length} participant{headerInfo.groupParticipants.length !== 1 ? 's' : ''}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" align="start">
-                      <ScrollArea className="max-h-40 w-48">
-                        <div className="p-2 space-y-1">
-                          {headerInfo.groupParticipants.map(cid => (
-                            <div key={cid} className="text-xs">{getParticipantName(cid)}</div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </TooltipContent>
-                  </Tooltip>
-               )}
+              {headerInfo.groupParticipants.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground cursor-default">
+                      {headerInfo.groupParticipants.length} participant{headerInfo.groupParticipants.length !== 1 && 's'}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="start">
+                    <ScrollArea className="max-h-40 w-48">
+                      <div className="p-2 space-y-1">
+                        {headerInfo.groupParticipants.map(cid => (
+                          <div key={cid} className="text-xs">{getParticipantName(cid)}</div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           </div>
-          {/* Close button uses onClose - Only show if NOT embedded (or handled by parent) */}
-          {onClose && !isEmbedded && ( // Hide if embedded (parent handles close)
+          {onClose && !isEmbedded && (
             <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-foreground -mr-2">
-              <X className="h-5 w-5" />
-              <span className="sr-only">Close chat</span>
+              <X className="h-5 w-5"/><span className="sr-only">Close chat</span>
             </Button>
           )}
         </CardHeader>
 
         {/* Messages Area */}
-        <CardContent
-          ref={scrollRef}
-          className={cn(
-              "flex flex-col flex-1 p-4 gap-4 min-h-0 chat-scroll-area custom-scrollbar overflow-y-auto",
-              isEmbedded ? "bg-transparent" : "bg-background" // Adjust background if embedded
-          )}
-        >
-          {isLoading ? (
-            // Center loading spinner (keep flex-grow here)
-            <div className="flex justify-center items-center flex-grow">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : messages.length === 0 ? (
-               // Center "No messages" text (keep flex-grow here)
-               <div className="flex justify-center items-center flex-grow">
+        <CardContent className="relative flex-1 p-0">
+          {/* SCROLLABLE LAYER */}
+          <div ref={scrollRef} className="absolute inset-0 overflow-y-auto custom-scrollbar">
+            {/* ALIGN LAYER */}
+            <div className="flex flex-col p-4 min-h-full justify-end">
+              {isLoading ? (
+                <div className="flex justify-center items-center flex-grow">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary"/>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex justify-center items-center flex-grow">
                   <p className="text-muted-foreground italic">No messages yet.</p>
-               </div>
-          ) : (
-            // Use React.Fragment for mapping without extra div
-            <React.Fragment>
-              {/* Keep Spacer div BEFORE messages */}
-              <div className="flex-grow" />
-              {/* Messages mapping with Date Separator */}
-              {messages.map((message, index) => {
-                const isSent = message.sender === "me";
-                const senderName = message.name || 'Unknown User';
-                const showSenderName = !isSent && chatTarget && 'groupName' in chatTarget;
-                const messageTimestamp = message.timestamp instanceof Timestamp ? message.timestamp : null;
-                const fallbackUser: User = {
+                </div>
+              ) : (
+                messages.map((message, index) => {
+                  const isSent = message.sender === "me";
+                  const senderName = message.name || 'Unknown User';
+                  const showSenderName = !isSent && chatTarget && 'groupName' in chatTarget;
+                  const messageTimestamp = message.timestamp instanceof Timestamp ? message.timestamp : null;
+                  const fallbackUser: User = {
                     id: message.uid || message.id || 'unknown',
                     name: senderName,
-                    email: '', // Dummy
-                    cid: message.uid || '', // Dummy
-                    uid: message.uid || 'unknown'
-                };
+                    email: '',
+                    cid: message.uid || '',
+                    uid: message.uid || 'unknown',
+                  };
 
-                // --- Date Separator Logic ---
-                let dateSeparatorElement: React.ReactNode = null;
-                const currentMessageDate = messageTimestamp ? messageTimestamp.toDate() : null;
-                const previousMessageTimestamp = index > 0 ? messages[index - 1].timestamp : null;
-                const previousMessageDate = previousMessageTimestamp instanceof Timestamp ? previousMessageTimestamp.toDate() : null;
-
-                // Check if we need a separator:
-                // 1. It's the first message.
-                // 2. The current message's date is different from the previous one.
-                if (currentMessageDate) {
-                  const currentDayStart = new Date(currentMessageDate.getFullYear(), currentMessageDate.getMonth(), currentMessageDate.getDate()).getTime();
-                  const previousDayStart = previousMessageDate ? new Date(previousMessageDate.getFullYear(), previousMessageDate.getMonth(), previousMessageDate.getDate()).getTime() : null;
-
-                  if (index === 0 || (previousDayStart !== null && currentDayStart !== previousDayStart)) {
-                    const formattedDate = formatDateSeparator(currentMessageDate);
-                    if (formattedDate) {
-                      dateSeparatorElement = (
-                        <div className="flex items-center justify-center my-4" aria-hidden="true">
-                          <span className="px-3 py-1 bg-muted/80 text-muted-foreground text-xs font-medium rounded-full shadow-sm backdrop-blur-sm">
-                            {formattedDate}
-                          </span>
-                        </div>
-                      );
+                  // Date separator
+                  let dateSeparatorElement: React.ReactNode = null;
+                  const curDate = messageTimestamp?.toDate();
+                  const prevTs = index > 0 ? messages[index - 1].timestamp : null;
+                  const prevDate = prevTs instanceof Timestamp ? prevTs.toDate() : null;
+                  if (curDate) {
+                    const cd = new Date(curDate.getFullYear(), curDate.getMonth(), curDate.getDate()).getTime();
+                    const pd = prevDate && new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate()).getTime();
+                    if (index === 0 || pd !== undefined && cd !== pd) {
+                      const label = formatDateSeparator(curDate);
+                      if (label) {
+                        dateSeparatorElement = (
+                          <div className="flex items-center justify-center my-4" aria-hidden="true">
+                            <span className="px-3 py-1 bg-muted/80 text-muted-foreground text-xs font-medium rounded-full shadow-sm backdrop-blur-sm">
+                              {label}
+                            </span>
+                          </div>
+                        );
+                      }
                     }
                   }
-                }
-                // --- End Date Separator Logic ---
 
-                return (
-                  // Use React.Fragment to group separator and message
-                  <React.Fragment key={message.id}>
-                    {dateSeparatorElement}
-                    <div
-                      className={cn(
-                        "flex items-end gap-2",
-                        // Add margin top to space messages slightly, especially after a separator
-                        "mt-2", // Adjust as needed
-                        isSent ? "justify-end" : "justify-start"
-                      )}
-                    >
-                      {/* Avatar for received messages */}
-                      {!isSent && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                             <Avatar className="h-7 w-7 border border-border flex-shrink-0 cursor-default">
-                               <AvatarImage src={message.avatarUrl} />
-                               <AvatarFallback>{getAvatarFallback(fallbackUser)}</AvatarFallback>
-                             </Avatar>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                             <p>{senderName}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                      {/* Message Bubble - Add onClick here */}
-                      <div
-                        className={cn(
-                          "rounded-lg px-3 py-2 shadow-sm break-words cursor-pointer", // Add cursor-pointer
-                          // Responsive max-width
-                          "max-w-[85%] sm:max-w-[75%]",
-                          isSent
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground"
+                  return (
+                    <React.Fragment key={message.id}>
+                      {dateSeparatorElement}
+                      <div className={cn("flex items-end gap-2 mt-2", isSent ? "justify-end" : "justify-start")}>
+                        {!isSent && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Avatar className="h-7 w-7 border border-border flex-shrink-0 cursor-default">
+                                <AvatarImage src={message.avatarUrl}/>
+                                <AvatarFallback>{getAvatarFallback(fallbackUser)}</AvatarFallback>
+                              </Avatar>
+                            </TooltipTrigger>
+                            <TooltipContent><p>{senderName}</p></TooltipContent>
+                          </Tooltip>
                         )}
-                        onClick={() => setSelectedMessageId(prevId => prevId === message.id ? null : message.id)} // Toggle timestamp visibility
-                      >
-                        {showSenderName && (
-                          <div className="text-xs font-semibold mb-1 opacity-80">{senderName}</div>
-                        )}
-                        {message.type === 'image' ? (
-                          <img
-                             src={message.content}
-                             alt="Sent image"
-                             className="rounded-md max-w-xs max-h-60 object-contain my-1 cursor-pointer"
-                             onClick={() => window.open(message.content, '_blank')}
-                          />
-                        ) : (
-                          <div
-                            className="text-sm whitespace-pre-wrap"
-                            style={{ fontSize: `${fontSizePercent}%` }}
-                          >
-                            {message.content}
-                          </div>
-                        )}
-                        {/* Timestamp display: Always show time, conditionally show date */}
-                        <div className="text-xs opacity-70 text-right mt-1 transition-opacity duration-200">
-                          {/* Conditionally render date */}
-                          {selectedMessageId === message.id && messageTimestamp && (
-                            <span className="mr-1">{formatTimestampDateOnly(messageTimestamp)},</span>
+                        <div
+                          className={cn(
+                            "rounded-lg px-3 py-2 shadow-sm break-words cursor-pointer",
+                            "max-w-[85%] sm:max-w-[75%]",
+                            isSent ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
                           )}
-                          {/* Always render time */}
-                          <span>{messageTimestamp ? formatTimestampTimeOnly(messageTimestamp) : 'Sending...'}</span>
+                          onClick={() => setSelectedMessageId(id => id === message.id ? null : message.id)}
+                        >
+                          {showSenderName && <div className="text-xs font-semibold mb-1 opacity-80">{senderName}</div>}
+                          {message.type === 'image' ? (
+                            <img
+                              src={message.content}
+                              alt="Sent image"
+                              className="rounded-md max-w-xs max-h-60 object-contain my-1 cursor-pointer"
+                              onClick={() => window.open(message.content, '_blank')}
+                            />
+                          ) : (
+                            <div className="text-sm whitespace-pre-wrap" style={{ fontSize: `${fontSizePercent}%` }}>
+                              {message.content}
+                            </div>
+                          )}
+                          <div className="text-xs opacity-70 text-right mt-1">
+                            {selectedMessageId === message.id && messageTimestamp && (
+                              <span className="mr-1">{formatTimestampDateOnly(messageTimestamp)},</span>
+                            )}
+                            <span>{messageTimestamp ? formatTimestampTimeOnly(messageTimestamp) : 'Sending...'}</span>
+                          </div>
                         </div>
+                        {isSent && currentUser && (
+                          <Avatar className="h-7 w-7 border border-border flex-shrink-0">
+                            <AvatarImage src={currentUser.photoURL ?? undefined}/>
+                            <AvatarFallback>{getAvatarFallback(currentUser)}</AvatarFallback>
+                          </Avatar>
+                        )}
                       </div>
-                      {/* Avatar for sent messages */}
-                      {isSent && currentUser && (
-                        <Avatar className="h-7 w-7 border border-border flex-shrink-0">
-                          <AvatarImage src={currentUser.photoURL ?? undefined} />
-                          <AvatarFallback>{getAvatarFallback(currentUser)}</AvatarFallback>
-                        </Avatar>
-                      )}
-                    </div>
-                  </React.Fragment>
-                );
-              })}
-            </React.Fragment>
-          )}
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </CardContent>
 
-        {/* Scroll to Bottom Button */}
+        {/* Scroll-to-bottom */}
         {!isAtBottom && (
           <Button
             onClick={scrollToBottomAndEnableAutoScroll}
             size="icon"
             variant="outline"
-            // Adjust positioning: Place it above the footer
-            // Use bottom-16 or bottom-20 depending on footer height
             className="absolute bottom-20 left-1/2 transform -translate-x-1/2 inline-flex rounded-full shadow-md bg-background/80 backdrop-blur-sm hover:bg-muted/80 z-10"
             aria-label="Scroll to bottom"
           >
-            <ArrowDown className="h-4 w-4" />
+            <ArrowDown className="h-4 w-4"/>
           </Button>
         )}
 
-        {/* Input Area */}
+        {/* Input */}
         <CardFooter className={cn(
-            "flex items-end gap-3 border-t border-border p-3 flex-shrink-0",
-            isEmbedded ? "bg-black/80" : "bg-muted/50" // Match parent style if embedded
+          "flex items-end gap-3 border-t border-border p-3 flex-shrink-0",
+          isEmbedded ? "bg-black/80" : "bg-muted/50"
         )}>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (!isSending && newMessage.trim()) {
-              onSendMessage();
-            }
-          }} className="flex w-full items-end gap-2">
+          <form
+            onSubmit={e => { e.preventDefault(); if (!isSending && newMessage.trim()) onSendMessage(); }}
+            className="flex w-full items-end gap-2"
+          >
             <Textarea
               ref={inputRef}
               value={newMessage}
-              onChange={(e) => onNewMessageChange(e.target.value)}
+              onChange={e => onNewMessageChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}
@@ -399,11 +328,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               disabled={isSending || !newMessage.trim() || isLoading || !chatTarget}
               className="flex-shrink-0 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 h-10 w-10"
             >
-              {isSending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <SendHorizontal className="h-4 w-4" />
-              )}
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin"/> : <SendHorizontal className="h-4 w-4"/>}
             </Button>
           </form>
         </CardFooter>

@@ -344,10 +344,26 @@ const SASPRoster: React.FC = () => {
 
       const updatedData = {
         ...editedRowData,
-        joinDate: formatDateToMMDDYY(editedRowData.joinDate),
-        lastPromotionDate: formatDateToMMDDYY(editedRowData.lastPromotionDate),
-        loaStartDate: formatDateToMMDDYY(editedRowData.loaStartDate),
-        loaEndDate: formatDateToMMDDYY(editedRowData.loaEndDate),
+        joinDate: formatDateToMMDDYY(
+          editedRowData.joinDate instanceof Timestamp
+            ? editedRowData.joinDate.toDate()
+            : editedRowData.joinDate
+        ),
+        lastPromotionDate: formatDateToMMDDYY(
+          editedRowData.lastPromotionDate instanceof Timestamp
+            ? editedRowData.lastPromotionDate.toDate()
+            : editedRowData.lastPromotionDate
+        ),
+        loaStartDate: formatDateToMMDDYY(
+          editedRowData.loaStartDate instanceof Timestamp
+            ? editedRowData.loaStartDate.toDate()
+            : editedRowData.loaStartDate
+        ),
+        loaEndDate: formatDateToMMDDYY(
+          editedRowData.loaEndDate instanceof Timestamp
+            ? editedRowData.loaEndDate.toDate()
+            : editedRowData.loaEndDate
+        ),
         certifications: updatedCertifications, // Use the updated certifications map
       };
 
@@ -728,7 +744,11 @@ const SASPRoster: React.FC = () => {
                                   className="input w-full bg-gray-700 border-gray-600 text-white"
                                 />
                               ) : (
-                                formatDateToMMDDYY(u.joinDate) || "-"
+                                formatDateToMMDDYY(
+                                  u.joinDate instanceof Timestamp
+                                    ? u.joinDate.toDate()
+                                    : u.joinDate
+                                ) || "-"
                               )}
                             </td>
                             <td className="p-2 border border-[#f3c700]">
@@ -750,7 +770,11 @@ const SASPRoster: React.FC = () => {
                                   className="input w-full bg-gray-700 border-gray-600 text-white"
                                 />
                               ) : (
-                                formatDateToMMDDYY(u.lastPromotionDate) || "-"
+                                formatDateToMMDDYY(
+                                  u.lastPromotionDate instanceof Timestamp
+                                    ? u.lastPromotionDate.toDate()
+                                    : u.lastPromotionDate
+                                ) || "-"
                               )}
                             </td>
                             <td className="p-2 border border-[#f3c700]">
@@ -802,7 +826,11 @@ const SASPRoster: React.FC = () => {
                                   className="input w-full bg-gray-700 border-gray-600 text-white"
                                 />
                               ) : (
-                                formatDateToMMDDYY(u.loaStartDate) || "-"
+                                formatDateToMMDDYY(
+                                  u.loaStartDate instanceof Timestamp
+                                    ? u.loaStartDate.toDate()
+                                    : u.loaStartDate
+                                ) || "-"
                               )}
                             </td>
                             <td className="p-2 border border-[#f3c700]">
@@ -824,7 +852,11 @@ const SASPRoster: React.FC = () => {
                                   className="input w-full bg-gray-700 border-gray-600 text-white"
                                 />
                               ) : (
-                                formatDateToMMDDYY(u.loaEndDate) || "-"
+                                formatDateToMMDDYY(
+                                  u.loaEndDate instanceof Timestamp
+                                    ? u.loaEndDate.toDate()
+                                    : u.loaEndDate
+                                ) || "-"
                               )}
                             </td>
                             {canEditRoster && (

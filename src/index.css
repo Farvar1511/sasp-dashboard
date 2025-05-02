@@ -146,10 +146,8 @@
 }
 
 @layer base {
-  /* ... existing base styles ... */
 
   body {
-    /* Apply page-background here - REMOVE THIS LINE */
     @apply font-sans bg-background text-foreground min-h-screen; /* Removed page-background */
   }
 
@@ -157,7 +155,6 @@
 }
 
 @layer components {
-  /* ... existing components styles ... */
 }
 
 @layer utilities {
@@ -179,22 +176,18 @@
     scrollbar-width: none;
   }
 
-  /* --- Style the default shadcn/ui ScrollArea thumb --- */
   [data-slot="scroll-area-thumb"] {
     @apply bg-muted-foreground; /* Use a more visible color */
   }
-  /* Optional: Add hover effect */
   [data-slot="scroll-area-thumb"]:hover {
      @apply bg-primary; /* Example: Use primary color on hover */
   }
 
-  /* --- Chat Window Scroll Area Height Constraint --- */
   .chat-scroll-area {
     max-height: 60vh; /* Keep adjusted height */
     overflow-y: auto; /* Keep overflow */
   }
 
-  /* --- Consolidated and Corrected ProseMirror Styles --- */
   .ProseMirror {
     outline: none;
     white-space: pre-wrap;
