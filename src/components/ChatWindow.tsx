@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react'; // Import useState
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -10,9 +10,10 @@ import { ChatGroup } from '../types/ChatGroup';
 import { formatUserName, getAvatarFallback } from './Chat/utils';
 import { useAutoScroll } from './ui/chat/hooks/useAutoScroll';
 import { Card, CardHeader, CardContent, CardFooter } from './ui/card';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, FieldValue } from 'firebase/firestore';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { formatTimestampDateTime, formatDateSeparator, formatTimestampTimeOnly, formatTimestampDateOnly } from '../utils/timeHelpers';
 
 export interface ChatWindowProps {
   chatTarget: User | ChatGroup | null;
@@ -56,6 +57,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const prevMessagesLengthRef = useRef(messages.length);
   const initialScrollDoneRef = useRef(false);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null); // State for clicked message
 
   useEffect(() => {
     if (isLoading) {
@@ -133,13 +135,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       };
     }
   }, [chatTarget]);
-
-  const formatTime = (timestamp: Timestamp | any): string => {
-    if (timestamp instanceof Timestamp) {
-      return timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-    return '...'; // Indicate loading or invalid time
-  };
 
   const getParticipantName = (cid: string): string => {
       const user = allUsers.find(u => u.cid === cid);
@@ -224,39 +219,72 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               isEmbedded ? "bg-transparent" : "bg-background" // Adjust background if embedded
           )}
         >
-          <div className="p-4 flex flex-col gap-4">
-            {isLoading ? (
-              // Center loading spinner (keep flex-grow here)
-              <div className="flex justify-center items-center flex-grow">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : messages.length === 0 ? (
-                 // Center "No messages" text (keep flex-grow here)
-                 <div className="flex justify-center items-center flex-grow">
-                    <p className="text-muted-foreground italic">No messages yet.</p>
-                 </div>
-            ) : (
-              <>
-                {/* Keep Spacer div BEFORE messages */}
-                <div className="flex-grow" />
-                {/* Messages mapping */}
-                {messages.map((message) => {
-                  const isSent = message.sender === "me";
-                  const senderName = message.name || 'Unknown User';
-                  const showSenderName = !isSent && chatTarget && 'groupName' in chatTarget;
-                  const fallbackUser: User = {
-                      id: message.uid || message.id || 'unknown',
-                      name: senderName,
-                      email: '', // Dummy
-                      cid: message.uid || '', // Dummy
-                      uid: message.uid || 'unknown'
-                  };
+          {isLoading ? (
+            // Center loading spinner (keep flex-grow here)
+            <div className="flex justify-center items-center flex-grow">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : messages.length === 0 ? (
+               // Center "No messages" text (keep flex-grow here)
+               <div className="flex justify-center items-center flex-grow">
+                  <p className="text-muted-foreground italic">No messages yet.</p>
+               </div>
+          ) : (
+            // Use React.Fragment for mapping without extra div
+            <React.Fragment>
+              {/* Keep Spacer div BEFORE messages */}
+              <div className="flex-grow" />
+              {/* Messages mapping with Date Separator */}
+              {messages.map((message, index) => {
+                const isSent = message.sender === "me";
+                const senderName = message.name || 'Unknown User';
+                const showSenderName = !isSent && chatTarget && 'groupName' in chatTarget;
+                const messageTimestamp = message.timestamp instanceof Timestamp ? message.timestamp : null;
+                const fallbackUser: User = {
+                    id: message.uid || message.id || 'unknown',
+                    name: senderName,
+                    email: '', // Dummy
+                    cid: message.uid || '', // Dummy
+                    uid: message.uid || 'unknown'
+                };
 
-                  return (
+                // --- Date Separator Logic ---
+                let dateSeparatorElement: React.ReactNode = null;
+                const currentMessageDate = messageTimestamp ? messageTimestamp.toDate() : null;
+                const previousMessageTimestamp = index > 0 ? messages[index - 1].timestamp : null;
+                const previousMessageDate = previousMessageTimestamp instanceof Timestamp ? previousMessageTimestamp.toDate() : null;
+
+                // Check if we need a separator:
+                // 1. It's the first message.
+                // 2. The current message's date is different from the previous one.
+                if (currentMessageDate) {
+                  const currentDayStart = new Date(currentMessageDate.getFullYear(), currentMessageDate.getMonth(), currentMessageDate.getDate()).getTime();
+                  const previousDayStart = previousMessageDate ? new Date(previousMessageDate.getFullYear(), previousMessageDate.getMonth(), previousMessageDate.getDate()).getTime() : null;
+
+                  if (index === 0 || (previousDayStart !== null && currentDayStart !== previousDayStart)) {
+                    const formattedDate = formatDateSeparator(currentMessageDate);
+                    if (formattedDate) {
+                      dateSeparatorElement = (
+                        <div className="flex items-center justify-center my-4" aria-hidden="true">
+                          <span className="px-3 py-1 bg-muted/80 text-muted-foreground text-xs font-medium rounded-full shadow-sm backdrop-blur-sm">
+                            {formattedDate}
+                          </span>
+                        </div>
+                      );
+                    }
+                  }
+                }
+                // --- End Date Separator Logic ---
+
+                return (
+                  // Use React.Fragment to group separator and message
+                  <React.Fragment key={message.id}>
+                    {dateSeparatorElement}
                     <div
-                      key={message.id}
                       className={cn(
                         "flex items-end gap-2",
+                        // Add margin top to space messages slightly, especially after a separator
+                        "mt-2", // Adjust as needed
                         isSent ? "justify-end" : "justify-start"
                       )}
                     >
@@ -274,16 +302,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                           </TooltipContent>
                         </Tooltip>
                       )}
-                      {/* Message Bubble */}
+                      {/* Message Bubble - Add onClick here */}
                       <div
                         className={cn(
-                          "rounded-lg px-3 py-2 shadow-sm break-words",
+                          "rounded-lg px-3 py-2 shadow-sm break-words cursor-pointer", // Add cursor-pointer
                           // Responsive max-width
                           "max-w-[85%] sm:max-w-[75%]",
                           isSent
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-foreground"
                         )}
+                        onClick={() => setSelectedMessageId(prevId => prevId === message.id ? null : message.id)} // Toggle timestamp visibility
                       >
                         {showSenderName && (
                           <div className="text-xs font-semibold mb-1 opacity-80">{senderName}</div>
@@ -303,7 +332,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             {message.content}
                           </div>
                         )}
-                        <div className="text-xs opacity-70 text-right mt-1">{formatTime(message.timestamp)}</div>
+                        {/* Timestamp display: Always show time, conditionally show date */}
+                        <div className="text-xs opacity-70 text-right mt-1 transition-opacity duration-200">
+                          {/* Conditionally render date */}
+                          {selectedMessageId === message.id && messageTimestamp && (
+                            <span className="mr-1">{formatTimestampDateOnly(messageTimestamp)},</span>
+                          )}
+                          {/* Always render time */}
+                          <span>{messageTimestamp ? formatTimestampTimeOnly(messageTimestamp) : 'Sending...'}</span>
+                        </div>
                       </div>
                       {/* Avatar for sent messages */}
                       {isSent && currentUser && (
@@ -313,11 +350,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         </Avatar>
                       )}
                     </div>
-                  );
-                })}
-              </>
-            )}
-          </div>
+                  </React.Fragment>
+                );
+              })}
+            </React.Fragment>
+          )}
         </CardContent>
 
         {/* Scroll to Bottom Button */}
