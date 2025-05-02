@@ -47,7 +47,7 @@
   --radius: 0.625rem;
   --background: oklch(0. 0 220.59);
   --foreground: oklch(0.985 0 0); /* White */
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.05 0 0 / 92.77%); /* Updated card background */
   --card-foreground: oklch(0.985 0 0); /* White */
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0); /* White */
@@ -84,7 +84,7 @@
   --border: oklch(1 0 0 / 10%);
   --background: oklch(0.18 0 0);
   --foreground: oklch(0.985 0 0); /* White */
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.05 0 0 / 92.77%); /* Updated card background */
   --card-foreground: oklch(0.985 0 0); /* White */
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0); /* White */
@@ -136,7 +136,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
+  --color-card: var(--card); /* Ensure this uses the updated --card */
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   --radius-sm: calc(var(--radius) - 4px);
@@ -176,6 +176,10 @@
     @apply bg-popover border border-border rounded-md shadow-lg; /* Changed bg-background to bg-popover */
     /* Explicitly set background color using the CSS variable */
     background-color: var(--popover); /* Changed --background to --popover */
+  }
+
+  [data-slot="card-title"] {
+
   }
 }
 
