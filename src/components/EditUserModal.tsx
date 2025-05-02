@@ -181,6 +181,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
   const [disciplineNotes, setDisciplineNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fleetPlates, setFleetPlates] = useState<string[]>([]);
+  const [originalRank, setOriginalRank] = useState(user.rank); // Store original rank
 
   // --- State for inline editing ---
   const [editingTaskEntry, setEditingTaskEntry] = useState<UserTask | null>(null);
@@ -267,6 +268,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
         joinDate: parseMMDDYYToYYYYMMDD(rosterData.joinDate),
         lastPromotionDate: parseMMDDYYToYYYYMMDD(rosterData.lastPromotionDate),
       };
+
+      // Check if rank has changed
+      if (rosterData.rank !== originalRank) {
+        const currentDate = new Date().toISOString().split("T")[0]; // Get current date in YYYY-MM-DD format
+        updateData.lastPromotionDate = currentDate;
+        toast.info(`Rank changed. Last promotion date updated to ${currentDate}.`);
+      }
 
       // Firestore updateDoc handles null values by default (doesn't delete field unless specified)
       await updateDoc(userRef, updateData); // Update Firestore document
@@ -866,7 +874,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
                   onChange={handleInputChange}
                   placeholder="MM/DD/YY"
                   className="input w-full bg-gray-700 border-gray-600 text-white"
+                  // Disable if rank has changed, as it will be auto-set
+                  disabled={formData.rank !== originalRank}
+                  title={formData.rank !== originalRank ? "Auto-updated on rank change" : ""}
                 />
+                {formData.rank !== originalRank && (
+                  <p className="text-xs text-yellow-400 italic mt-1">Will be auto-updated to today's date upon saving.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">

@@ -644,3 +644,72 @@ export function formatDateToMMDDYY(dateInput: string | Date | Timestamp | null |
   }
 }
 
+/**
+ * Calculates the percentage of time remaining for a task with a due date.
+ * Considers an optional start date for the total duration.
+ * Returns a value between 0 and 100.
+ * Returns 100 if no due date is provided or if start date is after due date.
+ * Returns 0 if the due date has passed.
+ */
+export const calculateTimeRemainingPercentage = (
+  startDate: string | null | undefined,
+  dueDate: string | null | undefined
+): number => {
+  if (!dueDate) return 100; // No due date means 100% time remaining
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0); // Normalize current time to start of day
+
+  const due = new Date(dueDate + 'T00:00:00'); // Assume YYYY-MM-DD format
+  if (isNaN(due.getTime())) return 100; // Invalid due date
+  due.setHours(23, 59, 59, 999); // Consider the end of the due day
+
+  const start = startDate ? new Date(startDate + 'T00:00:00') : null; // Assume YYYY-MM-DD format
+  if (start && isNaN(start.getTime())) return 100; // Invalid start date
+
+  const startTime = start ? start.getTime() : now.getTime(); // Use now if no start date
+
+  if (startTime > due.getTime()) return 100; // Start date is after due date
+
+  const totalDuration = due.getTime() - startTime;
+  const timeRemaining = Math.max(0, due.getTime() - now.getTime()); // Don't go below 0
+
+  if (totalDuration <= 0) return now.getTime() > due.getTime() ? 0 : 100; // Avoid division by zero
+
+  const percentage = (timeRemaining / totalDuration) * 100;
+
+  // If due date is past, return 0
+  if (now.getTime() > due.getTime()) {
+      return 0;
+  }
+
+  return Math.min(100, Math.max(0, percentage)); // Clamp between 0 and 100
+};
+
+/**
+ * Gets the appropriate text color class based on time remaining percentage.
+ */
+export const getTaskTimeColorClass = (
+    percentage: number,
+    isPastDue: boolean
+): string => {
+    if (isPastDue) return 'text-red-500'; // Overdue is always red
+    if (percentage <= 25) return 'text-red-500';
+    if (percentage <= 50) return 'text-orange-500';
+    if (percentage <= 75) return 'text-yellow-500';
+    return 'text-gray-300'; // Default color
+};
+
+/**
+ * Checks if a given due date string (YYYY-MM-DD) is past the current date.
+ */
+export const isDueDatePast = (dueDate: string | null | undefined): boolean => {
+    if (!dueDate) return false;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Normalize current time to start of day
+    const due = new Date(dueDate + 'T00:00:00'); // Assume YYYY-MM-DD format
+    if (isNaN(due.getTime())) return false; // Invalid date
+    due.setHours(23, 59, 59, 999); // Consider the end of the due day
+    return now.getTime() > due.getTime();
+};
+

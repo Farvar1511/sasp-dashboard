@@ -118,6 +118,7 @@ const SASPRoster: React.FC = () => {
   const [selectedRank, setSelectedRank] = useState<string>("All");
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editedRowData, setEditedRowData] = useState<Partial<RosterUser>>({});
+  const [originalRankBeforeEdit, setOriginalRankBeforeEdit] = useState<string | null>(null); // State for original rank
 
   // Check if the current user has permission to edit the roster
   const canEditRoster = useMemo(() => {
@@ -298,6 +299,7 @@ const SASPRoster: React.FC = () => {
     }
     setEditingRowId(user.id);
     setEditedRowData(user);
+    setOriginalRankBeforeEdit(user.rank); // Store the original rank
   };
 
   const handleSaveClick = async () => {
@@ -342,6 +344,20 @@ const SASPRoster: React.FC = () => {
 
       console.log("Updated certifications:", updatedCertifications);
 
+      let finalLastPromotionDate: string | null = formatDateToMMDDYY(
+        editedRowData.lastPromotionDate instanceof Timestamp
+          ? editedRowData.lastPromotionDate.toDate()
+          : editedRowData.lastPromotionDate
+      );
+
+      // Check if rank has changed
+      if (editedRowData.rank && editedRowData.rank !== originalRankBeforeEdit) {
+        const currentDate = new Date();
+        const formattedCurrentDate = formatDateToMMDDYY(currentDate); // Format as MM/DD/YY
+        finalLastPromotionDate = formattedCurrentDate;
+        toast.info(`Rank changed. Last promotion date updated to ${formattedCurrentDate}.`);
+      }
+
       const updatedData = {
         ...editedRowData,
         joinDate: formatDateToMMDDYY(
@@ -349,11 +365,7 @@ const SASPRoster: React.FC = () => {
             ? editedRowData.joinDate.toDate()
             : editedRowData.joinDate
         ),
-        lastPromotionDate: formatDateToMMDDYY(
-          editedRowData.lastPromotionDate instanceof Timestamp
-            ? editedRowData.lastPromotionDate.toDate()
-            : editedRowData.lastPromotionDate
-        ),
+        lastPromotionDate: finalLastPromotionDate, // Use the determined date
         loaStartDate: formatDateToMMDDYY(
           editedRowData.loaStartDate instanceof Timestamp
             ? editedRowData.loaStartDate.toDate()
@@ -376,6 +388,7 @@ const SASPRoster: React.FC = () => {
       toast.success(`Roster edit saved for ${editedRowData.name || "current row"}`);
       setEditingRowId(null);
       setEditedRowData({});
+      setOriginalRankBeforeEdit(null); // Clear original rank
       fetchAndMergeRoster(); // Refresh the roster data
     } catch (error) {
       console.error("Error saving user data:", error);
@@ -386,6 +399,7 @@ const SASPRoster: React.FC = () => {
   const handleCancelClick = () => {
     setEditingRowId(null);
     setEditedRowData({});
+    setOriginalRankBeforeEdit(null); // Clear original rank
     toast.info("Edit cancelled."); // Toastify notification for cancel
   };
 
@@ -753,22 +767,27 @@ const SASPRoster: React.FC = () => {
                             </td>
                             <td className="p-2 border border-[#f3c700]">
                               {isEditing ? (
-                                <input
-                                  type="text"
-                                  name="lastPromotionDate"
-                                  value={
-                                    editedRowData.lastPromotionDate instanceof
-                                    Timestamp
-                                      ? editedRowData.lastPromotionDate
-                                          .toDate()
-                                          .toISOString()
-                                          .split("T")[0]
-                                      : editedRowData.lastPromotionDate || ""
-                                  }
-                                  onChange={handleInputChange}
-                                  placeholder="MM/DD/YY"
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
-                                />
+                                <>
+                                  <input
+                                    type="text"
+                                    name="lastPromotionDate"
+                                    value={
+                                      editedRowData.rank && editedRowData.rank !== originalRankBeforeEdit
+                                        ? formatDateToMMDDYY(new Date())
+                                        : editedRowData.lastPromotionDate instanceof Timestamp
+                                          ? editedRowData.lastPromotionDate.toDate().toISOString().split("T")[0]
+                                          : editedRowData.lastPromotionDate || ""
+                                    }
+                                    onChange={handleInputChange}
+                                    placeholder="MM/DD/YY"
+                                    className="input w-full bg-gray-700 border-gray-600 text-white"
+                                    disabled={editedRowData.rank !== originalRankBeforeEdit}
+                                    title={editedRowData.rank !== originalRankBeforeEdit ? "Auto-updated on rank change" : ""}
+                                  />
+                                  {editedRowData.rank !== originalRankBeforeEdit && (
+                                    <p className="text-xs text-yellow-400 italic mt-1">Auto-set to today</p>
+                                  )}
+                                </>
                               ) : (
                                 formatDateToMMDDYY(
                                   u.lastPromotionDate instanceof Timestamp

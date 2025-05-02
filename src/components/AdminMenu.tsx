@@ -4,7 +4,7 @@ import Layout from "./Layout";
 import {
   collection,
   getDocs,
-  writeBatch, 
+  writeBatch,
   query,
   orderBy,
   doc,
@@ -14,25 +14,30 @@ import {
   deleteField,
 } from "firebase/firestore";
 import { db as dbFirestore } from "../firebase";
-import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime, getCurrentDateTimeStrings } from "../utils/timeHelpers";
+import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime, getCurrentDateTimeStrings, calculateTimeRemainingPercentage, getTaskTimeColorClass, isDueDatePast } from "../utils/timeHelpers";
 import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash, FaCheckCircle } from "react-icons/fa";
+import { CalendarIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { RosterUser, DisciplineEntry, NoteEntry, UserTask, FirestoreUserWithDetails } from "../types/User";
 import EditUserModal from "./EditUserModal";
-import AddUserModal from "./AddUserModal"; // Import the new modal
-import EditTaskModal from "./EditTaskModal"; // Import the new task modal
-import UserCardDetailsTabs from "./UserCardDetailsTabs"; // Import the new tabs component
+import AddUserModal from "./AddUserModal";
+import EditTaskModal from "./EditTaskModal";
+import UserCardDetailsTabs from "./UserCardDetailsTabs";
 import { toast } from "react-toastify";
 import ConfirmationModal from "./ConfirmationModal";
 import { where as firestoreWhere, QueryConstraint } from "firebase/firestore";
 import { limit as firestoreLimit } from "firebase/firestore";
-
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Button } from "../components/ui/button";
+import { Calendar } from "../components/ui/calendar";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "../components/ui/accordion"; // Keep for now if used elsewhere, otherwise remove
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../components/ui/popover";
+import { cn } from "../lib/utils";
+import { format } from "date-fns";
 
 export const rankCategories = {
   CADET: "Cadets",
@@ -168,6 +173,31 @@ const formatIssuerName = (rank: string | undefined, name: string | undefined): s
   return `${rankAbbreviation} ${firstInitial}. ${lastName}`;
 };
 
+// Helper function to format the date string for task descriptions
+const formatTaskDateString = (startDate: string | null | undefined, dueDate: string | null | undefined): string => {
+  if (!startDate && !dueDate) {
+    return '';
+  }
+
+  const formatMD = (dateStr: string): string => {
+    // Add time component to avoid potential timezone issues with Date parsing YYYY-MM-DD
+    const date = new Date(dateStr + 'T00:00:00');
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    // GetMonth is 0-indexed, getDate is 1-indexed
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  };
+
+  if (startDate && dueDate) {
+    return ` [ Week of ${formatMD(startDate)} - ${formatMD(dueDate)} ]`;
+  } else if (dueDate) {
+    return ` [ Due: ${formatMD(dueDate)} ]`;
+  } else if (startDate) {
+    // Omitting start date if no due date, as per previous logic
+    return '';
+  }
+  return '';
+};
+
 export default function AdminMenu(): JSX.Element {
   const { user: currentUser } = useAuth(); // Get currentUser
   const location = useLocation();
@@ -179,8 +209,11 @@ export default function AdminMenu(): JSX.Element {
   const [bulkTaskDescription, setBulkTaskDescription] = useState<string>(""); // State for task description
   const [bulkTaskType, setBulkTaskType] = useState<"goal" | "normal">("normal");
   const [bulkTaskGoal, setBulkTaskGoal] = useState<number>(1); // Default goal to 1
+  const [bulkTaskStartDate, setBulkTaskStartDate] = useState<string>(""); // New state for start date
+  const [bulkTaskDueDate, setBulkTaskDueDate] = useState<string>(""); // New state for due date
+  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false); // State for start date popover
+  const [isDueDatePickerOpen, setIsDueDatePickerOpen] = useState(false); // State for due date popover
   const [isAssigning, setIsAssigning] = useState(false);
-  // Update state type to use FirestoreUserWithDetails
   const [editingUser, setEditingUser] = useState<FirestoreUserWithDetails | null>(null);
   const [editingTask, setEditingTask] = useState<(UserTask & { userId: string }) | null>(null); // State for editing task
   const [taskToDelete, setTaskToDelete] = useState<{ userId: string; taskId: string } | null>(null); // State still useful for rendering logic
@@ -263,7 +296,6 @@ export default function AdminMenu(): JSX.Element {
             typeof data.completed === "boolean" &&
             (data.type === "goal" ? typeof data.progress === "number" : true) &&
             (data.type === "goal" ? typeof data.goal === "number" : true)
-            // No need to explicitly check for 'archived' here, just include it if present
           ) {
             return {
               id: taskDoc.id,
@@ -276,6 +308,8 @@ export default function AdminMenu(): JSX.Element {
               completed: data.completed,
               goal: data.goal,
               archived: data.archived ?? false, // Include archived, default to false
+              startDate: data.startDate || null, // Fetch startDate
+              dueDate: data.dueDate || null,     // Fetch dueDate
             } as UserTask; // Cast to local UserTask type
           }
           console.warn("Skipping invalid task data:", data);
@@ -383,9 +417,6 @@ export default function AdminMenu(): JSX.Element {
         try {
           await batch.commit();
           console.log("Successfully cleared expired LOA dates.");
-          // Optionally: Refetch data or update state locally if needed immediately
-          // For simplicity, we'll let the next render cycle use the fetched data (which might be slightly stale regarding LOA)
-          // Or filter the resolvedUsersData locally before setting state:
           resolvedUsersData.forEach(user => {
               if (usersToClearLOA.includes(user.id)) {
                   user.loaStartDate = null;
@@ -453,7 +484,6 @@ export default function AdminMenu(): JSX.Element {
 
 
   const filteredUsersData = useMemo(() => {
-    // Ensure the type used within this function matches the state
     let filtered: FirestoreUserWithDetails[] = [...usersData].sort((a, b) => {
       if (sortBy === "rank") {
         const rankOrder: { [key: string]: number } = {
@@ -480,7 +510,7 @@ export default function AdminMenu(): JSX.Element {
     });
 
     if (!showInactiveUsers) {
-      filtered = filtered.filter(user => user.isActive); // Filter out inactive users
+      filtered = filtered.filter(user => user.isActive);
     }
 
     if (selectedCategory !== "ALL") {
@@ -509,12 +539,12 @@ export default function AdminMenu(): JSX.Element {
 
     if (showOnlyUsersWithCompletedTasks) {
       filtered = filtered.filter(user =>
-        user.tasks?.some(task => task.completed) // Check only for completed, ignore archived status
+        user.tasks?.some(task => task.completed && !task.archived)
       );
     }
 
     return filtered;
-  }, [usersData, sortBy, selectedCategory, searchTerm, showHiddenCards, showOnlyUsersWithCompletedTasks, showInactiveUsers]); // Add showInactiveUsers to dependency array
+  }, [usersData, sortBy, selectedCategory, searchTerm, showHiddenCards, showOnlyUsersWithCompletedTasks, showInactiveUsers]);
 
   const buttonPrimary =
     "px-4 py-2 bg-[#f3c700] text-black font-bold rounded hover:bg-yellow-300 transition-colors duration-200";
@@ -540,10 +570,9 @@ export default function AdminMenu(): JSX.Element {
   };
 
   const handleSave = () => {
-    // Combined save handler for both modals
-    setEditingUser(null); // Close edit modal if open
-    setIsAddModalOpen(false); // Close add modal if open
-    fetchAdminData(); // Refresh the user list
+    setEditingUser(null);
+    setIsAddModalOpen(false);
+    fetchAdminData();
   };
 
   const handleAssignTask = async () => {
@@ -559,22 +588,33 @@ export default function AdminMenu(): JSX.Element {
       toast.error("Goal value must be greater than 0 for goal tasks.");
       return;
     }
+    if (bulkTaskStartDate && bulkTaskDueDate && new Date(bulkTaskStartDate) > new Date(bulkTaskDueDate)) {
+        toast.error("Start date cannot be after the due date.");
+        return;
+    }
 
     setIsAssigning(true);
     const { currentDate, currentTime } = getCurrentDateTimeStrings();
     const batch = writeBatch(dbFirestore);
     const issuerName = currentUser?.displayName || currentUser?.name || "Admin";
 
+    // Format task description with new date format
+    const baseTaskText = bulkTaskDescription.trim();
+    const dateSuffix = formatTaskDateString(bulkTaskStartDate, bulkTaskDueDate);
+    const taskText = baseTaskText + dateSuffix;
+
     selectedUsers.forEach((userId) => {
       const taskRef = doc(collection(dbFirestore, "users", userId, "tasks"));
       const taskData: { [key: string]: any } = {
-        task: bulkTaskDescription.trim(),
+        task: taskText, // Use newly formatted task text
         type: bulkTaskType,
         issuedby: issuerName,
         issueddate: currentDate,
         issuedtime: currentTime,
         completed: false,
         archived: false, // Initialize archived as false
+        startDate: bulkTaskStartDate || null, // Add startDate
+        dueDate: bulkTaskDueDate || null,     // Add dueDate
       };
       if (bulkTaskType === "goal") {
         taskData.goal = bulkTaskGoal;
@@ -589,6 +629,8 @@ export default function AdminMenu(): JSX.Element {
       setBulkTaskDescription(""); // Still reset the description input state
       setBulkTaskType("normal");
       setBulkTaskGoal(1);
+      setBulkTaskStartDate(""); // Reset start date
+      setBulkTaskDueDate("");   // Reset due date
       setSelectedUsers([]);
       setSelectedAssignFilter("SELECT"); // Reset dropdown
       setIsAssignTaskOpen(false); // Optionally close the section
@@ -601,7 +643,6 @@ export default function AdminMenu(): JSX.Element {
     }
   };
 
-  // --- Task Edit/Delete/Toggle/Archive Handlers ---
   const handleOpenEditTaskModal = (user: FirestoreUserWithDetails, task: UserTask) => {
     setEditingTask({ ...task, userId: user.id });
   };
@@ -610,12 +651,30 @@ export default function AdminMenu(): JSX.Element {
     const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
     const dataToSave: { [key: string]: any } = { ...updatedTaskData };
 
-    // ... existing logic to handle task field and goal/progress ...
+    // Get base task text from updated data or existing editing task state
+    let baseTaskText = updatedTaskData.task?.trim() || editingTask?.task?.trim() || '';
+
+    // Determine the correct start and due dates to use for formatting
+    const startDate = updatedTaskData.startDate !== undefined ? updatedTaskData.startDate : editingTask?.startDate;
+    const dueDate = updatedTaskData.dueDate !== undefined ? updatedTaskData.dueDate : editingTask?.dueDate;
+
+    // Remove any existing date suffix (handles both old and new formats)
+    baseTaskText = baseTaskText.replace(/ \[[^\]]+\]$/, '');
+
+    // Generate the new date suffix
+    const dateSuffix = formatTaskDateString(startDate, dueDate);
+
+    // Combine base text and new suffix
+    dataToSave.task = baseTaskText + dateSuffix;
+
     // Ensure archived field is included if present
     if (updatedTaskData.archived !== undefined) {
         dataToSave.archived = updatedTaskData.archived;
     }
-
+    // Ensure date fields are included or explicitly removed
+    // Use the determined startDate and dueDate, converting empty strings to null or deleteField
+    dataToSave.startDate = startDate ? startDate : deleteField();
+    dataToSave.dueDate = dueDate ? dueDate : deleteField();
 
     try {
       await updateDoc(taskRef, dataToSave);
@@ -643,7 +702,7 @@ export default function AdminMenu(): JSX.Element {
     try {
         await deleteDoc(taskRef);
         toast.success("Task deleted successfully!");
-        fetchAdminData(); // Refresh data
+        fetchAdminData();
     } catch (error) {
         console.error("Error deleting task:", error);
         toast.error(`Failed to delete task: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -662,7 +721,6 @@ export default function AdminMenu(): JSX.Element {
     const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
     const newStatus = !currentStatus;
 
-    // Prevent marking goal task complete if progress < goal
     const task = usersData.find(u => u.id === userId)?.tasks.find(t => t.id === taskId);
     if (task?.type === "goal" && newStatus && (task.progress ?? 0) < (task.goal ?? Infinity)) {
         toast.warn("Goal task cannot be marked complete until progress reaches the goal.");
@@ -672,14 +730,13 @@ export default function AdminMenu(): JSX.Element {
     try {
       await updateDoc(taskRef, { completed: newStatus });
       toast.success(`Task marked as ${newStatus ? 'complete' : 'incomplete'}.`);
-      fetchAdminData(); // Refresh data
+      fetchAdminData();
     } catch (error) {
       console.error("Error toggling task completion:", error);
       toast.error(`Failed to update task status: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   };
 
-  // New handler for archiving tasks
   const handleArchiveTask = async (userId: string, taskId: string, currentArchivedStatus: boolean) => {
     const taskRef = doc(dbFirestore, "users", userId, "tasks", taskId);
     const newArchivedStatus = !currentArchivedStatus;
@@ -687,13 +744,12 @@ export default function AdminMenu(): JSX.Element {
     try {
       await updateDoc(taskRef, { archived: newArchivedStatus });
       toast.success(`Task ${newArchivedStatus ? 'archived' : 'unarchived'}.`);
-      fetchAdminData(); // Refresh data
+      fetchAdminData();
     } catch (error) {
       console.error("Error archiving/unarchiving task:", error);
       toast.error(`Failed to update task archive status: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   };
-
 
   return (
     <Layout>
@@ -747,7 +803,6 @@ export default function AdminMenu(): JSX.Element {
           </div>
         </div>
 
-        {/* Add Trooper Button */}
         <div className="mb-4 flex justify-end">
              <button
                 onClick={handleOpenAddModal}
@@ -757,8 +812,6 @@ export default function AdminMenu(): JSX.Element {
              </button>
         </div>
 
-
-        {/* Assign Task Section */}
         <button
           className={`${buttonPrimary} mb-4`}
           onClick={() => setIsAssignTaskOpen((prev) => !prev)}
@@ -770,9 +823,9 @@ export default function AdminMenu(): JSX.Element {
             <h2 className={`text-xl font-bold ${textAccent}`}>Assign Task</h2>
             <textarea
               className={inputStyle}
-              placeholder="Enter task description..."
-              value={bulkTaskDescription} // Use description state
-              onChange={(e) => setBulkTaskDescription(e.target.value)} // Update description state
+              placeholder="Enter task description (dates will be added automatically)..."
+              value={bulkTaskDescription}
+              onChange={(e) => setBulkTaskDescription(e.target.value)}
             />
             <div>
               <label className={`block text-sm font-medium ${textAccent} mb-2`}>
@@ -785,7 +838,7 @@ export default function AdminMenu(): JSX.Element {
                   const newType = e.target.value as "goal" | "normal";
                   setBulkTaskType(newType);
                   if (newType === 'normal') {
-                    setBulkTaskGoal(1); // Reset goal if switching to normal
+                    setBulkTaskGoal(1);
                   }
                 }}
               >
@@ -802,14 +855,83 @@ export default function AdminMenu(): JSX.Element {
                 </label>
                 <input
                   type="number"
-                  min="1" // Ensure goal is positive
+                  min="1"
                   className={inputStyle}
                   placeholder="Enter goal value (e.g., 5)"
                   value={bulkTaskGoal}
-                  onChange={(e) => setBulkTaskGoal(Math.max(1, Number(e.target.value)))} // Ensure goal is at least 1
+                  onChange={(e) => setBulkTaskGoal(Math.max(1, Number(e.target.value)))}
                 />
               </div>
             )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div>
+                    <Label htmlFor="bulkTaskStartDate" className={`block text-sm font-medium ${textAccent} mb-2`}>
+                        Start Date (Optional)
+                    </Label>
+                    <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                    "w-full justify-start text-left font-normal",
+                                    !bulkTaskStartDate && "text-muted-foreground",
+                                    inputStyle // Apply base input style
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {bulkTaskStartDate ? format(new Date(bulkTaskStartDate + 'T00:00:00'), "PPP") : <span>Pick a start date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-600 text-white" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={bulkTaskStartDate ? new Date(bulkTaskStartDate + 'T00:00:00') : undefined}
+                                onSelect={(date) => {
+                                    setBulkTaskStartDate(date ? format(date, 'yyyy-MM-dd') : '');
+                                    setIsStartDatePickerOpen(false); // Close popover on select
+                                }}
+                                initialFocus
+                                // Add styles for calendar if needed, e.g., via className prop or global CSS
+                            />
+                        </PopoverContent>
+                    </Popover>
+                 </div>
+                 <div>
+                    <Label htmlFor="bulkTaskDueDate" className={`block text-sm font-medium ${textAccent} mb-2`}>
+                        Due Date (Optional)
+                    </Label>
+                     <Popover open={isDueDatePickerOpen} onOpenChange={setIsDueDatePickerOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                    "w-full justify-start text-left font-normal",
+                                    !bulkTaskDueDate && "text-muted-foreground",
+                                    inputStyle // Apply base input style
+                                )}
+                                disabled={!bulkTaskStartDate} // Optionally disable if start date isn't set
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {bulkTaskDueDate ? format(new Date(bulkTaskDueDate + 'T00:00:00'), "PPP") : <span>Pick a due date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-600 text-white" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={bulkTaskDueDate ? new Date(bulkTaskDueDate + 'T00:00:00') : undefined}
+                                onSelect={(date) => {
+                                    setBulkTaskDueDate(date ? format(date, 'yyyy-MM-dd') : '');
+                                    setIsDueDatePickerOpen(false); // Close popover on select
+                                }}
+                                disabled={(date) => // Disable dates before start date
+                                    bulkTaskStartDate ? date < new Date(bulkTaskStartDate + 'T00:00:00') : false
+                                }
+                                initialFocus
+                            />
+                        </PopoverContent>
+                    </Popover>
+                 </div>
+            </div>
             <div>
               <label className={`block text-sm font-medium ${textAccent} mb-2`}>
                 Select Users by Rank/Category:
@@ -838,8 +960,8 @@ export default function AdminMenu(): JSX.Element {
               <div
                 className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-black/80 p-3 rounded ${borderAccent} max-h-60 overflow-y-auto custom-scrollbar`}
               >
-                {[...usersData] // Display users based on main data, selection handled by checkbox
-                  .filter(user => showInactiveUsers || user.isActive) // Filter based on showInactiveUsers toggle
+                {[...usersData]
+                  .filter(user => showInactiveUsers || user.isActive)
                   .sort((a, b) => a.name.localeCompare(b.name))
                   .map((user) => (
                     <label
@@ -876,8 +998,8 @@ export default function AdminMenu(): JSX.Element {
               </button>
               <button
                 className={buttonPrimary}
-                onClick={handleAssignTask} // Call the new handler
-                disabled={isAssigning || selectedUsers.length === 0 || !bulkTaskDescription.trim()} // Disable if assigning, no users, or no description
+                onClick={handleAssignTask}
+                disabled={isAssigning || selectedUsers.length === 0 || !bulkTaskDescription.trim()}
               >
                 {isAssigning ? "Assigning..." : "Assign Task"}
               </button>
@@ -885,7 +1007,6 @@ export default function AdminMenu(): JSX.Element {
           </div>
         )}
 
-        {/* Users Overview Section */}
         <div className={`${cardBase}`}>
           <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 flex-wrap">
             <h2 className={`section-header text-2xl font-bold ${textAccent} border-none pb-0`}>
@@ -965,12 +1086,10 @@ export default function AdminMenu(): JSX.Element {
                     const now = Timestamp.now();
                     const isHiddenByRule = userData.promotionStatus?.hideUntil && userData.promotionStatus.hideUntil.toMillis() > now.toMillis();
 
-                    // --- LOA Check ---
                     let isOnLOA = false;
                     const today = new Date();
-                    today.setHours(0, 0, 0, 0); // Normalize today's date to midnight for comparison
+                    today.setHours(0, 0, 0, 0);
 
-                    // Helper function to parse LOA dates robustly
                     const parseLoaDate = (dateValue: string | Timestamp | null | undefined): Date | null => {
                       if (!dateValue) return null;
                       let date: Date | null = null;
@@ -979,24 +1098,21 @@ export default function AdminMenu(): JSX.Element {
                         if (dateValue instanceof Timestamp) {
                           date = dateValue.toDate();
                         } else if (typeof dateValue === 'string') {
-                          // Try parsing common formats - JS Date constructor is quite flexible
-                          // Add T00:00:00 for YYYY-MM-DD to hint local time, otherwise let it parse
                           if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
                              date = new Date(dateValue + 'T00:00:00');
                           } else {
-                             date = new Date(dateValue); // Handles MM/DD/YYYY, M/D/YY etc.
+                             date = new Date(dateValue);
                           }
                         }
 
                         if (date && !isNaN(date.getTime())) {
-                          date.setHours(0, 0, 0, 0); // Normalize to midnight
+                          date.setHours(0, 0, 0, 0);
                           return date;
                         }
                       } catch (e) {
                          console.error("Error during LOA date parsing:", dateValue, e);
                       }
 
-                      // console.warn("Could not parse LOA date:", dateValue); // Optional: Log if parsing failed
                       return null;
                     };
 
@@ -1004,13 +1120,10 @@ export default function AdminMenu(): JSX.Element {
                     const endDate = parseLoaDate(userData.loaEndDate);
 
                     if (startDate && endDate) {
-                      // Check if today is within the LOA range (inclusive)
                       if (today >= startDate && today <= endDate) {
                         isOnLOA = true;
                       }
                     }
-                    // --- End LOA Check ---
-
 
                     function formatDateForDisplay(dateString: string | Timestamp | null | undefined): string {
                       if (!dateString) return "N/A";
@@ -1028,13 +1141,11 @@ export default function AdminMenu(): JSX.Element {
                       });
                     }
 
-                    // Sort tasks: completed first, then by issue date descending (implicitly handled by initial fetch)
                     const sortedTasks = [...(userData.tasks || [])].sort((a, b) => {
                         if (a.completed === b.completed) return 0;
                         return a.completed ? 1 : -1;
                     });
 
-                    // Define LOA specific styles
                     const loaCardClass = isOnLOA ? 'border-orange-500 bg-orange-900/20' : '';
                     const loaTextClass = isOnLOA ? 'text-orange-400' : '';
 
@@ -1045,26 +1156,22 @@ export default function AdminMenu(): JSX.Element {
                         title={`${isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}${isOnLOA ? ' User is currently on LOA' : ''}`}
                       >
                         <div className="flex-grow">
-                          {/* ... User Header Info (Name, Rank, Badges etc.) ... */}
                           <div className="flex justify-between items-start mb-1">
-                            <h4 className={`font-semibold ${textAccent} ${loaTextClass}`}> {/* Apply LOA text class */}
+                            <h4 className={`font-semibold ${textAccent} ${loaTextClass}`}>
                               {userData.name}
                             </h4>
                             <div className="flex flex-col items-end gap-1">
-                              {/* LOA Badge */}
                               {isOnLOA && (
                                 <span className="text-xs text-orange-400 bg-orange-900/60 px-1.5 py-0.5 rounded border border-orange-600 flex items-center gap-1">
                                   On LOA
                                 </span>
                               )}
-                              {/* Hidden Badge */}
                               {isHiddenByRule && showHiddenCards && (
                                 <span className="text-xs text-orange-400 bg-orange-900/60 px-1.5 py-0.5 rounded border border-orange-600 flex items-center gap-1">
                                   <FaEyeSlash size="0.65rem"/> Hidden
                                 </span>
                               )}
-                              {/* Eligible Badge */}
-                              {eligibleForPromotion && !(isHiddenByRule && showHiddenCards) && !isOnLOA && ( // Hide eligibility if on LOA
+                              {eligibleForPromotion && !(isHiddenByRule && showHiddenCards) && !isOnLOA && (
                                 <Link
                                   to={`/promotions?focusUser=${userData.id}`}
                                   className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 px-1.5 py-0.5 rounded border border-green-600 hover:bg-green-800/50 transition-colors duration-150"
@@ -1074,31 +1181,29 @@ export default function AdminMenu(): JSX.Element {
                                   <span>Eligible</span>
                                 </Link>
                               )}
-                              {/* HC Approval Badge */}
-                              {eligibleForPromotion && needsHCVote && !(isHiddenByRule && showHiddenCards) && !isOnLOA && ( // Hide HC approval if on LOA
+                              {eligibleForPromotion && needsHCVote && !(isHiddenByRule && showHiddenCards) && !isOnLOA && (
                                 <div className="text-xs text-yellow-400/80 italic px-1.5 py-0.5 rounded bg-yellow-900/50 border border-yellow-600/50" title="Promotion to this rank requires High Command review">
                                   Requires HC Approval
                                 </div>
                               )}
                             </div>
                           </div>
-                          <p className={`text-sm ${textSecondary} ${loaTextClass}`}> {/* Apply LOA text class */}
+                          <p className={`text-sm ${textSecondary} ${loaTextClass}`}>
                             {userData.rank} - {userData.callsign || "N/A"}
                           </p>
-                          <p className={`text-sm ${textSecondary} mb-2 ${loaTextClass}`}> {/* Apply LOA text class */}
+                          <p className={`text-sm ${textSecondary} mb-2 ${loaTextClass}`}>
                             Badge: {userData.badge}
                           </p>
 
-                          {/* Replace Accordion with Tabs Component */}
                           <UserCardDetailsTabs
                               userData={userData}
-                              tasks={userData.tasks || []} // Pass all tasks
+                              tasks={userData.tasks || []}
                               disciplineEntries={userData.disciplineEntries || []}
                               generalNotes={userData.generalNotes || []}
                               onEditTask={handleOpenEditTaskModal}
                               onDeleteTask={handleOpenDeleteTaskConfirmation}
                               onToggleTaskCompletion={handleToggleTaskCompletion}
-                              onArchiveTask={handleArchiveTask} // Pass the archive handler
+                              onArchiveTask={handleArchiveTask}
                               textAccent={textAccent}
                               textSecondary={textSecondary}
                           />
@@ -1128,7 +1233,6 @@ export default function AdminMenu(): JSX.Element {
           )}
         </div>
 
-        {/* Edit User Modal */}
         {editingUser && (
           <EditUserModal
             user={{
@@ -1148,8 +1252,8 @@ export default function AdminMenu(): JSX.Element {
               id: editingUser.id || "",
               category: editingUser.category || "Uncategorized",
               cid: editingUser.cid || "Unknown",
-              email: editingUser.email || "", // Ensure email is handled if empty
-              role: editingUser.role || "", // Ensure role is handled
+              email: editingUser.email || "",
+              role: editingUser.role || "",
               isPlaceholder: editingUser.isPlaceholder ?? false,
               tasks: editingUser.tasks || [],
               disciplineEntries: editingUser.disciplineEntries || [],
@@ -1157,19 +1261,17 @@ export default function AdminMenu(): JSX.Element {
               promotionStatus: editingUser.promotionStatus,
             }}
             onClose={() => setEditingUser(null)}
-            onSave={handleSave} // Use combined save handler
+            onSave={handleSave}
           />
         )}
 
-        {/* Add User Modal */}
         {isAddModalOpen && (
           <AddUserModal
             onClose={handleCloseAddModal}
-            onSave={handleSave} // Use combined save handler
+            onSave={handleSave}
           />
         )}
 
-        {/* Edit Task Modal */}
         {editingTask && (
             <EditTaskModal
                 task={editingTask}
@@ -1178,7 +1280,6 @@ export default function AdminMenu(): JSX.Element {
             />
         )}
 
-        {/* Confirmation Modal for Task Deletion */}
         {confirmationModal && confirmationModal.show && taskToDelete && (
             <ConfirmationModal
                 isOpen={confirmationModal.show}
@@ -1196,9 +1297,6 @@ export default function AdminMenu(): JSX.Element {
     </Layout>
   );
 }
-/**
- * Wrapper for Firestore's where function to match the expected type.
- */
 function where(fieldPath: string, opStr: string, value: any): QueryConstraint {
   return firestoreWhere(fieldPath, opStr as any, value);
 }

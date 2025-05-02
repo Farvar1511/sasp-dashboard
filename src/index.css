@@ -60,7 +60,7 @@
   --accent: oklch(0.269 0 0); /* Dark grey */
   --accent-foreground: oklch(0.985 0 0); /* White text for dark accent background */
   --destructive: oklch(0.704 0.191 22.216);
-  --input: oklch(1 0 0 / 15%);
+  --input: var(--muted); /* Changed from oklch(1 0 0 / 15%) */
   --ring: oklch(0.84 0.1726 92.66);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
@@ -98,7 +98,7 @@
   --accent: oklch(0.269 0 0); /* Dark grey */
   --accent-foreground: oklch(0.985 0 0); /* White text for dark accent background */
   --destructive: oklch(0.704 0.191 22.216);
-  --input: oklch(1 0 0 / 15%);
+  --input: var(--muted); /* Changed from oklch(1 0 0 / 15%) */
   --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
@@ -151,13 +151,44 @@
     @apply font-sans bg-background text-foreground min-h-screen; /* Removed page-background */
   }
 
+  /* Explicitly style autofill state */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  textarea:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px var(--input) inset !important; /* Use var(--input) */
+    box-shadow: 0 0 0 30px var(--input) inset !important; /* Use var(--input) */
+    /* Optionally force text color if autofill makes it unreadable */
+    -webkit-text-fill-color: var(--foreground) !important;
+    caret-color: var(--foreground) !important; /* Ensure cursor is visible */
+  }
+
   /* ... existing base styles ... */
 }
 
 @layer components {
+  /* Ensure Penal Code Search Results dropdown has solid background */
+  .penal-code-search-results {
+    @apply bg-popover border border-border rounded-md shadow-lg; /* Changed bg-background to bg-popover */
+    /* Explicitly set background color using the CSS variable */
+    background-color: var(--popover); /* Changed --background to --popover */
+  }
 }
 
 @layer utilities {
+  /* Ensure text selection is enabled for input and textarea elements (MOVED HERE) */
+  input,
+  textarea {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -174,6 +205,22 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* Ensure text selection is enabled for read-only textareas */
+  textarea[readonly] {
+    user-select: text !important; /* Keep !important */
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+  }
+
+  /* Add rule targeting data-slot attribute specifically */
+  [data-slot="input"] {
+    user-select: text !important; /* Added !important back */
+    -webkit-user-select: text !important; /* Added !important back */
+    -moz-user-select: text !important; /* Added !important back */
+    -ms-user-select: text !important; /* Added !important back */
   }
 
   [data-slot="scroll-area-thumb"] {

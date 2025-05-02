@@ -23,12 +23,14 @@ export interface UserTask {
   task: string; // Description of the task
   type: "goal" | "normal"; // Task type
   issuedby: string; // Name of the issuer
-  issueddate: string; // Date string (e.g., "MM/DD/YYYY")
-  issuedtime: string; // Time string (e.g., "HH:MM AM/PM")
+  issueddate: string; // Date string (e.g., "MM/DD/YYYY") - Consider using Timestamp if precision is needed
+  issuedtime: string; // Time string (e.g., "HH:MM AM/PM") - Consider merging with issueddate into a Timestamp
   progress?: number; // Optional: Only for 'goal' type
   completed: boolean; // Completion status
   goal?: number; // Optional: Goal target for 'goal' type
-  archived?: boolean; // Optional: Whether the task is archived
+  archived: boolean; // Archived status
+  startDate?: string | null; // Optional start date (YYYY-MM-DD)
+  dueDate?: string | null; // Optional due date (YYYY-MM-DD)
 }
 
 // -----------------------------
