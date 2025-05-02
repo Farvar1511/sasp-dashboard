@@ -679,18 +679,18 @@ const MyDashboard: React.FC = () => {
           </Card>
         </div>
 
-        {/* === SECOND ROW: CERTIFICATIONS/DIV/DISC & ASSIGNED TASKS (equal height) === */}
+        {/* === SECOND ROW: SPECIALIZATIONS & ASSIGNED TASKS (equal height) === */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 auto-rows-fr">
           <Card className="border border-[#f3c700] shadow-lg w-full text-white h-full flex flex-col">
             <CardHeader className="pb-2 pt-4">
               <CardTitle className="text-xl sm:text-2xl font-extrabold text-[#f3c700] border-b border-white pb-2">
-                Certifications, Divisions & Discipline
+                Certifications and Divisions
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-4 flex flex-col flex-grow space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
-                  <h3 className="text-lg font-semibold text-[#f3c700] mb-2 border-b border-white pb-2">
+                  <h3 className="text-lg font-semibold text-white mb-2 border-b border-white pb-2">
                     Certifications
                   </h3>
                   {displayCertificationKeys.map((key) => {
@@ -720,7 +720,7 @@ const MyDashboard: React.FC = () => {
                 </div>
 
                 <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
-                  <h3 className="text-lg font-semibold text-[#f3c700] mb-2 border-b border-white pb-2">
+                  <h3 className="text-lg font-semibold text-white mb-2 border-b border-white pb-2">
                     Divisions
                   </h3>
                   {displayDivisionKeys.map((key) => {
@@ -926,16 +926,16 @@ const MyDashboard: React.FC = () => {
                   <Table className="min-w-full text-sm text-center">
                     <TableHeader className="sticky top-0 z-10 bg-black bg-opacity-90">
                       <TableRow className="border-gray-700 hover:bg-black hover:bg-opacity-90">
-                        <TableHead className="px-4 py-2 text-[#f3c700] uppercase">
+                        <TableHead className="px-4 py-2 text-[#f3c700] uppercase text-center">
                           Vehicle
                         </TableHead>
-                        <TableHead className="px-4 py-2 text-[#f3c700] uppercase">
+                        <TableHead className="px-4 py-2 text-[#f3c700] uppercase text-center">
                           Plate
                         </TableHead>
-                        <TableHead className="px-4 py-2 text-[#f3c700] uppercase">
+                        <TableHead className="px-4 py-2 text-[#f3c700] uppercase text-center">
                           Division
                         </TableHead>
-                        <TableHead className="px-4 py-2 text-[#f3c700] uppercase">
+                        <TableHead className="px-4 py-2 text-[#f3c700] uppercase text-center">
                           Restrictions
                         </TableHead>
                       </TableRow>
