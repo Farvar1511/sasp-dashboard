@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   collection,
   getDocs,
@@ -37,6 +37,8 @@ import {
 } from "./ui/select";
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
+
+const NONE_VALUE = "___NONE___";
 
 const rankCategories: { [key: string]: string[] } = {
   "High Command": [
@@ -129,6 +131,13 @@ const SASPRoster: React.FC = () => {
   const [editedRowData, setEditedRowData] = useState<Partial<RosterUser>>({});
   const [originalRankBeforeEdit, setOriginalRankBeforeEdit] =
     useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    user: RosterUser | null;
+  }>({ visible: false, x: 0, y: 0, user: null });
+  const [displayMode, setDisplayMode] = useState<"view" | "edit">("view");
 
   const canEditRoster = useMemo(() => {
     if (isAdmin) return true;
@@ -299,8 +308,12 @@ const SASPRoster: React.FC = () => {
   const totalColSpan = 5 + divisionKeys.length + certificationKeys.length + 4;
 
   const handleEditClick = (user: RosterUser) => {
-    if (!canEditRoster) {
-      toast.error("You do not have permission to edit the roster.");
+    if (displayMode !== "edit" || !canEditRoster) {
+      toast.error(
+        displayMode !== "edit"
+          ? "Switch to Edit Mode to make changes."
+          : "You do not have permission to edit the roster."
+      );
       return;
     }
     setEditingRowId(user.id);
@@ -330,22 +343,28 @@ const SASPRoster: React.FC = () => {
 
       const userRef = doc(dbFirestore, "users", editedRowData.id);
 
-      const allCertKeys = new Set([
+      const allPossibleCertKeys = new Set([
         ...Object.keys(editedRowData.certifications || {}),
         ...certificationKeys,
-        "HEAT",
-        "MBU",
-        "ACU",
+        ...divisionKeys,
       ]);
 
-      const updatedCertifications = Object.fromEntries(
-        Array.from(allCertKeys).map((key) => [
-          key.toUpperCase(),
-          editedRowData.certifications?.[key.toUpperCase()] || "",
-        ])
-      );
+      const updatedCertifications: { [key: string]: CertStatus | null } = {};
+      allPossibleCertKeys.forEach((key) => {
+        const upperKey = key.toUpperCase();
+        const value = editedRowData.certifications?.[upperKey];
+        if (
+          value &&
+          value !== NONE_VALUE as CertStatus &&
+          ["LEAD", "SUPER", "CERT", "TRAIN"].includes(value)
+        ) {
+          updatedCertifications[upperKey] = value as CertStatus;
+        } else {
+          updatedCertifications[upperKey] = null;
+        }
+      });
 
-      console.log("Updated certifications:", updatedCertifications);
+      console.log("Processed certifications for saving:", updatedCertifications);
 
       let finalLastPromotionDate: string | null = formatDateToMMDDYY(
         editedRowData.lastPromotionDate instanceof Timestamp
@@ -363,23 +382,32 @@ const SASPRoster: React.FC = () => {
       }
 
       const updatedData = {
-        ...editedRowData,
-        joinDate: formatDateToMMDDYY(
-          editedRowData.joinDate instanceof Timestamp
-            ? editedRowData.joinDate.toDate()
-            : editedRowData.joinDate
-        ),
+        name: editedRowData.name || "Unknown",
+        rank: editedRowData.rank || "Unknown",
+        badge: editedRowData.badge || "N/A",
+        callsign: editedRowData.callsign || "",
+        discordId: editedRowData.discordId || "-",
+        isActive:
+          editedRowData.isActive !== undefined ? editedRowData.isActive : true,
+        joinDate:
+          formatDateToMMDDYY(
+            editedRowData.joinDate instanceof Timestamp
+              ? editedRowData.joinDate.toDate()
+              : editedRowData.joinDate
+          ) || null,
         lastPromotionDate: finalLastPromotionDate,
-        loaStartDate: formatDateToMMDDYY(
-          editedRowData.loaStartDate instanceof Timestamp
-            ? editedRowData.loaStartDate.toDate()
-            : editedRowData.loaStartDate
-        ),
-        loaEndDate: formatDateToMMDDYY(
-          editedRowData.loaEndDate instanceof Timestamp
-            ? editedRowData.loaEndDate.toDate()
-            : editedRowData.loaEndDate
-        ),
+        loaStartDate:
+          formatDateToMMDDYY(
+            editedRowData.loaStartDate instanceof Timestamp
+              ? editedRowData.loaStartDate.toDate()
+              : editedRowData.loaStartDate
+          ) || null,
+        loaEndDate:
+          formatDateToMMDDYY(
+            editedRowData.loaEndDate instanceof Timestamp
+              ? editedRowData.loaEndDate.toDate()
+              : editedRowData.loaEndDate
+          ) || null,
         certifications: updatedCertifications,
       };
 
@@ -423,9 +451,43 @@ const SASPRoster: React.FC = () => {
   const getCertificationOptions = (key: string) => {
     const restrictedKeys = ["HEAT", "MBU", "ACU"];
     if (restrictedKeys.includes(key.toUpperCase())) {
-      return ["", "CERT"];
+      return [NONE_VALUE, "CERT"];
     }
-    return ["", "LEAD", "SUPER", "CERT", "TRAIN"];
+    return [NONE_VALUE, "LEAD", "SUPER", "CERT", "TRAIN"];
+  };
+
+  const handleContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLTableRowElement>, user: RosterUser) => {
+      event.preventDefault();
+      if (displayMode !== "edit" || user.isPlaceholder || !canEditRoster) return;
+      setContextMenu({
+        visible: true,
+        x: event.clientX,
+        y: event.clientY,
+        user: user,
+      });
+    },
+    [canEditRoster, displayMode]
+  );
+
+  const handleCloseContextMenu = useCallback(() => {
+    if (contextMenu.visible) {
+      setContextMenu({ visible: false, x: 0, y: 0, user: null });
+    }
+  }, [contextMenu.visible]);
+
+  useEffect(() => {
+    document.addEventListener("click", handleCloseContextMenu);
+    return () => {
+      document.removeEventListener("click", handleCloseContextMenu);
+    };
+  }, [handleCloseContextMenu]);
+
+  const handleContextMenuEditClick = () => {
+    if (contextMenu.user) {
+      handleEditClick(contextMenu.user);
+    }
+    handleCloseContextMenu();
   };
 
   return (
@@ -457,6 +519,30 @@ const SASPRoster: React.FC = () => {
               ))}
             </SelectContent>
           </Select>
+
+          <Select
+            value={displayMode}
+            onValueChange={(value: "view" | "edit") => setDisplayMode(value)}
+          >
+            <SelectTrigger className="w-full md:w-[180px] bg-input border-border text-foreground focus:ring-[#f3c700]">
+              <SelectValue placeholder="Select Mode" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border text-popover-foreground">
+              <SelectItem
+                value="view"
+                className="focus:bg-accent focus:text-accent-foreground"
+              >
+                View Mode
+              </SelectItem>
+              <SelectItem
+                value="edit"
+                className="focus:bg-accent focus:text-accent-foreground"
+              >
+                Edit Mode
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
           <div className="flex items-center space-x-2 bg-card p-2 rounded-md border border-border">
             <Checkbox
               id="hideVacantToggle"
@@ -477,9 +563,9 @@ const SASPRoster: React.FC = () => {
         {error && <p className="text-red-500">{error}</p>}
 
         {!loading && !error && (
-          <div className="rounded-lg border border-[#f3c700] bg-black bg-opacity-80 overflow-auto max-h-[80vh] shadow-lg">
+          <div className="rounded-lg border border-[#f3c700] bg-black bg-opacity-80 shadow-lg">
             <table className="min-w-full border-separate border-spacing-0 text-sm table-fixed">
-              <thead className="sticky top-0 z-50 bg-gradient-to-b from-black via-black/90 to-black/70 backdrop-blur-sm text-[#f3c700] shadow-[0_2px_4px_rgba(243,199,0,0.4)] font-semibold border-t border-b border-[#f3c700]">
+              <thead className="bg-gradient-to-b from-black via-black/90 to-black/70 backdrop-blur-sm text-[#f3c700] shadow-[0_2px_4px_rgba(243,199,0,0.4)] font-semibold border-t border-b border-[#f3c700]">
                 <tr>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}></th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>
@@ -576,12 +662,32 @@ const SASPRoster: React.FC = () => {
                       {usersInCategory.map((u, index) => {
                         const isEditing = editingRowId === u.id;
                         const isVacant = u.name === "VACANT";
+                        const isEditMode = displayMode === "edit";
+
                         return (
                           <tr
                             key={u.id}
-                            className={`border-t border-[#f3c700] hover:bg-[#f3c700]/10 transition ${
-                              isVacant ? "text-white italic opacity-60" : ""
-                            } ${!isVacant && !u.isActive ? "opacity-50" : ""}`}
+                            onContextMenu={(e) => handleContextMenu(e, u)}
+                            className={`
+                              group
+                              border-t border-[#f3c700]
+                              transform transition-transform duration-200 ease-out
+                              relative
+                              ${
+                                !isEditMode
+                                  ? "hover:scale-105 hover:z-20 hover:bg-black origin-[60%_50%]"
+                                  : ""
+                              }
+                              ${isVacant ? "text-white italic opacity-60" : ""}
+                              ${
+                                !isVacant && !u.isActive ? "opacity-50" : ""
+                              }
+                              ${
+                                !u.isPlaceholder && canEditRoster && isEditMode
+                                  ? "cursor-context-menu"
+                                  : ""
+                              }
+                            `}
                           >
                             <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
@@ -675,6 +781,10 @@ const SASPRoster: React.FC = () => {
                               const certStatus =
                                 u.certifications?.[divKey.toUpperCase()] ?? null;
                               const styles = getCertStyle(certStatus);
+                              const currentEditValue =
+                                editedRowData.certifications?.[
+                                  divKey.toUpperCase()
+                                ] || NONE_VALUE;
 
                               return (
                                 <td
@@ -684,18 +794,16 @@ const SASPRoster: React.FC = () => {
                                   {isEditing ? (
                                     <Select
                                       name={`certifications.${divKey.toUpperCase()}`}
-                                      value={
-                                        editedRowData.certifications?.[
-                                          divKey.toUpperCase()
-                                        ] || ""
-                                      }
+                                      value={currentEditValue}
                                       onValueChange={(value) =>
                                         setEditedRowData((prev) => ({
                                           ...prev,
                                           certifications: {
                                             ...prev.certifications,
                                             [divKey.toUpperCase()]:
-                                              value as CertStatus,
+                                              value === NONE_VALUE
+                                                ? null
+                                                : (value as CertStatus),
                                           },
                                         }))
                                       }
@@ -704,22 +812,22 @@ const SASPRoster: React.FC = () => {
                                         <SelectValue placeholder="-" />
                                       </SelectTrigger>
                                       <SelectContent className="bg-popover border-border text-popover-foreground">
-                                        {getCertificationOptions(divKey).map(
-                                          (option) => (
-                                            <SelectItem
-                                              key={option}
-                                              value={option}
-                                              className="focus:bg-accent focus:text-accent-foreground"
-                                            >
-                                              {option || "-"}
-                                            </SelectItem>
-                                          )
-                                        )}
+                                        {getCertificationOptions(
+                                          divKey
+                                        ).map((option) => (
+                                          <SelectItem
+                                            key={option}
+                                            value={option}
+                                            className="focus:bg-accent focus:text-accent-foreground"
+                                          >
+                                            {option === NONE_VALUE ? "-" : option}
+                                          </SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
                                   ) : (
                                     <span
-                                      className={`px-2 py-1 rounded text-xs ${styles.bgColor} ${styles.textColor}`}
+                                      className={`inline-block px-2 py-1 rounded text-xs ${styles.bgColor} ${styles.textColor} transition-all duration-500 ease-out hover:scale-110`}
                                     >
                                       {certStatus || "-"}
                                     </span>
@@ -731,6 +839,10 @@ const SASPRoster: React.FC = () => {
                               const certStatus =
                                 u.certifications?.[certKey.toUpperCase()] ?? null;
                               const styles = getCertStyle(certStatus);
+                              const currentEditValue =
+                                editedRowData.certifications?.[
+                                  certKey.toUpperCase()
+                                ] || NONE_VALUE;
 
                               return (
                                 <td
@@ -740,18 +852,16 @@ const SASPRoster: React.FC = () => {
                                   {isEditing ? (
                                     <Select
                                       name={`certifications.${certKey.toUpperCase()}`}
-                                      value={
-                                        editedRowData.certifications?.[
-                                          certKey.toUpperCase()
-                                        ] || ""
-                                      }
+                                      value={currentEditValue}
                                       onValueChange={(value) =>
                                         setEditedRowData((prev) => ({
                                           ...prev,
                                           certifications: {
                                             ...prev.certifications,
                                             [certKey.toUpperCase()]:
-                                              value as CertStatus,
+                                              value === NONE_VALUE
+                                                ? null
+                                                : (value as CertStatus),
                                           },
                                         }))
                                       }
@@ -760,22 +870,22 @@ const SASPRoster: React.FC = () => {
                                         <SelectValue placeholder="-" />
                                       </SelectTrigger>
                                       <SelectContent className="bg-popover border-border text-popover-foreground">
-                                        {getCertificationOptions(certKey).map(
-                                          (option) => (
-                                            <SelectItem
-                                              key={option}
-                                              value={option}
-                                              className="focus:bg-accent focus:text-accent-foreground"
-                                            >
-                                              {option || "-"}
-                                            </SelectItem>
-                                          )
-                                        )}
+                                        {getCertificationOptions(
+                                          certKey
+                                        ).map((option) => (
+                                          <SelectItem
+                                            key={option}
+                                            value={option}
+                                            className="focus:bg-accent focus:text-accent-foreground"
+                                          >
+                                            {option === NONE_VALUE ? "-" : option}
+                                          </SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
                                   ) : (
                                     <span
-                                      className={`px-2 py-1 rounded text-xs ${styles.bgColor} ${styles.textColor}`}
+                                      className={`inline-block px-2 py-1 rounded text-xs ${styles.bgColor} ${styles.textColor} transition-all duration-500 ease-out hover:scale-110`}
                                     >
                                       {certStatus || "-"}
                                     </span>
@@ -852,7 +962,9 @@ const SASPRoster: React.FC = () => {
                               {isEditing ? (
                                 <Select
                                   name="isActive"
-                                  value={editedRowData.isActive ? "true" : "false"}
+                                  value={
+                                    editedRowData.isActive ? "true" : "false"
+                                  }
                                   onValueChange={(value) =>
                                     setEditedRowData((prev) => ({
                                       ...prev,
@@ -959,10 +1071,18 @@ const SASPRoster: React.FC = () => {
                                 ) : (
                                   <button
                                     onClick={() => handleEditClick(u)}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
-                                    disabled={u.isPlaceholder}
+                                    className={`bg-blue-600 text-white text-xs py-1 px-2 rounded ${
+                                      isEditMode && !u.isPlaceholder
+                                        ? "hover:bg-blue-500 cursor-pointer"
+                                        : "opacity-50 cursor-not-allowed"
+                                    }`}
+                                    disabled={
+                                      !isEditMode || u.isPlaceholder
+                                    }
                                     title={
-                                      u.isPlaceholder
+                                      !isEditMode
+                                        ? "Switch to Edit Mode to use"
+                                        : u.isPlaceholder
                                         ? "Cannot edit placeholder rows"
                                         : "Edit Roster Entry"
                                     }
@@ -993,6 +1113,21 @@ const SASPRoster: React.FC = () => {
                   </tbody>
                 )}
             </table>
+          </div>
+        )}
+
+        {contextMenu.visible && displayMode === "edit" && (
+          <div
+            className="fixed bg-popover border border-border rounded-md shadow-lg py-1 z-50 text-sm"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleContextMenuEditClick}
+              className="block w-full text-left px-3 py-1 hover:bg-accent hover:text-accent-foreground"
+            >
+              Edit User
+            </button>
           </div>
         )}
       </div>

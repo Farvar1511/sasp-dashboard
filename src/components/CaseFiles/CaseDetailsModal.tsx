@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { doc, updateDoc, serverTimestamp, Timestamp, FieldValue } from 'firebase/firestore';
 import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { CaseFile, CaseStatus } from '../../utils/ciuUtils';
@@ -12,12 +12,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { toast } from 'react-toastify';
-import { FaTrash, FaPlus, FaTimes, FaSave, FaFileWord, FaFilePdf, FaSync, FaSearch } from 'react-icons/fa';
+import { FaTrash, FaPlus, FaTimes, FaSave, FaFileWord, FaFilePdf, FaSync, FaSearch, FaEdit, FaCheck, FaBan } from 'react-icons/fa';
 import { formatTimestampForDisplay } from '../../utils/timeHelpers';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, ImageRun, AlignmentType, BorderStyle, VerticalAlign, UnderlineType } from 'docx';
 import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
 import penalCodesData from './penal_codes.ts';
+import { computeIsAdmin } from '../../utils/isadmin';
+import ConfirmationModal from '../ConfirmationModal';
 
 interface PenalCode {
     pc: string;
@@ -38,7 +40,16 @@ interface EvidenceItem {
 }
 
 interface NameOfInterest { id: number; name: string; role: string; affiliation: string; cid?: string; phoneNumber?: string; }
-interface CaseUpdate { timestamp: Timestamp; userId: string; userName: string; note: string; }
+interface CaseUpdate {
+    id: string | number;
+    timestamp: Timestamp | Date;
+    userId: string;
+    userName: string;
+    note: string;
+    edited?: boolean;
+    editedByUserId?: string;
+    editedByUserName?: string;
+}
 
 interface EditCaseModalProps {
   onClose: () => void;
@@ -49,6 +60,7 @@ interface EditCaseModalProps {
 
 const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, caseData, eligibleAssignees }) => {
     const { user: currentUser } = useAuth();
+    const isAdmin = useMemo(() => computeIsAdmin(currentUser), [currentUser]);
 
     const [title, setTitle] = useState(caseData.title);
     const [incidentReport, setIncidentReport] = useState('');
@@ -68,10 +80,16 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
     const [warrantText, setWarrantText] = useState('');
     const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
 
+    const [editingUpdateId, setEditingUpdateId] = useState<string | number | null>(null);
+    const [editedUpdateText, setEditedUpdateText] = useState<string>('');
+
     const [penalCodes, setPenalCodes] = useState<PenalCode[]>([]);
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [searchResults, setSearchResults] = useState<PenalCode[]>([]);
     const [selectedCharges, setSelectedCharges] = useState<PenalCode[]>([]);
+
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [updateToDeleteId, setUpdateToDeleteId] = useState<string | number | null>(null);
 
     useEffect(() => {
         setPenalCodes(penalCodesData as PenalCode[]);
@@ -129,7 +147,14 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
                 setLocation(details.location || '');
                 setGangInfo(details.gangInfo || '');
                 setVideoNotes(details.videoNotes || '');
-                setUpdates(details.updates || []);
+                setUpdates(details.updates?.map((u: any, index: number) => ({
+                    ...u,
+                    id: u.id || (u.timestamp?.toMillis ? u.timestamp.toMillis() : `initial-${Date.now()}-${index}`),
+                    timestamp: u.timestamp?.toDate ? u.timestamp.toDate() : (u.timestamp instanceof Date ? u.timestamp : new Date()),
+                    edited: u.edited || false,
+                    editedByUserId: u.editedByUserId || undefined,
+                    editedByUserName: u.editedByUserName || undefined,
+                })) || []);
                 setSelectedCharges(details.charges || []);
                 setPhotoSectionDescription(details.photoSectionDescription || '');
             } catch (e) {
@@ -137,6 +162,7 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
                 toast.error("Error loading case details.");
                 setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', notes: '', photoLink: '' }]);
                 setNamesOfInterest([{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]);
+                setUpdates([]);
                 setSelectedCharges([]);
                 setVideoNotes('');
                 setPhotoSectionDescription('');
@@ -144,6 +170,7 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
         } else {
              setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', notes: '', photoLink: '' }]);
              setNamesOfInterest([{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]);
+             setUpdates([]);
              setSelectedCharges([]);
              setVideoNotes('');
              setPhotoSectionDescription('');
@@ -201,18 +228,141 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
         }
     };
 
-    const handleSave = async () => {
+    const canModifyUpdate = (update: CaseUpdate): boolean => {
+        if (!currentUser) return false;
+        if (isAdmin) return true;
+        if (update.userId === currentUser.id) return true;
+        const ciuCert = currentUser.certifications?.['CIU'];
+        if (ciuCert === 'LEAD' || ciuCert === 'SUPER') return true;
+        return false;
+    };
+
+    const handleEditUpdateClick = (update: CaseUpdate) => {
+        setEditingUpdateId(update.id);
+        setEditedUpdateText(update.note);
+    };
+
+    const handleCancelEditUpdate = () => {
+        setEditingUpdateId(null);
+        setEditedUpdateText('');
+    };
+
+    const handleSaveEditUpdate = async () => {
+        if (editingUpdateId === null || !currentUser) return;
+
+        const originalUpdates = [...updates];
+        const updatedUpdates = updates.map(u =>
+            u.id === editingUpdateId
+                ? {
+                    ...u,
+                    note: editedUpdateText,
+                    edited: true,
+                    timestamp: new Date(),
+                    editedByUserId: currentUser.id,
+                    editedByUserName: currentUser.name
+                  }
+                : u
+        );
+        setUpdates(updatedUpdates);
+        setEditingUpdateId(null);
+        setEditedUpdateText('');
+
+        const success = await handleSave(false, updatedUpdates);
+
+        if (!success) {
+            setUpdates(originalUpdates);
+            toast.error("Failed to save update edit.");
+        } else {
+            toast.success("Update edited successfully.");
+        }
+    };
+
+    const handleDeleteUpdateClick = (updateId: string | number) => {
+        setUpdateToDeleteId(updateId);
+        setIsConfirmModalOpen(true);
+    };
+
+    const confirmDeleteUpdate = async () => {
+        if (updateToDeleteId === null) return;
+
+        const originalUpdates = [...updates];
+        const updatedUpdates = updates.filter(u => u.id !== updateToDeleteId);
+        setUpdates(updatedUpdates);
+
+        setIsConfirmModalOpen(false);
+        setUpdateToDeleteId(null);
+
+        const success = await handleSave(false, updatedUpdates);
+
+        if (!success) {
+            setUpdates(originalUpdates);
+            toast.error("Failed to delete update.");
+        } else {
+            toast.success("Update deleted successfully.");
+        }
+    };
+
+    const cancelDeleteUpdate = () => {
+        setIsConfirmModalOpen(false);
+        setUpdateToDeleteId(null);
+    };
+
+    const handleSave = async (closeOnSuccess: boolean = true, updatesToSave?: CaseUpdate[]): Promise<boolean> => {
         if (!currentUser || !caseData.id) {
             toast.error("Cannot save changes. User or Case ID missing.");
-            return;
+            return false;
         }
         if (!title) {
             toast.error("Case Title is required.");
-            return;
+            return false;
         }
         setIsSaving(true);
 
         const assignedUser = eligibleAssignees.find(u => u.id === assignedToId);
+
+        let finalUpdates = updatesToSave ? [...updatesToSave] : [...updates];
+        let newUpdateEntryForFirestore: any = null;
+
+        if (!updatesToSave && newNote.trim()) {
+             const temporaryId = `temp-${Date.now()}`;
+             newUpdateEntryForFirestore = {
+                timestamp: serverTimestamp(),
+                userId: currentUser?.id || 'Unknown',
+                userName: currentUser?.name || 'Unknown',
+                note: newNote.trim(),
+                edited: false,
+             };
+            finalUpdates.push({
+                ...newUpdateEntryForFirestore,
+                id: temporaryId,
+                timestamp: new Date(),
+            });
+
+            if (!closeOnSuccess) {
+                setUpdates(finalUpdates);
+                setNewNote('');
+            }
+        }
+
+        const updatesForFirestore = finalUpdates.map(u => {
+            const { id, ...rest } = u;
+            let timestampForFirestore: Timestamp | FieldValue = serverTimestamp();
+
+            if (u.timestamp instanceof Timestamp) {
+                timestampForFirestore = u.timestamp;
+            } else if (u.timestamp instanceof Date) {
+                if (u.editedByUserId || !id?.toString().startsWith('temp-')) {
+                     timestampForFirestore = Timestamp.fromDate(u.timestamp);
+                }
+            }
+            const editedFields = u.edited ? { editedByUserId: u.editedByUserId, editedByUserName: u.editedByUserName } : {};
+
+            return {
+                ...rest,
+                timestamp: timestampForFirestore,
+                ...editedFields
+            };
+        });
 
         const updatedDetailsObject = {
             incidentReport,
@@ -224,29 +374,8 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
             gangInfo,
             videoNotes,
             charges: selectedCharges,
-            updates: [...updates]
+            updates: updatesForFirestore
         };
-
-        let newUpdateEntryForFirestore: CaseUpdate | null = null;
-        if (newNote.trim()) {
-             newUpdateEntryForFirestore = {
-                timestamp: serverTimestamp() as Timestamp,
-                userId: currentUser?.id || 'Unknown',
-                userName: currentUser?.name || 'Unknown',
-                note: newNote.trim(),
-            };
-            if (!updatedDetailsObject.updates) {
-                updatedDetailsObject.updates = [];
-            }
-            updatedDetailsObject.updates.push(newUpdateEntryForFirestore as any);
-
-            const temporaryUpdateEntryForUI: CaseUpdate = {
-                ...newUpdateEntryForFirestore,
-                timestamp: new Date() as any,
-            };
-            setUpdates(prev => [...prev, temporaryUpdateEntryForUI]);
-            setNewNote('');
-        }
 
         const updateData: Partial<CaseFile> & { details: string; lastUpdatedAt: Timestamp } = {
             title,
@@ -263,15 +392,22 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
             const caseRef = doc(dbFirestore, 'caseFiles', caseData.id);
             await updateDoc(caseRef, updateData as any);
 
-            toast.success(`Case "${title}" updated successfully.`);
-            onSaveSuccess();
-            onClose();
+            if (closeOnSuccess) {
+                toast.success(`Case "${title}" updated successfully.`);
+                onSaveSuccess();
+                onClose();
+            } else if (newUpdateEntryForFirestore && !closeOnSuccess) {
+                 setNewNote('');
+            }
+            return true;
+
         } catch (error) {
             console.error("Error updating case file:", error);
-            if (newUpdateEntryForFirestore) {
-                setUpdates(prev => prev.filter(u => !(u.note === newUpdateEntryForFirestore!.note && u.userId === newUpdateEntryForFirestore!.userId)));
+            if (newUpdateEntryForFirestore && !closeOnSuccess) {
+                 setUpdates(prev => prev.filter(upd => upd.id !== newUpdateEntryForFirestore.tempId));
             }
             toast.error("Failed to update case file.");
+            return false;
         } finally {
             setIsSaving(false);
         }
@@ -679,6 +815,23 @@ ${videoNotes || 'N/A'}
 
     const isActive = ['Open - Unassigned', 'Open - Assigned', 'Under Review'].includes(status);
 
+    const handleAddNoteClick = () => {
+        if (newNote.trim()) {
+            handleSave(false);
+        } else {
+            toast.info("Please enter a note to add.");
+        }
+    };
+
+    const formatEditorName = (name: string | undefined): string => {
+        if (!name) return '';
+        const parts = name.split(' ');
+        if (parts.length < 2) return name;
+        const firstNameInitial = parts[0].charAt(0).toUpperCase();
+        const lastName = parts[parts.length - 1];
+        return `${firstNameInitial}. ${lastName}`;
+    };
+
     return (
         <div className="case-details-modal-root w-[95vw] max-w-5xl mx-auto p-4 sm:p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl transition-all duration-300 ease-in-out border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative">
             <Button variant="ghost" size="icon" className="absolute top-2 right-2 sm:top-3 sm:right-3 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
@@ -1062,15 +1215,54 @@ ${videoNotes || 'N/A'}
 
                 <TabsContent value="updates" className="flex-grow flex flex-col space-y-4 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
                     <div className="space-y-3 flex-grow overflow-y-auto pr-1 custom-scrollbar">
-                        {updates.length === 0 && !newNote ? (
+                        {updates.length === 0 ? (
                             <p className="text-muted-foreground italic text-sm">No updates recorded yet.</p>
                         ) : (
-                            [...updates].sort((a, b) => (b.timestamp?.toDate?.()?.getTime() || 0) - (a.timestamp?.toDate?.()?.getTime() || 0)).map((update, index) => (
-                                <div key={index} className="p-3 border rounded-md bg-black/95 border-border text-sm">
-                                    <p className="whitespace-pre-wrap">{update.note}</p>
-                                    <p className="text-xs text-muted-foreground text-right mt-1">
-                                        - {update.userName} on {formatTimestampForDisplay(update.timestamp)}
-                                    </p>
+                            [...updates].sort((a, b) => {
+                                const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toDate().getTime() : (a.timestamp instanceof Date ? a.timestamp.getTime() : 0);
+                                const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toDate().getTime() : (b.timestamp instanceof Date ? b.timestamp.getTime() : 0);
+                                return timeB - timeA;
+                            }).map((update) => (
+                                <div key={update.id} className="p-3 border rounded-md bg-black/95 border-border text-sm relative group">
+                                    {editingUpdateId === update.id ? (
+                                        <div className="space-y-2">
+                                            <Textarea
+                                                value={editedUpdateText}
+                                                onChange={(e) => setEditedUpdateText(e.target.value)}
+                                                rows={3}
+                                                className="bg-input border-border"
+                                                readOnly={isSaving}
+                                            />
+                                            <div className="flex justify-end space-x-2">
+                                                <Button variant="ghost" size="sm" onClick={handleCancelEditUpdate} disabled={isSaving}>
+                                                    <FaBan className="mr-1 h-3 w-3" /> Cancel
+                                                </Button>
+                                                <Button variant="outline" size="sm" onClick={handleSaveEditUpdate} disabled={isSaving || !editedUpdateText.trim()} className="bg-green-600 hover:bg-green-700 text-white border-green-700">
+                                                    <FaCheck className="mr-1 h-3 w-3" /> Save Edit
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="whitespace-pre-wrap">{update.note}</p>
+                                            <p className="text-xs text-muted-foreground text-right mt-1">
+                                                - {update.userName} on {formatTimestampForDisplay(update.timestamp)}
+                                                {update.edited && update.editedByUserName && (
+                                                    <span className="italic"> (edited by {formatEditorName(update.editedByUserName)})</span>
+                                                )}
+                                            </p>
+                                            {canModifyUpdate(update) && !isSaving && (
+                                                <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-400 hover:text-blue-300" onClick={() => handleEditUpdateClick(update)} title="Edit Update">
+                                                        <FaEdit className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-400" onClick={() => handleDeleteUpdateClick(update.id)} title="Delete Update">
+                                                        <FaTrash className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             ))
                         )}
@@ -1084,8 +1276,18 @@ ${videoNotes || 'N/A'}
                             placeholder="Record any updates or notes..."
                             rows={3}
                             className="bg-input border-border"
-                            readOnly={isSaving}
+                            readOnly={isSaving || editingUpdateId !== null}
                         />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAddNoteClick}
+                            disabled={isSaving || !newNote.trim() || editingUpdateId !== null}
+                            className="bg-[#f3c700] text-black hover:bg-[#f3c700]/90 border-0"
+                        >
+                            Add Note
+                        </Button>
                     </div>
                 </TabsContent>
 
@@ -1120,11 +1322,22 @@ ${videoNotes || 'N/A'}
 
             <div className="pt-4 mt-4 border-t-2 border-[#f3c700] shrink-0 flex justify-end space-x-3">
                 <Button type="button" variant="outline" onClick={onClose} disabled={isSaving || isGeneratingDocx}>Cancel</Button>
-                <Button type="button" onClick={handleSave} disabled={isSaving || isGeneratingDocx} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                <Button type="button" onClick={() => handleSave()} disabled={isSaving || isGeneratingDocx || editingUpdateId !== null} className="bg-accent hover:bg-accent/90 text-accent-foreground">
                     <FaSave className="mr-2 h-4 w-4" />
                     {isSaving ? 'Saving...' : 'Save Changes'}
                 </Button>
             </div>
+
+            <ConfirmationModal
+                isOpen={isConfirmModalOpen}
+                onClose={cancelDeleteUpdate}
+                onCancel={cancelDeleteUpdate}
+                onConfirm={confirmDeleteUpdate}
+                title="Confirm Deletion"
+                message="Are you sure you want to delete this update? This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+            />
         </div>
     );
 };
