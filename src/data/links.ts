@@ -1,3 +1,5 @@
+import { Label } from "recharts";
+
 const links = [
   { Label: 'San Andreas State Police S.O.P.', Url: 'https://docs.google.com/document/d/1lR9fnzKmrky4Pbiu_sejJfyGcDIinga5VHJxgC-a34E/edit?tab=t.0', Category: 'Standard Operating Procedures' },
   { Label: 'H.E.A.T.', Url: 'https://docs.google.com/document/u/0/d/1KzLKx02HBSvozRu5wEcZ0gg74cJzd7i3mPh2SfSRBHE/edit', Category: 'Standard Operating Procedures' },
@@ -25,6 +27,7 @@ const links = [
   { Label: 'Video Footage Guidelines', Url: 'https://docs.google.com/document/d/1bfGLiCfNrZZM0GqSphsswD51kj6uMeM5ofh4v8gerR8/edit?usp=sharing', Category: 'Department of Justice' },
   { Label: 'SASP Roster', Url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQY_reY_QNw_faOG9LvgJm0TiDujgCxXD3KXQQ37e6PMY44E9aRIQ_g-tUThtvnJQ1LHzSrZHuQRYyw/pubhtml?gid=1777737199', Category: 'Resources' },
   { Label: 'Fleet Management', Url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQBCfEXdC6jygMC25n1545ZZiNcWwzljaI09-1lqZjd5AHJrRoX38ecyDuZk_GMipcGpXkkuMF3XYR8/pubhtml?gid=0', Category: 'Resources' },
+  { Label: 'CIU SOP', Url: 'https://docs.google.com/document/d/1vCS79Cj_fpSWWWYUU3ShQ9NNs4EaNmxgZ-BckEHJhGI/edit?usp=sharing', Category: 'Standard Operating Procedures' },
 ];
 
 export default links;
