@@ -489,12 +489,17 @@ const FTOPage: React.FC = () => {
       const logRef = doc(dbFirestore, "cadetLogs", editingLog.id);
       const { id, createdAt, ...updateData } = editingLog; // Exclude id and createdAt
 
+      // Construct finalUpdateData conditionally
       const finalUpdateData: Partial<CadetLog> = {
         ...updateData,
         sessionHours: calculatedSessionHours,
         cumulativeHours: recalculatedCumulativeHours,
-        progressSnapshot: editingLog.type === 'progress_update' ? editingLog.progressSnapshot : undefined, // Set to undefined for session logs
       };
+
+      // Only add progressSnapshot if it's a progress_update and exists
+      if (editingLog.type === 'progress_update' && editingLog.progressSnapshot) {
+        finalUpdateData.progressSnapshot = editingLog.progressSnapshot;
+      }
 
       await updateDoc(logRef, finalUpdateData);
 

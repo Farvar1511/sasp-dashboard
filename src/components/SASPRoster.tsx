@@ -22,11 +22,21 @@ import {
 import { computeIsAdmin } from "../utils/isadmin";
 import {
   formatTimestampDateTime,
-  formatDateToMMDDYY, // Changed from formatDateForRoster
+  formatDateToMMDDYY,
   isOlderThanDays,
 } from "../utils/timeHelpers";
-import { toast } from "react-toastify"; // Import toastify
-import "react-toastify/dist/ReactToastify.css"; // Import toastify styles
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { Input } from "./ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { Checkbox } from "./ui/checkbox";
+import { Label } from "./ui/label";
 
 const rankCategories: { [key: string]: string[] } = {
   "High Command": [
@@ -50,7 +60,6 @@ const categoryOrder = [
   "Cadets",
 ];
 
-// Define ranks that have edit permissions
 const editPermissionRanks = [
   ...rankCategories["High Command"],
   ...rankCategories["Command"],
@@ -118,9 +127,9 @@ const SASPRoster: React.FC = () => {
   const [selectedRank, setSelectedRank] = useState<string>("All");
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editedRowData, setEditedRowData] = useState<Partial<RosterUser>>({});
-  const [originalRankBeforeEdit, setOriginalRankBeforeEdit] = useState<string | null>(null); // State for original rank
+  const [originalRankBeforeEdit, setOriginalRankBeforeEdit] =
+    useState<string | null>(null);
 
-  // Check if the current user has permission to edit the roster
   const canEditRoster = useMemo(() => {
     if (isAdmin) return true;
     if (!currentUser || !currentUser.rank) return false;
@@ -212,11 +221,10 @@ const SASPRoster: React.FC = () => {
               return acc;
             }, {} as { [key: string]: CertStatus });
 
-            // Determine isActive status: false if VACANT, otherwise use template value or default
             const isActive =
               normalizedTemplateEntry.name === "VACANT"
                 ? false
-                : normalizedTemplateEntry.isActive === true; // Default to false if not explicitly true in template
+                : normalizedTemplateEntry.isActive === true;
 
             return {
               id: `template-${templateEntry.callsign || Math.random()}`,
@@ -230,7 +238,7 @@ const SASPRoster: React.FC = () => {
               joinDate: normalizedTemplateEntry.joinDate || null,
               lastPromotionDate:
                 normalizedTemplateEntry.lastPromotionDate || null,
-              isActive: isActive, // Use the determined isActive status
+              isActive: isActive,
               discordId: normalizedTemplateEntry.discordId || "-",
               email: normalizedTemplateEntry.email || "",
               isPlaceholder: true,
@@ -239,7 +247,6 @@ const SASPRoster: React.FC = () => {
         }
       );
 
-      // Add any remaining live users that were not matched to the template
       liveUserMap.forEach((user) => {
         mergedRoster.push(user);
       });
@@ -254,9 +261,8 @@ const SASPRoster: React.FC = () => {
           u.rank?.toLowerCase().includes(lowerSearchTerm) ||
           u.discordId?.toLowerCase().includes(lowerSearchTerm);
         const matchesRank = selectedRank === "All" || u.rank === selectedRank;
-        // Add the hideVacant check: if hideVacant is true, filter out users named "VACANT"
         const matchesVacant = !hideVacant || u.name !== "VACANT";
-        return matchesSearch && matchesRank && matchesVacant; // Include matchesVacant in the return condition
+        return matchesSearch && matchesRank && matchesVacant;
       });
 
       const { groupedRoster: processedGroupedRoster } =
@@ -272,7 +278,7 @@ const SASPRoster: React.FC = () => {
 
   useEffect(() => {
     fetchAndMergeRoster();
-  }, [hideVacant, searchTerm, selectedRank, isAdmin]); // Keep dependencies
+  }, [hideVacant, searchTerm, selectedRank, isAdmin]);
 
   const uniqueRanks = useMemo(() => {
     const ranks = new Set<string>(["All"]);
@@ -299,11 +305,10 @@ const SASPRoster: React.FC = () => {
     }
     setEditingRowId(user.id);
     setEditedRowData(user);
-    setOriginalRankBeforeEdit(user.rank); // Store the original rank
+    setOriginalRankBeforeEdit(user.rank);
   };
 
   const handleSaveClick = async () => {
-    // Add permission check at the beginning of save handler
     if (!canEditRoster) {
       toast.error("You do not have permission to save roster edits.");
       return;
@@ -325,7 +330,6 @@ const SASPRoster: React.FC = () => {
 
       const userRef = doc(dbFirestore, "users", editedRowData.id);
 
-      // Combine all keys from editedRowData.certifications, certificationKeys, and restricted keys
       const allCertKeys = new Set([
         ...Object.keys(editedRowData.certifications || {}),
         ...certificationKeys,
@@ -334,11 +338,10 @@ const SASPRoster: React.FC = () => {
         "ACU",
       ]);
 
-      // Ensure all keys are present and valid
       const updatedCertifications = Object.fromEntries(
         Array.from(allCertKeys).map((key) => [
           key.toUpperCase(),
-          editedRowData.certifications?.[key.toUpperCase()] || "", // Default to an empty string if missing
+          editedRowData.certifications?.[key.toUpperCase()] || "",
         ])
       );
 
@@ -350,12 +353,13 @@ const SASPRoster: React.FC = () => {
           : editedRowData.lastPromotionDate
       );
 
-      // Check if rank has changed
       if (editedRowData.rank && editedRowData.rank !== originalRankBeforeEdit) {
         const currentDate = new Date();
-        const formattedCurrentDate = formatDateToMMDDYY(currentDate); // Format as MM/DD/YY
+        const formattedCurrentDate = formatDateToMMDDYY(currentDate);
         finalLastPromotionDate = formattedCurrentDate;
-        toast.info(`Rank changed. Last promotion date updated to ${formattedCurrentDate}.`);
+        toast.info(
+          `Rank changed. Last promotion date updated to ${formattedCurrentDate}.`
+        );
       }
 
       const updatedData = {
@@ -365,7 +369,7 @@ const SASPRoster: React.FC = () => {
             ? editedRowData.joinDate.toDate()
             : editedRowData.joinDate
         ),
-        lastPromotionDate: finalLastPromotionDate, // Use the determined date
+        lastPromotionDate: finalLastPromotionDate,
         loaStartDate: formatDateToMMDDYY(
           editedRowData.loaStartDate instanceof Timestamp
             ? editedRowData.loaStartDate.toDate()
@@ -376,7 +380,7 @@ const SASPRoster: React.FC = () => {
             ? editedRowData.loaEndDate.toDate()
             : editedRowData.loaEndDate
         ),
-        certifications: updatedCertifications, // Use the updated certifications map
+        certifications: updatedCertifications,
       };
 
       console.log("Final data to save:", updatedData);
@@ -385,11 +389,13 @@ const SASPRoster: React.FC = () => {
 
       console.log("Data successfully saved to Firestore.");
 
-      toast.success(`Roster edit saved for ${editedRowData.name || "current row"}`);
+      toast.success(
+        `Roster edit saved for ${editedRowData.name || "current row"}`
+      );
       setEditingRowId(null);
       setEditedRowData({});
-      setOriginalRankBeforeEdit(null); // Clear original rank
-      fetchAndMergeRoster(); // Refresh the roster data
+      setOriginalRankBeforeEdit(null);
+      fetchAndMergeRoster();
     } catch (error) {
       console.error("Error saving user data:", error);
       toast.error("Failed to save user data. Please try again.");
@@ -399,8 +405,8 @@ const SASPRoster: React.FC = () => {
   const handleCancelClick = () => {
     setEditingRowId(null);
     setEditedRowData({});
-    setOriginalRankBeforeEdit(null); // Clear original rank
-    toast.info("Edit cancelled."); // Toastify notification for cancel
+    setOriginalRankBeforeEdit(null);
+    toast.info("Edit cancelled.");
   };
 
   const handleInputChange = (
@@ -414,13 +420,12 @@ const SASPRoster: React.FC = () => {
     }));
   };
 
-  // Helper function to determine allowed certification options
   const getCertificationOptions = (key: string) => {
     const restrictedKeys = ["HEAT", "MBU", "ACU"];
     if (restrictedKeys.includes(key.toUpperCase())) {
-      return ["", "CERT"]; // Only allow None (blank) or CERT
+      return ["", "CERT"];
     }
-    return ["", "LEAD", "SUPER", "CERT", "TRAIN"]; // Default options
+    return ["", "LEAD", "SUPER", "CERT", "TRAIN"];
   };
 
   return (
@@ -428,40 +433,43 @@ const SASPRoster: React.FC = () => {
       <div className="relative z-10 page-content space-y-6 p-6 text-white min-h-screen">
         <h1 className="text-3xl font-bold text-[#f3c700]">SASP Roster</h1>
 
-        {/* Filter controls */}
-        <div className="flex flex-col md:flex-row gap-4 mb-4">
-          <input
+        <div className="flex flex-col md:flex-row gap-4 mb-4 items-center">
+          <Input
             type="text"
             placeholder="Search Roster (Name, Badge, Callsign, Rank, Discord)..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="input flex-grow bg-black bg-opacity-75 border border-[#f3c700] text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
+            className="flex-grow bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]"
           />
-          <select
-            value={selectedRank}
-            onChange={(e) => setSelectedRank(e.target.value)}
-            className="input md:w-auto bg-black bg-opacity-75 border border-[#f3c700] text-white focus:border-[#f3c700] focus:ring-[#f3c700]"
-          >
-            {uniqueRanks.map((rank) => (
-              <option key={rank} value={rank}>
-                {rank === "All" ? "All Ranks" : rank}
-              </option>
-            ))}
-          </select>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
+          <Select value={selectedRank} onValueChange={setSelectedRank}>
+            <SelectTrigger className="w-full md:w-[180px] bg-input border-border text-foreground focus:ring-[#f3c700]">
+              <SelectValue placeholder="Select Rank" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border text-popover-foreground">
+              {uniqueRanks.map((rank) => (
+                <SelectItem
+                  key={rank}
+                  value={rank}
+                  className="focus:bg-accent focus:text-accent-foreground"
+                >
+                  {rank === "All" ? "All Ranks" : rank}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center space-x-2 bg-card p-2 rounded-md border border-border">
+            <Checkbox
               id="hideVacantToggle"
               checked={hideVacant}
-              onChange={(e) => setHideVacant(e.target.checked)}
-              className="form-checkbox h-4 w-4 text-[#f3c700] bg-black bg-opacity-75 border border-[#f3c700] rounded focus:ring-[#f3c700]"
+              onCheckedChange={(checked) => setHideVacant(Boolean(checked))}
+              className="border-border data-[state=checked]:bg-[#f3c700] data-[state=checked]:text-black"
             />
-            <label
+            <Label
               htmlFor="hideVacantToggle"
-              className="text-sm text-white whitespace-nowrap"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground whitespace-nowrap"
             >
               Hide Vacant
-            </label>
+            </Label>
           </div>
         </div>
 
@@ -474,20 +482,55 @@ const SASPRoster: React.FC = () => {
               <thead className="sticky top-0 z-50 bg-gradient-to-b from-black via-black/90 to-black/70 backdrop-blur-sm text-[#f3c700] shadow-[0_2px_4px_rgba(243,199,0,0.4)] font-semibold border-t border-b border-[#f3c700]">
                 <tr>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}></th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>CALLSIGN</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>BADGE #</th>
-                  <th className="p-2 border border-[#f3c700] bg-black" rowSpan={2}>RANK</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>NAME</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>DISCORD</th>
-                  <th className="p-2 border border-[#f3c700]" colSpan={divisionKeys.length}>Divisions</th>
-                  <th className="p-2 border border-[#f3c700]" colSpan={certificationKeys.length}>Certifications</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>JOIN</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>PROMO</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>ACTIVE</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>LOA START</th>
-                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>LOA END</th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                    CALLSIGN
+                  </th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                    BADGE #
+                  </th>
+                  <th
+                    className="p-2 border border-[#f3c700] bg-black"
+                    rowSpan={2}
+                  >
+                    RANK
+                  </th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                    NAME
+                  </th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                    DISCORD
+                  </th>
+                  <th
+                    className="p-2 border border-[#f3c700]"
+                    colSpan={divisionKeys.length}
+                  >
+                    Divisions
+                  </th>
+                  <th
+                    className="p-2 border border-[#f3c700]"
+                    colSpan={certificationKeys.length}
+                  >
+                    Certifications
+                  </th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                    JOIN
+                  </th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                    PROMO
+                  </th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                    ACTIVE
+                  </th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                    LOA START
+                  </th>
+                  <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                    LOA END
+                  </th>
                   {canEditRoster && (
-                    <th className="p-2 border border-[#f3c700]" rowSpan={2}>EDIT</th>
+                    <th className="p-2 border border-[#f3c700]" rowSpan={2}>
+                      EDIT
+                    </th>
                   )}
                 </tr>
                 <tr>
@@ -540,210 +583,210 @@ const SASPRoster: React.FC = () => {
                               isVacant ? "text-white italic opacity-60" : ""
                             } ${!isVacant && !u.isActive ? "opacity-50" : ""}`}
                           >
-                            <td className="p-2 border border-[#f3c700]">
+                            <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
-                                <input
+                                <Input
                                   type="text"
                                   name="callsign"
                                   value={editedRowData.callsign || ""}
                                   onChange={handleInputChange}
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                  className="input-edit"
                                 />
                               ) : (
                                 u.callsign || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700]">
+                            <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
-                                <input
+                                <Input
                                   type="text"
                                   name="badge"
                                   value={editedRowData.badge || ""}
                                   onChange={handleInputChange}
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                  className="input-edit"
                                 />
                               ) : (
                                 u.badge || "-"
                               )}
                             </td>
                             <td
-                              className={`p-2 border border-[#f3c700] ${
-                                u.rank
+                              className={`p-2 border border-[#f3c700] text-center ${
+                                u.rank && !isEditing
                                   ? "bg-[#f3c700] text-black font-semibold"
                                   : ""
                               }`}
                             >
                               {isEditing ? (
-                                <select
+                                <Select
                                   name="rank"
                                   value={editedRowData.rank || ""}
-                                  onChange={handleInputChange}
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                  onValueChange={(value) =>
+                                    handleInputChange({
+                                      target: { name: "rank", value },
+                                    } as any)
+                                  }
                                 >
-                                  {Object.keys(rankOrder).map((rank) => (
-                                    <option key={rank} value={rank}>
-                                      {rank}
-                                    </option>
-                                  ))}
-                                </select>
+                                  <SelectTrigger className="input-edit">
+                                    <SelectValue placeholder="Select Rank" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-popover border-border text-popover-foreground">
+                                    {Object.keys(rankOrder).map((rank) => (
+                                      <SelectItem
+                                        key={rank}
+                                        value={rank}
+                                        className="focus:bg-accent focus:text-accent-foreground"
+                                      >
+                                        {rank}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               ) : (
                                 u.rank || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700]">
+                            <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
-                                <input
+                                <Input
                                   type="text"
                                   name="name"
                                   value={editedRowData.name || ""}
                                   onChange={handleInputChange}
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                  className="input-edit"
                                 />
                               ) : (
                                 u.name
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700]">
+                            <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
-                                <input
+                                <Input
                                   type="text"
                                   name="discordId"
                                   value={editedRowData.discordId || ""}
                                   onChange={handleInputChange}
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                  className="input-edit"
                                 />
                               ) : (
                                 u.discordId || "-"
                               )}
                             </td>
-                            {divisionKeys.map((divKey) => (
-                              <td
-                                key={divKey}
-                                className="p-2 border border-[#f3c700]"
-                              >
-                                {isEditing ? (
-                                  <select
-                                    name={`certifications.${divKey.toUpperCase()}`}
-                                    value={
-                                      editedRowData.certifications?.[
-                                        divKey.toUpperCase()
-                                      ] || ""
-                                    }
-                                    onChange={(e) =>
-                                      setEditedRowData((prev) => ({
-                                        ...prev,
-                                        certifications: {
-                                          ...prev.certifications,
-                                          [divKey.toUpperCase()]: e.target
-                                            .value as CertStatus,
-                                        },
-                                      }))
-                                    }
-                                    className="input w-full bg-gray-700 border-gray-600 text-white"
-                                  >
-                                    {getCertificationOptions(divKey).map(
-                                      (option) => (
-                                        <option key={option} value={option}>
-                                          {option || "-"}
-                                        </option>
-                                      )
-                                    )}
-                                  </select>
-                                ) : (
-                                  <span
-                                    className={`px-2 py-1 rounded ${
-                                      u.certifications?.[
-                                        divKey.toUpperCase()
-                                      ] === "LEAD"
-                                        ? "bg-blue-600 text-white"
-                                        : u.certifications?.[
-                                            divKey.toUpperCase()
-                                          ] === "SUPER"
-                                        ? "bg-yellow-600 text-white"
-                                        : u.certifications?.[
-                                            divKey.toUpperCase()
-                                          ] === "CERT"
-                                        ? "bg-green-600 text-white"
-                                        : u.certifications?.[
+                            {divisionKeys.map((divKey) => {
+                              const certStatus =
+                                u.certifications?.[divKey.toUpperCase()] ?? null;
+                              const styles = getCertStyle(certStatus);
+
+                              return (
+                                <td
+                                  key={divKey}
+                                  className="p-2 border border-[#f3c700] text-center"
+                                >
+                                  {isEditing ? (
+                                    <Select
+                                      name={`certifications.${divKey.toUpperCase()}`}
+                                      value={
+                                        editedRowData.certifications?.[
                                           divKey.toUpperCase()
-                                        ] === "TRAIN"
-                                        ? "bg-orange-600"
-                                        : "bg-gray-700 text-gray-400"
-                                    }`}
-                                  >
-                                    {u.certifications?.[
-                                      divKey.toUpperCase()
-                                    ] || "-"}
-                                  </span>
-                                )}
-                              </td>
-                            ))}
-                            {certificationKeys.map((certKey) => (
-                              <td
-                                key={certKey}
-                                className="p-2 border border-[#f3c700]"
-                              >
-                                {isEditing ? (
-                                  <select
-                                    name={`certifications.${certKey.toUpperCase()}`}
-                                    value={
-                                      editedRowData.certifications?.[
-                                        certKey.toUpperCase()
-                                      ] || ""
-                                    }
-                                    onChange={(e) =>
-                                      setEditedRowData((prev) => ({
-                                        ...prev,
-                                        certifications: {
-                                          ...prev.certifications,
-                                          [certKey.toUpperCase()]: e.target
-                                            .value as CertStatus,
-                                        },
-                                      }))
-                                    }
-                                    className="input w-full bg-gray-700 border-gray-600 text-white"
-                                  >
-                                    {getCertificationOptions(certKey).map(
-                                      (option) => (
-                                        <option key={option} value={option}>
-                                          {option || "-"}
-                                        </option>
-                                      )
-                                    )}
-                                  </select>
-                                ) : (
-                                  <span
-                                    className={`px-2 py-1 rounded ${
-                                      u.certifications?.[
-                                        certKey.toUpperCase()
-                                      ] === "LEAD"
-                                        ? "bg-blue-600 text-white"
-                                        : u.certifications?.[
-                                            certKey.toUpperCase()
-                                          ] === "SUPER"
-                                        ? "bg-orange-500 text-white"
-                                        : u.certifications?.[
-                                            certKey.toUpperCase()
-                                          ] === "CERT"
-                                        ? "bg-green-600 text-white"
-                                        : u.certifications?.[
+                                        ] || ""
+                                      }
+                                      onValueChange={(value) =>
+                                        setEditedRowData((prev) => ({
+                                          ...prev,
+                                          certifications: {
+                                            ...prev.certifications,
+                                            [divKey.toUpperCase()]:
+                                              value as CertStatus,
+                                          },
+                                        }))
+                                      }
+                                    >
+                                      <SelectTrigger className="input-edit">
+                                        <SelectValue placeholder="-" />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-popover border-border text-popover-foreground">
+                                        {getCertificationOptions(divKey).map(
+                                          (option) => (
+                                            <SelectItem
+                                              key={option}
+                                              value={option}
+                                              className="focus:bg-accent focus:text-accent-foreground"
+                                            >
+                                              {option || "-"}
+                                            </SelectItem>
+                                          )
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <span
+                                      className={`px-2 py-1 rounded text-xs ${styles.bgColor} ${styles.textColor}`}
+                                    >
+                                      {certStatus || "-"}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            {certificationKeys.map((certKey) => {
+                              const certStatus =
+                                u.certifications?.[certKey.toUpperCase()] ?? null;
+                              const styles = getCertStyle(certStatus);
+
+                              return (
+                                <td
+                                  key={certKey}
+                                  className="p-2 border border-[#f3c700] text-center"
+                                >
+                                  {isEditing ? (
+                                    <Select
+                                      name={`certifications.${certKey.toUpperCase()}`}
+                                      value={
+                                        editedRowData.certifications?.[
                                           certKey.toUpperCase()
-                                        ] === "TRAIN"
-                                        ? "bg-orange-600"
-                                        : "bg-gray-700 text-gray-400"
-                                    }`}
-                                  >
-                                    {u.certifications?.[
-                                      certKey.toUpperCase()
-                                    ] || "-"}
-                                  </span>
-                                )}
-                              </td>
-                            ))}
-                            <td className="p-2 border border-[#f3c700]">
+                                        ] || ""
+                                      }
+                                      onValueChange={(value) =>
+                                        setEditedRowData((prev) => ({
+                                          ...prev,
+                                          certifications: {
+                                            ...prev.certifications,
+                                            [certKey.toUpperCase()]:
+                                              value as CertStatus,
+                                          },
+                                        }))
+                                      }
+                                    >
+                                      <SelectTrigger className="input-edit">
+                                        <SelectValue placeholder="-" />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-popover border-border text-popover-foreground">
+                                        {getCertificationOptions(certKey).map(
+                                          (option) => (
+                                            <SelectItem
+                                              key={option}
+                                              value={option}
+                                              className="focus:bg-accent focus:text-accent-foreground"
+                                            >
+                                              {option || "-"}
+                                            </SelectItem>
+                                          )
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <span
+                                      className={`px-2 py-1 rounded text-xs ${styles.bgColor} ${styles.textColor}`}
+                                    >
+                                      {certStatus || "-"}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
-                                <input
-                                  type="text"
+                                <Input
+                                  type="date"
                                   name="joinDate"
                                   value={
                                     editedRowData.joinDate instanceof Timestamp
@@ -754,8 +797,7 @@ const SASPRoster: React.FC = () => {
                                       : editedRowData.joinDate || ""
                                   }
                                   onChange={handleInputChange}
-                                  placeholder="MM/DD/YY"
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                  className="input-edit date-input"
                                 />
                               ) : (
                                 formatDateToMMDDYY(
@@ -765,28 +807,38 @@ const SASPRoster: React.FC = () => {
                                 ) || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700]">
+                            <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
                                 <>
-                                  <input
-                                    type="text"
+                                  <Input
+                                    type="date"
                                     name="lastPromotionDate"
                                     value={
-                                      editedRowData.rank && editedRowData.rank !== originalRankBeforeEdit
+                                      editedRowData.rank &&
+                                      editedRowData.rank !==
+                                        originalRankBeforeEdit
                                         ? formatDateToMMDDYY(new Date())
-                                        : editedRowData.lastPromotionDate instanceof Timestamp
-                                          ? editedRowData.lastPromotionDate.toDate().toISOString().split("T")[0]
-                                          : editedRowData.lastPromotionDate || ""
+                                        : editedRowData.lastPromotionDate instanceof
+                                          Timestamp
+                                        ? editedRowData.lastPromotionDate
+                                            .toDate()
+                                            .toISOString()
+                                            .split("T")[0]
+                                        : editedRowData.lastPromotionDate || ""
                                     }
                                     onChange={handleInputChange}
-                                    placeholder="MM/DD/YY"
-                                    className="input w-full bg-gray-700 border-gray-600 text-white"
-                                    disabled={editedRowData.rank !== originalRankBeforeEdit}
-                                    title={editedRowData.rank !== originalRankBeforeEdit ? "Auto-updated on rank change" : ""}
+                                    className="input-edit date-input"
+                                    disabled={
+                                      editedRowData.rank !==
+                                      originalRankBeforeEdit
+                                    }
+                                    title={
+                                      editedRowData.rank !==
+                                      originalRankBeforeEdit
+                                        ? "Auto-updated on rank change"
+                                        : ""
+                                    }
                                   />
-                                  {editedRowData.rank !== originalRankBeforeEdit && (
-                                    <p className="text-xs text-yellow-400 italic mt-1">Auto-set to today</p>
-                                  )}
                                 </>
                               ) : (
                                 formatDateToMMDDYY(
@@ -796,27 +848,39 @@ const SASPRoster: React.FC = () => {
                                 ) || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700]">
+                            <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
-                                <select
+                                <Select
                                   name="isActive"
-                                  value={
-                                    editedRowData.isActive ? "true" : "false"
-                                  }
-                                  onChange={(e) =>
+                                  value={editedRowData.isActive ? "true" : "false"}
+                                  onValueChange={(value) =>
                                     setEditedRowData((prev) => ({
                                       ...prev,
-                                      isActive: e.target.value === "true",
+                                      isActive: value === "true",
                                     }))
                                   }
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
                                 >
-                                  <option value="true">YES</option>
-                                  <option value="false">NO</option>
-                                </select>
+                                  <SelectTrigger className="input-edit">
+                                    <SelectValue placeholder="Status" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-popover border-border text-popover-foreground">
+                                    <SelectItem
+                                      value="true"
+                                      className="focus:bg-accent focus:text-accent-foreground"
+                                    >
+                                      YES
+                                    </SelectItem>
+                                    <SelectItem
+                                      value="false"
+                                      className="focus:bg-accent focus:text-accent-foreground"
+                                    >
+                                      NO
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
                               ) : (
                                 <span
-                                  className={`px-2 py-1 rounded ${
+                                  className={`px-2 py-1 rounded text-xs ${
                                     u.isActive
                                       ? "bg-green-600 text-white"
                                       : "bg-red-600 text-white"
@@ -826,10 +890,10 @@ const SASPRoster: React.FC = () => {
                                 </span>
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700]">
+                            <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
-                                <input
-                                  type="text"
+                                <Input
+                                  type="date"
                                   name="loaStartDate"
                                   value={
                                     editedRowData.loaStartDate instanceof
@@ -841,8 +905,7 @@ const SASPRoster: React.FC = () => {
                                       : editedRowData.loaStartDate || ""
                                   }
                                   onChange={handleInputChange}
-                                  placeholder="MM/DD/YY"
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                  className="input-edit date-input"
                                 />
                               ) : (
                                 formatDateToMMDDYY(
@@ -852,14 +915,13 @@ const SASPRoster: React.FC = () => {
                                 ) || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700]">
+                            <td className="p-2 border border-[#f3c700] text-center">
                               {isEditing ? (
-                                <input
-                                  type="text"
+                                <Input
+                                  type="date"
                                   name="loaEndDate"
                                   value={
-                                    editedRowData.loaEndDate instanceof
-                                    Timestamp
+                                    editedRowData.loaEndDate instanceof Timestamp
                                       ? editedRowData.loaEndDate
                                           .toDate()
                                           .toISOString()
@@ -867,8 +929,7 @@ const SASPRoster: React.FC = () => {
                                       : editedRowData.loaEndDate || ""
                                   }
                                   onChange={handleInputChange}
-                                  placeholder="MM/DD/YY"
-                                  className="input w-full bg-gray-700 border-gray-600 text-white"
+                                  className="input-edit date-input"
                                 />
                               ) : (
                                 formatDateToMMDDYY(
@@ -900,7 +961,11 @@ const SASPRoster: React.FC = () => {
                                     onClick={() => handleEditClick(u)}
                                     className="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded"
                                     disabled={u.isPlaceholder}
-                                    title={u.isPlaceholder ? "Cannot edit placeholder rows" : "Edit Roster Entry"}
+                                    title={
+                                      u.isPlaceholder
+                                        ? "Cannot edit placeholder rows"
+                                        : "Edit Roster Entry"
+                                    }
                                   >
                                     Edit
                                   </button>
