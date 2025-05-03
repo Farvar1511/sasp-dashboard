@@ -1481,3 +1481,4 @@ function handleReturnToList() {
     throw new Error('Function not implemented.');
 }
 
+export default CIUChatInterface;

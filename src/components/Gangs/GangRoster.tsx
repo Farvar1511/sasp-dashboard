@@ -6,8 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import AddGangMemberForm from './AddGangMemberModal'; // Import the refactored form component
 import { formatTimestampDateTime } from '../../utils/timeHelpers';
-import { FaEdit, FaTrash, FaPlus, FaUpload } from 'react-icons/fa';
-import { FaGripVertical } from 'react-icons/fa6';
+import { Pencil, Trash2, Plus, Upload, GripVertical, FileText } from 'lucide-react'; // Import Lucide icons
 import {
   Table,
   TableBody,
@@ -17,7 +16,6 @@ import {
   TableRow,
 } from "../ui/table";
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import Papa from 'papaparse';
 import { Skeleton } from '../ui/skeleton';
 import { DndProvider, useDrag, useDrop, XYCoord } from 'react-dnd';
@@ -47,6 +45,7 @@ interface DraggableMemberRowProps {
     triggerFirestoreUpdate: () => void;
 }
 
+// Modify DraggableMemberRow to use native elements and forwardRef
 const DraggableMemberRow: React.FC<DraggableMemberRowProps> = ({
     member,
     index,
@@ -56,7 +55,8 @@ const DraggableMemberRow: React.FC<DraggableMemberRowProps> = ({
     handleDeleteMember,
     triggerFirestoreUpdate,
 }) => {
-  const ref = useRef<HTMLTableRowElement>(null);
+  const rowRef = useRef<HTMLTableRowElement>(null); // Ref for the TR element
+  const handleRef = useRef<HTMLTableCellElement>(null); // Ref for the drag handle cell
 
   const [{ handlerId }, drop] = useDrop<
     { id: string; index: number },
@@ -70,7 +70,7 @@ const DraggableMemberRow: React.FC<DraggableMemberRowProps> = ({
       };
     },
     hover(item: { id: string; index: number }, monitor) {
-      if (!ref.current) {
+      if (!rowRef.current) {
         return;
       }
       const dragIndex = item.index;
@@ -80,7 +80,7 @@ const DraggableMemberRow: React.FC<DraggableMemberRowProps> = ({
         return;
       }
 
-      const hoverBoundingRect = ref.current?.getBoundingClientRect();
+      const hoverBoundingRect = rowRef.current?.getBoundingClientRect();
       const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
       const clientOffset = monitor.getClientOffset();
       const hoverClientY = (clientOffset as XYCoord).y - hoverBoundingRect.top;
@@ -96,76 +96,77 @@ const DraggableMemberRow: React.FC<DraggableMemberRowProps> = ({
       item.index = hoverIndex;
     },
     drop() {
+        // Trigger the Firestore update when the drop occurs
         triggerFirestoreUpdate();
     }
   });
 
   const [{ isDragging }, drag, preview] = useDrag({
     type: ItemTypes.ROW,
-    item: () => {
-      return { id: member.id, index };
-    },
+    item: () => ({ id: member.id, index }),
     collect: (monitor: any) => ({
       isDragging: monitor.isDragging(),
     }),
+    // Optional: end drag logic if needed, but drop() handles the update trigger
+    // end: (item, monitor) => { ... }
   });
 
-  drag(drop(ref));
+  // Attach refs to the native elements
+  drag(handleRef); // Attach drag source ref to the handle cell
+  drop(rowRef);   // Attach drop target ref to the row itself
+  preview(rowRef); // Attach drag preview ref to the row itself
 
   const opacity = isDragging ? 0.4 : 1;
 
+  // Render using native tr and td, applying refs and shadcn classes for styling
   return (
-    <TableRow
-      ref={preview(ref) as React.Ref<HTMLTableRowElement>}
+    <tr
+      ref={rowRef} // Apply drop and preview ref here
       style={{ opacity }}
-      key={member.id}
       className={cn(
-          `border-b border-border hover:bg-muted/50 ${isDragging ? 'bg-muted cursor-grabbing' : 'bg-card cursor-grab'}`
-      )}
+          `border-b border-border hover:bg-muted/50 ${isDragging ? 'bg-muted cursor-grabbing' : 'bg-card'}` // Row styling
+      )
+      }
       data-handler-id={handlerId}
     >
-      <TableCell className="touch-none px-2 py-2">
-        {/* Use theme muted text color */}
-        <FaGripVertical className="h-5 w-5 text-muted-foreground" />
-      </TableCell>
-      {/* Use theme table cell styling: px-4 py-2 */}
-      <TableCell className="font-medium text-foreground px-4 py-2">{member.name}</TableCell>
-      <TableCell className="text-foreground/80 px-4 py-2">{member.rankInGang || '-'}</TableCell>
-      <TableCell className="text-foreground/80 px-4 py-2">{member.phoneNumber || '-'}</TableCell>
-      <TableCell className="truncate max-w-[200px] text-foreground/80 px-4 py-2" title={member.notes || undefined}>{member.notes || '-'}</TableCell>
-      <TableCell className="text-xs text-muted-foreground px-4 py-2">
-        {formatTimestampDateTime(member.addedAt)} {/* Display addedAt */}
-      </TableCell>
-      <TableCell className="text-center px-4 py-2">
-        {/* Use direct yellow color for edit icon */}
+      {/* Drag Handle Cell */}
+      <td ref={handleRef} className="touch-none px-2 py-2 cursor-grab align-middle"> {/* Apply drag ref here */}
+        <GripVertical className="h-5 w-5 text-muted-foreground" />
+      </td>
+      {/* Data Cells - Apply shadcn TableCell classes */}
+      <td className="font-medium text-foreground px-4 py-2 align-middle">{member.name}</td>
+      <td className="text-foreground px-4 py-2 align-middle">{member.rankInGang || '-'}</td>
+      <td className="text-foreground px-4 py-2 align-middle">{member.phoneNumber || '-'}</td>
+      <td className="truncate max-w-[200px] text-foreground px-4 py-2 align-middle" title={member.notes || undefined}>{member.notes || '-'}</td>
+      <td className="text-xs text-muted-foreground px-4 py-2 align-middle">
+        {formatTimestampDateTime(member.addedAt)}
+      </td>
+      <td className="text-center px-4 py-2 align-middle">
+        {/* Buttons */}
         <Button
             variant="ghost" size="icon"
             onClick={() => openEditModal(member)}
-            className="text-[#f3c700] hover:text-[#f3c700]/80 h-7 w-7 mr-1" // Use direct color
+            className="text-[#f3c700] hover:text-[#f3c700]/80 h-7 w-7 mr-1"
             title="Edit Member"
             disabled={isImporting || isDragging}
         >
-            <FaEdit className="h-4 w-4" />
+            <Pencil className="h-4 w-4" />
         </Button>
         <Button
             variant="ghost" size="icon"
-            onClick={() => handleDeleteMember(member.id)}
-            className="text-destructive hover:text-destructive/80 h-7 w-7" // Keep destructive for delete
+            onClick={() => handleDeleteMember(member.id ?? undefined)}
+            className="text-destructive hover:text-destructive/80 h-7 w-7"
             title="Delete Member"
             disabled={isImporting || isDragging}
         >
-            <FaTrash className="h-4 w-4" />
+            <Trash2 className="h-4 w-4" />
         </Button>
-      </TableCell>
-    </TableRow>
+      </td>
+    </tr>
   );
 };
 
-
 const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
-  // Remove state/props related to gang list mode
-  // const { gangId, gangs, onSelectGang, selectedGangId } = props;
-
   // State for member roster
   const [members, setMembers] = useState<GangMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,11 +176,10 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
   const { user: currentUser } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for the hidden native input
 
   // --- Member Roster Logic ---
   const fetchMembers = useCallback(async () => {
-    // Simplified: Always fetch if gangId is present
     if (!gangId) {
         console.log("[fetchMembers] No gangId provided, clearing members.");
         setMembers([]);
@@ -187,7 +187,7 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
         setError("No Gang ID provided.");
         return;
     };
-    console.log(`[fetchMembers] Fetching members for gangId: ${gangId}`); // Log the gangId being used
+    console.log(`[fetchMembers] Fetching members for gangId: ${gangId}`);
     setLoading(true);
     setError(null);
     try {
@@ -199,9 +199,12 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
       );
       const snapshot = await getDocs(membersQuery);
       const membersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as GangMember[];
-      setMembers(membersData);
+      const membersWithSortOrder = membersData.map((member, index) => ({
+          ...member,
+          sortOrder: member.sortOrder ?? index,
+      }));
+      setMembers(membersWithSortOrder);
     } catch (err: any) {
-      // Add this block to help debug missing index
       if (err.code === 9 && err.message && err.message.includes('indexes?create_composite')) {
         setError('Firestore composite index required. See console for link.');
         console.error('Firestore index error:', err.message);
@@ -217,7 +220,7 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
   useEffect(() => {
     console.log(`[GangRoster useEffect] Fetching members for gangId: ${gangId}`);
     fetchMembers();
-  }, [gangId, fetchMembers]); // Simplified dependencies
+  }, [gangId, fetchMembers]);
 
   const handleAddMemberSuccess = () => {
     fetchMembers();
@@ -226,7 +229,7 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
 
   const handleEditMemberSuccess = () => {
     fetchMembers();
-    setEditingMember(null); // Also close modal implicitly via state change if needed
+    setEditingMember(null);
     setIsAddMemberModalOpen(false);
   };
 
@@ -235,16 +238,18 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
     setIsAddMemberModalOpen(true);
   };
 
-   const handleDeleteMember = async (memberId: string) => {
+   const handleDeleteMember = async (memberId: string | undefined) => {
+    if (!memberId) {
+        toast.error("Member ID is missing.");
+        return;
+    }
     if (!window.confirm("Are you sure you want to remove this member from the roster?")) {
         return;
     }
-    // No need to check gangId here as we are deleting directly by memberId
     try {
-        // *** REVERT: Use the top-level collection path ***
         await deleteDoc(doc(dbFirestore, 'gangMembers', memberId));
         toast.success("Member removed successfully.");
-        fetchMembers(); // Refetch members for the current gang
+        fetchMembers();
     } catch (err) {
         console.error("Error deleting member:", err);
         toast.error("Failed to remove member.");
@@ -257,6 +262,7 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Reads from the native input event
     if (event.target.files && event.target.files[0]) {
       setSelectedFile(event.target.files[0]);
     } else {
@@ -264,12 +270,15 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
     }
   };
 
+  // Function to trigger the hidden file input click
+  const handleChooseFileClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const deleteAllExistingMembers = async (currentGangId: string): Promise<boolean> => {
-      // Ensure currentGangId is valid before proceeding
       if (!currentGangId) return false;
       setLoading(true);
       console.log(`[deleteAllExistingMembers] Attempting delete for gangId: ${currentGangId}`);
-      // *** REVERT: Query the top-level collection path with where clause ***
       const membersQuery = query(
           collection(dbFirestore, 'gangMembers'),
           where('gangId', '==', currentGangId)
@@ -298,19 +307,16 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
   };
 
   const addMembersToFirestore = async (newMembers: Omit<GangMember, 'id' | 'addedAt'>[]) => {
-    // Ensure gangId is valid before proceeding
     if (!currentUser || newMembers.length === 0 || !gangId) return;
     console.log(`[addMembersToFirestore] Attempting to add ${newMembers.length} members for gangId: ${gangId}`);
     const batch = writeBatch(dbFirestore);
     const timestamp = serverTimestamp();
-    // *** REVERT: Get reference to the top-level collection ***
     const membersColRef = collection(dbFirestore, 'gangMembers');
     newMembers.forEach((memberData, index) => {
-      // *** REVERT: Create doc reference within the top-level collection ***
       const memberRef = doc(membersColRef);
       batch.set(memberRef, {
         ...memberData,
-        gangId: gangId, // Ensure gangId is set correctly
+        gangId: gangId,
         sortOrder: memberData.sortOrder ?? index,
         addedAt: timestamp,
         addedBy: currentUser.id || 'Unknown',
@@ -321,7 +327,7 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
     try {
       await batch.commit();
       toast.success(`Successfully imported ${newMembers.length} members.`);
-      fetchMembers(); // Refetch members for the current gang
+      fetchMembers();
     } catch (error) {
       console.error("[addMembersToFirestore] Error batch importing members:", error);
       toast.error("An error occurred during import. Some members may not have been added.");
@@ -329,7 +335,6 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
   };
 
    const handleImportCSV = () => {
-    // Ensure gangId is valid before proceeding
     if (!selectedFile || !currentUser || !gangId) {
       toast.warn("Please select a file, ensure you are logged in, and a gang is selected.");
       return;
@@ -345,19 +350,19 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
         results.data.forEach((row: any, rowIndex) => {
           const name = row.Name?.trim();
           const phoneNumber = row.PhoneNumber?.trim();
-          const job = row.Job?.trim(); // Corresponds to rankInGang
+          const job = row.Job?.trim();
           const notesFromCSV = row.Notes?.trim();
-          if (name && currentUser && gangId) { // Check gangId again
+          if (name && currentUser && gangId) {
             membersToImport.push({
               name: name,
               phoneNumber: phoneNumber || null,
-              rankInGang: job || null, // Use job as rank, null if empty
+              rankInGang: job || null,
               notes: notesFromCSV || '',
-              gangId: gangId, // Assign the current gangId
-              addedBy: currentUser.id || 'Unknown', // Use ID or email
-              addedById: currentUser.id || 'Unknown', // Use ID or email
+              gangId: gangId,
+              addedBy: currentUser.id || 'Unknown',
+              addedById: currentUser.id || 'Unknown',
               addedByName: currentUser.name || 'Unknown',
-              sortOrder: rowIndex // Assign sort order based on CSV row index
+              sortOrder: rowIndex
             });
           } else if (Object.keys(row).length > 0 && Object.values(row).some(val => (val as string)?.trim())) {
             console.warn(`[handleImportCSV - complete] Skipping row ${rowIndex + 1}: Missing 'Name' field or context. Data:`, row);
@@ -365,16 +370,16 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
         });
         console.log("[handleImportCSV - complete] Members identified for import:", membersToImport);
         if (membersToImport.length > 0) {
-          const deleteSuccess = await deleteAllExistingMembers(gangId); // Pass gangId
+          const deleteSuccess = await deleteAllExistingMembers(gangId);
           if (deleteSuccess) {
-            await addMembersToFirestore(membersToImport); // Pass members
+            await addMembersToFirestore(membersToImport);
           }
         } else {
           toast.warn("No valid member data found in the CSV to import.");
         }
         setIsImporting(false);
-        setSelectedFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        setSelectedFile(null); // Reset state
+        if (fileInputRef.current) fileInputRef.current.value = ""; // Clear native input value
       },
       error: (error: any) => {
         console.error("[handleImportCSV] Error parsing CSV:", error);
@@ -386,88 +391,85 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
 
   const moveRow = useCallback((dragIndex: number, hoverIndex: number) => {
     setMembers((prevMembers) => {
-        const newMembers = [...prevMembers];
-        const [draggedItem] = newMembers.splice(dragIndex, 1);
-        newMembers.splice(hoverIndex, 0, draggedItem);
-        // Update sortOrder immediately in local state for visual feedback
-        return newMembers.map((member, index) => ({ ...member, sortOrder: index }));
+      const newMembers = [...prevMembers];
+      const [draggedItem] = newMembers.splice(dragIndex, 1);
+      newMembers.splice(hoverIndex, 0, draggedItem);
+      return newMembers;
     });
   }, []);
 
   const triggerFirestoreUpdate = useCallback(async () => {
-    // No need to check gangId here as we update by member.id
-    console.log("Triggering Firestore update for new member order...");
-    const batch = writeBatch(dbFirestore);
-    members.forEach((member, index) => {
-        const currentSortOrder = member.sortOrder ?? -1;
-        if (currentSortOrder !== index) {
-            // *** REVERT: Use the top-level collection path ***
+    setMembers(currentMembers => {
+        console.log("Triggering Firestore update for new member order...");
+        const batch = writeBatch(dbFirestore);
+        currentMembers.forEach((member, index) => {
             const memberRef = doc(dbFirestore, 'gangMembers', member.id);
             console.log(`Updating ${member.name} (${member.id}) to sortOrder: ${index}`);
             batch.update(memberRef, { sortOrder: index });
-        }
+        });
+        batch.commit().then(() => {
+            console.log("Firestore member sort order updated successfully.");
+        }).catch(err => {
+            console.error("Error updating member sort order in Firestore:", err);
+            toast.error("Failed to save new member order.");
+            fetchMembers();
+        });
+        return currentMembers;
     });
-    try {
-        await batch.commit();
-        console.log("Firestore member sort order updated successfully.");
-    } catch (err) {
-        console.error("Error updating member sort order in Firestore:", err);
-        toast.error("Failed to save new member order.");
-        fetchMembers();
-    }
-  }, [members, fetchMembers]); // Removed gangId dependency
+  }, [fetchMembers]);
 
-
-  // --- Rendering ---
-  // Remove the conditional rendering for list mode
-
-  // Always render the roster display
   return (
     <DndProvider backend={HTML5Backend}>
-      {/* Use theme card background */}
       <div className="space-y-6 bg-card p-4 rounded-lg border border-border">
-        {/* Header for adding members/importing */}
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div className="flex gap-2">
-              {/* Use direct yellow color for Add Member button */}
               <Button
                 size="sm"
                 onClick={() => { setEditingMember(null); setIsAddMemberModalOpen(true); }}
                 disabled={isImporting || loading}
-                className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black" // Use direct color, black text
+                className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black"
               >
-                <FaPlus className="mr-2 h-4 w-4" /> Add Member
+                <Plus className="mr-2 h-4 w-4" /> Add Member
               </Button>
           </div>
           <div className="flex items-center gap-2">
-               <Input
+               {/* Hidden Native File Input */}
+               <input
                   ref={fileInputRef}
                   type="file"
                   accept=".csv"
                   onChange={handleFileChange}
-                  // Use direct yellow color for file button background
-                  className="text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#f3c700] file:text-black hover:file:bg-[#f3c700]/90 w-auto max-w-[200px] h-9 cursor-pointer bg-input border-border text-foreground" // Use direct color, black text
+                  className="hidden" // Hide the native input
                   disabled={isImporting || loading}
               />
-              {/* Use direct yellow color for Import CSV outline button */}
+              {/* Button to Trigger File Selection */}
+              <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleChooseFileClick}
+                  disabled={isImporting || loading}
+                  className="border-input text-muted-foreground hover:bg-muted/50" // More standard outline button style
+              >
+                  <FileText className="mr-2 h-4 w-4" /> Choose File
+              </Button>
+              {/* Display Selected File Name (Optional) */}
+              <span className="text-sm text-muted-foreground truncate max-w-[150px]">
+                  {selectedFile ? selectedFile.name : "No file chosen"}
+              </span>
               <Button
                   size="sm"
                   variant="outline"
                   onClick={handleImportCSV}
                   disabled={!selectedFile || isImporting || loading}
-                  // Use direct color for border/text, hover background
-                  className="border-[#f3c700] text-[#f3c700] hover:bg-[#f3c700]/10 hover:text-[#f3c700]" // Use direct color
+                  className="border-[#f3c700] text-[#f3c700] hover:bg-[#f3c700]/10 hover:text-[#f3c700]"
               >
-                  <FaUpload className="mr-2 h-4 w-4" /> {isImporting ? 'Importing...' : 'Import CSV'}
+                  <Upload className="mr-2 h-4 w-4" /> {isImporting ? 'Importing...' : 'Import CSV'}
               </Button>
           </div>
         </div>
 
-
-        {/* Loading/Error state for members */}
         {loading && (
             <div className="space-y-2">
-                {/* Use theme skeleton style */}
                 <Skeleton className="h-10 w-full bg-muted border border-border" />
                 <Skeleton className="h-10 w-full bg-muted border border-border" />
                 <Skeleton className="h-10 w-full bg-muted border border-border" />
@@ -475,62 +477,54 @@ const GangRoster: React.FC<GangRosterProps> = ({ gangId }) => {
         )}
         {error && <p className="text-destructive text-sm">{error}</p>}
 
-
-        {/* Member Table */}
         {!loading && !error && (
           <>
             {members.length === 0 ? (
               <p className="text-sm text-muted-foreground italic text-center py-4">No members recorded for this gang.</p>
             ) : (
-              // Use theme card background for table container
               <div className="rounded-lg border border-border overflow-hidden shadow-sm bg-card">
-                <Table>
-                  {/* Use theme secondary background for table header */}
-                  <TableHeader>
-                    <TableRow className="border-b-border hover:bg-secondary"> {/* Prevent hover on header row, use secondary bg */}
-                      {/* Use theme secondary background for header cells */}
-                      <TableHead className="w-[40px] px-2 py-2 text-xs text-muted-foreground uppercase bg-secondary"></TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Name</TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Rank/Job</TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Phone</TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Notes</TableHead>
-                      <TableHead className="px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Added</TableHead>
-                      <TableHead className="text-center px-4 py-2 text-xs text-muted-foreground uppercase bg-secondary">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {members.map((member, index) => (
-                      <DraggableMemberRow
-                          key={member.id}
-                          index={index}
-                          member={member}
-                          moveRow={moveRow}
-                          isImporting={isImporting}
-                          openEditModal={openEditModal}
-                          handleDeleteMember={handleDeleteMember}
-                          triggerFirestoreUpdate={triggerFirestoreUpdate}
-                          // DraggableMemberRow internal styling updated above
-                      />
-                    ))}
-                  </TableBody>
-                </Table>
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b-border hover:bg-transparent">
+                    <TableHead className="w-[40px] px-2 py-3 text-xs text-muted-foreground uppercase bg-secondary"></TableHead>
+                    <TableHead className="px-4 py-3 text-xs text-muted-foreground uppercase bg-secondary">Name</TableHead>
+                    <TableHead className="px-4 py-3 text-xs text-muted-foreground uppercase bg-secondary">Job</TableHead>
+                    <TableHead className="px-4 py-3 text-xs text-muted-foreground uppercase bg-secondary">Phone</TableHead>
+                    <TableHead className="px-4 py-3 text-xs text-muted-foreground uppercase bg-secondary">Notes</TableHead>
+                    <TableHead className="px-4 py-3 text-xs text-muted-foreground uppercase bg-secondary">Added</TableHead>
+                    <TableHead className="text-center px-4 py-3 text-xs text-muted-foreground uppercase bg-secondary">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {members.map((member, index) => (
+                    <DraggableMemberRow
+                        key={member.id ?? `temp-${index}`}
+                        index={index}
+                        member={member}
+                        moveRow={moveRow}
+                        isImporting={isImporting}
+                        openEditModal={openEditModal}
+                        handleDeleteMember={(id) => handleDeleteMember(id ?? undefined)}
+                        triggerFirestoreUpdate={triggerFirestoreUpdate}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
               </div>
             )}
           </>
         )}
 
-        {/* Add/Edit Member Modal - Ensure AddGangMemberForm uses bg-card */}
-        {/* Ensure AddGangMemberForm also writes to the correct top-level 'gangMembers' collection */}
-        {isAddMemberModalOpen && currentUser && gangId && ( // Ensure gangId is passed
+        {isAddMemberModalOpen && currentUser && gangId && (
             <AddGangMemberForm
             isOpen={isAddMemberModalOpen}
             onClose={closeModal}
             onSuccess={editingMember ? handleEditMemberSuccess : handleAddMemberSuccess}
-            gangId={gangId} // Pass the current gangId
+            gangId={gangId}
             currentUser={currentUser}
             memberToEdit={editingMember}
             />
-        )}
+          )}
       </div>
     </DndProvider>
   );

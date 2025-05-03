@@ -10,8 +10,11 @@ export interface Gang {
   clothingInfo?: string;
   locationInfo?: string;
   vehiclesInfo?: string; // General info about vehicles
+  createdBy: string;
   createdByName?: string;
   createdAt?: Timestamp;
+  updatedBy?: string; 
+  updatedById?: string;
   updatedByName?: string;
   updatedAt?: Timestamp; // Allow FieldValue for serverTimestamp()
   notes?: string; // Main notes field for the gang

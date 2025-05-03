@@ -57,7 +57,7 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
 
   // State for form fields - adjust based on mode if necessary
   const [name, setName] = useState(''); // Used for Member Name or Gang Name
-  const [rank, setRank] = useState(''); // Used for Member Rank/Job
+  const [rank, setRank] = useState(''); // Used for Member Job
   const [phoneNumber, setPhoneNumber] = useState(''); // Used for Member Phone
   const [notes, setNotes] = useState(''); // Used for Member Notes or Gang Notes
   const [description, setDescription] = useState(''); // Added state for Gang Description (only used in Add Gang mode)
@@ -122,8 +122,8 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
 
     } else if (gangId) {
         // --- Logic to add/edit a MEMBER (existing logic) ---
-        if (!name || !rank) { // Changed rank check to be required as per UI
-          toast.error("Name and Rank/Job are required.");
+        if (!name.trim()) { // Changed: Only name is required
+          toast.error("Name is required.");
           setLoading(false);
           return;
         }
@@ -132,7 +132,7 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
           const memberData: Partial<GangMember> = {
             gangId,
             name: name.trim(),
-            rankInGang: rank.trim() || undefined, // Store as undefined if empty string
+            rankInGang: rank.trim() || null, // Store as null if empty string
             phoneNumber: phoneNumber.trim() || null,
             notes: notes.trim() || '',
           };
@@ -148,7 +148,7 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
             // Get the current highest sortOrder for this gang - ensure 'where' and 'limit' are imported
             const q = query(membersColRef, where('gangId', '==', gangId), orderBy("sortOrder", "desc"), limit(1));
             const lastMemberSnap = await getDocs(q);
-            const nextSortOrder = lastMemberSnap.empty ? 0 : (lastMemberSnap.docs[0].data().sortOrder ?? 0) + 1;
+            const nextSortOrder = lastMemberSnap.empty ? 0 : (lastMemberSnap.docs[0].data().sortOrder ?? -1) + 1; // Use -1 default if sortOrder is missing
 
             const memberRef = doc(membersColRef); // Auto-generate ID
             await setDoc(memberRef, {
@@ -199,10 +199,10 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
                       {/* Use theme input style */}
                       <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required className="bg-input border-border text-foreground placeholder:text-muted-foreground" placeholder="Enter member's full name"/>
                   </div>
-                  {/* Rank/Job Input */}
+                  {/* Job Input */}
                   <div className="space-y-2">
-                      <Label htmlFor="rank" className="block text-xs font-medium text-foreground/80">Rank/Job *</Label>
-                      <Input id="rank" value={rank} onChange={(e) => setRank(e.target.value)} required className="bg-input border-border text-foreground placeholder:text-muted-foreground" placeholder="Enter rank or job title"/>
+                      <Label htmlFor="job" className="block text-xs font-medium text-foreground/80">Job</Label> {/* Changed label, removed asterisk */}
+                      <Input id="job" value={rank} onChange={(e) => setRank(e.target.value)} className="bg-input border-border text-foreground placeholder:text-muted-foreground" placeholder="Enter job title (Optional)"/> {/* Removed required */}
                   </div>
                   {/* Phone Number Input */}
                   <div className="space-y-2">
@@ -243,7 +243,7 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
                         value={name} // Reusing 'name' state for Gang Name
                         onChange={(e) => setName(e.target.value)}
                         required
-                        className="bg-input border-border text-foreground placeholder:text-muted-foreground" // Theme input style
+                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Theme input style + focus ring
                         placeholder="Enter the official gang name"
                     />
                 </div>
@@ -254,7 +254,7 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
                         id="gangDescription"
                         value={description} // Use 'description' state
                         onChange={(e) => setDescription(e.target.value)}
-                        className="bg-input border-border text-foreground placeholder:text-muted-foreground" // Theme input style
+                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Theme input style + focus ring
                         placeholder="Short description (e.g., MC in Paleto)"
                     />
                 </div>
@@ -266,7 +266,7 @@ const AddGangMemberForm: React.FC<AddGangMemberModalProps> = (props) => {
                         value={notes} // Use 'notes' state for Gang Notes
                         onChange={(e) => setNotes(e.target.value)}
                         rows={4}
-                        className="bg-input border-border text-foreground placeholder:text-muted-foreground" // Theme input style
+                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Theme input style + focus ring
                         placeholder="General notes about the gang (Optional)"
                     />
                 </div>

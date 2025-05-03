@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { doc, updateDoc, serverTimestamp, Timestamp, FieldValue } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { CaseFile, CaseStatus } from '../../utils/ciuUtils';
@@ -19,7 +19,6 @@ import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
 import penalCodesData from './penal_codes.ts';
 import { computeIsAdmin } from '../../utils/isadmin';
-import ConfirmationModal from '../ConfirmationModal';
 
 interface PenalCode {
     pc: string;
@@ -40,18 +39,12 @@ interface EvidenceItem {
 }
 
 interface NameOfInterest { id: number; name: string; role: string; affiliation: string; cid?: string; phoneNumber?: string; }
-interface CaseUpdate {
-    id: string | number;
-    timestamp: Timestamp | Date;
-    userId: string;
-    userName: string;
-    note: string;
-    edited?: boolean;
-    editedByUserId?: string;
-    editedByUserName?: string;
-}
+interface CaseUpdate { id: string | number; timestamp: Timestamp | Date; userId: string; userName: string; note: string; edited?: boolean; }
 
 interface EditCaseModalProps {
+  isOpen: boolean;
+  currentUser: User | null;
+  allUsers: User[];
   onClose: () => void;
   onSaveSuccess: () => void;
   caseData: CaseFile;
@@ -88,8 +81,15 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
     const [searchResults, setSearchResults] = useState<PenalCode[]>([]);
     const [selectedCharges, setSelectedCharges] = useState<PenalCode[]>([]);
 
-    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-    const [updateToDeleteId, setUpdateToDeleteId] = useState<string | number | null>(null);
+    const summaryRef = useRef<HTMLTextAreaElement>(null);
+    const titleRef = useRef<HTMLTextAreaElement>(null);
+    const incidentReportRef = useRef<HTMLTextAreaElement>(null);
+    const locationRef = useRef<HTMLTextAreaElement>(null);
+    const photoSectionDescriptionRef = useRef<HTMLTextAreaElement>(null);
+    const videoNotesRef = useRef<HTMLTextAreaElement>(null);
+    const gangInfoRef = useRef<HTMLTextAreaElement>(null);
+    const newNoteRef = useRef<HTMLTextAreaElement>(null);
+    const evidenceContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setPenalCodes(penalCodesData as PenalCode[]);
@@ -108,6 +108,74 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
         );
         setSearchResults(filtered.slice(0, 10));
     }, [searchTerm, penalCodes]);
+
+    useEffect(() => {
+        if (summaryRef.current) {
+            summaryRef.current.style.height = 'auto';
+            summaryRef.current.style.height = `${summaryRef.current.scrollHeight}px`;
+        }
+    }, [summary]);
+
+    useEffect(() => {
+        if (titleRef.current) {
+            titleRef.current.style.height = 'auto';
+            titleRef.current.style.height = `${titleRef.current.scrollHeight}px`;
+        }
+    }, [title]);
+
+    useEffect(() => {
+        if (incidentReportRef.current) {
+            incidentReportRef.current.style.height = 'auto';
+            incidentReportRef.current.style.height = `${incidentReportRef.current.scrollHeight}px`;
+        }
+    }, [incidentReport]);
+
+    useEffect(() => {
+        if (locationRef.current) {
+            locationRef.current.style.height = 'auto';
+            locationRef.current.style.height = `${locationRef.current.scrollHeight}px`;
+        }
+    }, [location]);
+
+    useEffect(() => {
+        if (photoSectionDescriptionRef.current) {
+            photoSectionDescriptionRef.current.style.height = 'auto';
+            photoSectionDescriptionRef.current.style.height = `${photoSectionDescriptionRef.current.scrollHeight}px`;
+        }
+    }, [photoSectionDescription]);
+
+    useEffect(() => {
+        if (videoNotesRef.current) {
+            videoNotesRef.current.style.height = 'auto';
+            videoNotesRef.current.style.height = `${videoNotesRef.current.scrollHeight}px`;
+        }
+    }, [videoNotes]);
+
+    useEffect(() => {
+        if (gangInfoRef.current) {
+            gangInfoRef.current.style.height = 'auto';
+            gangInfoRef.current.style.height = `${gangInfoRef.current.scrollHeight}px`;
+        }
+    }, [gangInfo]);
+
+    useEffect(() => {
+        if (newNoteRef.current) {
+            newNoteRef.current.style.height = 'auto';
+            newNoteRef.current.style.height = `${newNoteRef.current.scrollHeight}px`;
+        }
+    }, [newNote]);
+
+    useEffect(() => {
+        if (evidenceContainerRef.current) {
+            const textareas = evidenceContainerRef.current.querySelectorAll('textarea');
+            textareas.forEach((textarea) => {
+                if (textarea.classList.contains('auto-resize-evidence')) {
+                    textarea.style.height = 'auto';
+                    textarea.style.height = `${textarea.scrollHeight}px`;
+                }
+            });
+        }
+    }, [evidence]);
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
@@ -151,9 +219,6 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
                     ...u,
                     id: u.id || (u.timestamp?.toMillis ? u.timestamp.toMillis() : `initial-${Date.now()}-${index}`),
                     timestamp: u.timestamp?.toDate ? u.timestamp.toDate() : (u.timestamp instanceof Date ? u.timestamp : new Date()),
-                    edited: u.edited || false,
-                    editedByUserId: u.editedByUserId || undefined,
-                    editedByUserName: u.editedByUserName || undefined,
                 })) || []);
                 setSelectedCharges(details.charges || []);
                 setPhotoSectionDescription(details.photoSectionDescription || '');
@@ -184,10 +249,15 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
     }, [title, incidentReport, location, summary, namesOfInterest, evidence, photos, photoSectionDescription, gangInfo, videoNotes, selectedCharges, currentUser, caseData.id]);
 
     const addEvidenceRow = () => setEvidence([...evidence, { id: Date.now(), type: 'Other', description: '', location: '', notes: '', photoLink: '' }]);
-    const updateEvidence = (index: number, field: keyof EvidenceItem, value: string | EvidenceItem['type']) => {
+    const updateEvidence = (index: number, field: keyof EvidenceItem, value: string | EvidenceItem['type'], e?: React.ChangeEvent<HTMLTextAreaElement>) => {
         const updated = [...evidence];
         updated[index] = { ...updated[index], [field]: value as any };
         setEvidence(updated);
+
+        if (e?.target) {
+            e.target.style.height = 'auto';
+            e.target.style.height = `${e.target.scrollHeight}px`;
+        }
     };
     const removeEvidenceRow = (index: number) => setEvidence(evidence.filter((_, i) => i !== index));
 
@@ -248,19 +318,12 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
     };
 
     const handleSaveEditUpdate = async () => {
-        if (editingUpdateId === null || !currentUser) return;
+        if (editingUpdateId === null) return;
 
         const originalUpdates = [...updates];
         const updatedUpdates = updates.map(u =>
             u.id === editingUpdateId
-                ? {
-                    ...u,
-                    note: editedUpdateText,
-                    edited: true,
-                    timestamp: new Date(),
-                    editedByUserId: currentUser.id,
-                    editedByUserName: currentUser.name
-                  }
+                ? { ...u, note: editedUpdateText, edited: true, timestamp: new Date() }
                 : u
         );
         setUpdates(updatedUpdates);
@@ -277,20 +340,14 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
         }
     };
 
-    const handleDeleteUpdateClick = (updateId: string | number) => {
-        setUpdateToDeleteId(updateId);
-        setIsConfirmModalOpen(true);
-    };
-
-    const confirmDeleteUpdate = async () => {
-        if (updateToDeleteId === null) return;
+    const handleDeleteUpdateClick = async (updateId: string | number) => {
+        if (!window.confirm("Are you sure you want to delete this update? This cannot be undone.")) {
+            return;
+        }
 
         const originalUpdates = [...updates];
-        const updatedUpdates = updates.filter(u => u.id !== updateToDeleteId);
+        const updatedUpdates = updates.filter(u => u.id !== updateId);
         setUpdates(updatedUpdates);
-
-        setIsConfirmModalOpen(false);
-        setUpdateToDeleteId(null);
 
         const success = await handleSave(false, updatedUpdates);
 
@@ -300,11 +357,6 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
         } else {
             toast.success("Update deleted successfully.");
         }
-    };
-
-    const cancelDeleteUpdate = () => {
-        setIsConfirmModalOpen(false);
-        setUpdateToDeleteId(null);
     };
 
     const handleSave = async (closeOnSuccess: boolean = true, updatesToSave?: CaseUpdate[]): Promise<boolean> => {
@@ -330,12 +382,11 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
                 userId: currentUser?.id || 'Unknown',
                 userName: currentUser?.name || 'Unknown',
                 note: newNote.trim(),
-                edited: false,
-             };
+                tempId: temporaryId,
+            };
             finalUpdates.push({
                 ...newUpdateEntryForFirestore,
-                id: temporaryId,
-                timestamp: new Date(),
+                id: temporaryId
             });
 
             if (!closeOnSuccess) {
@@ -346,21 +397,11 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
 
         const updatesForFirestore = finalUpdates.map(u => {
             const { id, ...rest } = u;
-            let timestampForFirestore: Timestamp | FieldValue = serverTimestamp();
-
-            if (u.timestamp instanceof Timestamp) {
-                timestampForFirestore = u.timestamp;
-            } else if (u.timestamp instanceof Date) {
-                if (u.editedByUserId || !id?.toString().startsWith('temp-')) {
-                     timestampForFirestore = Timestamp.fromDate(u.timestamp);
-                }
-            }
-            const editedFields = u.edited ? { editedByUserId: u.editedByUserId, editedByUserName: u.editedByUserName } : {};
-
             return {
                 ...rest,
-                timestamp: timestampForFirestore,
-                ...editedFields
+                timestamp: u.timestamp instanceof Date
+                    ? (u.id.toString().startsWith('temp-') ? serverTimestamp() : Timestamp.fromDate(u.timestamp))
+                    : u.timestamp
             };
         });
 
@@ -394,17 +435,20 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
 
             if (closeOnSuccess) {
                 toast.success(`Case "${title}" updated successfully.`);
-                onSaveSuccess();
+            }
+            onSaveSuccess();
+
+            if (closeOnSuccess) {
                 onClose();
-            } else if (newUpdateEntryForFirestore && !closeOnSuccess) {
+            } else if (newNote.trim() && !closeOnSuccess && !updatesToSave) {
                  setNewNote('');
             }
             return true;
 
         } catch (error) {
             console.error("Error updating case file:", error);
-            if (newUpdateEntryForFirestore && !closeOnSuccess) {
-                 setUpdates(prev => prev.filter(upd => upd.id !== newUpdateEntryForFirestore.tempId));
+            if (newUpdateEntryForFirestore && !closeOnSuccess && !updatesToSave) {
+                 setUpdates(prev => prev.filter(u => u.id !== newUpdateEntryForFirestore.tempId));
             }
             toast.error("Failed to update case file.");
             return false;
@@ -823,76 +867,67 @@ ${videoNotes || 'N/A'}
         }
     };
 
-    const formatEditorName = (name: string | undefined): string => {
-        if (!name) return '';
-        const parts = name.split(' ');
-        if (parts.length < 2) return name;
-        const firstNameInitial = parts[0].charAt(0).toUpperCase();
-        const lastName = parts[parts.length - 1];
-        return `${firstNameInitial}. ${lastName}`;
-    };
-
     return (
-        <div className="case-details-modal-root w-[95vw] max-w-5xl mx-auto p-4 sm:p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl transition-all duration-300 ease-in-out border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative">
-            <Button variant="ghost" size="icon" className="absolute top-2 right-2 sm:top-3 sm:right-3 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
+        <div className="case-details-modal-root w-[98vw] max-w-7xl mx-auto p-6 sm:p-8 md:p-12 bg-black/95 text-foreground rounded-lg shadow-2xl transition-all duration-300 ease-in-out border-[#f3c700] border-2 flex flex-col max-h-[95vh] relative overflow-y-auto custom-scrollbar">
+            <Button variant="ghost" size="icon" className="absolute top-4 right-4 sm:top-6 sm:right-6 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
                 <FaTimes className="h-5 w-5" />
                 <span className="sr-only">Close</span>
             </Button>
 
-            <div className="pb-4 mb-4 border-b-2 border-[#f3c700]">
-                <h2 className="text-xl md:text-2xl font-semibold">Edit Case File: {caseData.title}</h2>
+            <div className="pb-6 mb-6 border-b-2 border-[#f3c700]">
+                <h2 className="text-2xl md:text-3xl font-semibold">Edit Case File: {caseData.title}</h2>
             </div>
 
-            <Tabs defaultValue="details" className="w-full flex-grow flex flex-col overflow-hidden">
-                <TabsList className="mb-4 shrink-0 bg-transparent p-0 border-b border-border">
+            <Tabs defaultValue="details" className="w-full flex-grow flex flex-col">
+                <TabsList className="mb-6 shrink-0 bg-transparent p-0 border-b border-border gap-4">
                     <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Details</TabsTrigger>
                     <TabsTrigger value="updates" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Updates</TabsTrigger>
                     <TabsTrigger value="warrant" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Warrant</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="details" className="flex-grow space-y-5 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
+                <TabsContent value="details" className="flex-grow space-y-8 pb-4">
                     <Card className="bg-black/95 border-border shadow-sm">
-                        <CardHeader>
+                        <CardHeader className="pt-6">
                             <CardTitle className="text-lg text-white">Basic Information</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <Label htmlFor="caseTitle">Case Title *</Label>
-                                    <Textarea id="caseTitle" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Bank Robbery at Fleeca" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3" readOnly={isSaving} />
+                                    <Textarea id="caseTitle" ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Bank Robbery at Fleeca" className="bg-input border-border resize-none h-auto overflow-hidden py-2 px-3 min-h-0" readOnly={isSaving} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="incidentReport">Incident Report (Link or #)</Label>
-                                    <Textarea id="incidentReport" value={incidentReport} onChange={(e) => setIncidentReport(e.target.value)} placeholder="e.g., #12345 or URL" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3" readOnly={isSaving} />
+                                    <Textarea id="incidentReport" ref={incidentReportRef} value={incidentReport} onChange={(e) => setIncidentReport(e.target.value)} placeholder="e.g., #12345 or URL" className="bg-input border-border resize-none h-auto overflow-hidden py-2 px-3 min-h-0" readOnly={isSaving} />
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="location">Location of Incident</Label>
-                                <Textarea id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Pacific Standard Bank, Vinewood Blvd" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3" readOnly={isSaving} />
+                                <Textarea id="location" ref={locationRef} value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Pacific Standard Bank, Vinewood Blvd" className="bg-input border-border resize-none h-auto overflow-hidden py-2 px-3 min-h-0" readOnly={isSaving} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="summary">Summary</Label>
-                                <Textarea id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Briefly summarize the investigation..." rows={4} className="bg-input border-border" readOnly={isSaving} />
+                                <Textarea id="summary" ref={summaryRef} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Briefly summarize the investigation..." className="bg-input border-border resize-none h-auto overflow-hidden whitespace-pre-line break-words py-2 px-3 min-h-0" readOnly={isSaving} />
                             </div>
                         </CardContent>
                     </Card>
 
                     <Card className="bg-black/95 border-border shadow-sm">
-                        <CardHeader>
+                        <CardHeader className="pt-6">
                             <CardTitle className="text-lg text-white">Charges</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="relative">
+                        <CardContent className="space-y-6">
+                            <div className="relative space-y-2">
                                 <Label htmlFor="chargeSearchEdit">Search Penal Codes</Label>
                                 <div className="flex items-center">
-                                    <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                                    <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4 mt-3.5" />
                                     <Input
                                         id="chargeSearchEdit"
                                         type="text"
                                         placeholder="Search by PC, Title, or Description..."
                                         value={searchTerm}
                                         onChange={handleSearchChange}
-                                        className="bg-input border-border pl-10 h-9"
+                                        className="bg-input border-border pl-10 h-10"
                                         disabled={isSaving || isGeneratingDocx}
                                     />
                                 </div>
@@ -916,8 +951,8 @@ ${videoNotes || 'N/A'}
                                 {selectedCharges.length === 0 ? (
                                     <p className="text-sm text-muted-foreground italic">No charges added yet.</p>
                                 ) : (
-                                    <div className="border rounded-md border-border overflow-hidden overflow-x-auto">
-                                        <table className="w-full text-sm min-w-[600px]">
+                                    <div className="border rounded-md border-border overflow-x-auto">
+                                        <table className="w-full text-sm">
                                             <thead className="bg-muted/50">
                                                 <tr>
                                                     <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Code</th>
@@ -958,37 +993,37 @@ ${videoNotes || 'N/A'}
                     </Card>
 
                     <Card className="bg-black/95 border-border shadow-sm">
-                        <CardHeader>
+                        <CardHeader className="pt-6">
                             <CardTitle className="text-lg text-white">Names of Interest</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent className="space-y-6">
                              {namesOfInterest.map((item, index) => (
-                                <div key={item.id} className="p-3 border border-border/50 rounded-md space-y-3 relative">
+                                <div key={item.id} className="p-4 border border-border/50 rounded-md space-y-4 relative">
                                      {namesOfInterest.length > 1 && (
                                         <Button type="button" variant="ghost" size="icon" onClick={() => removeNameRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" disabled={isSaving} title="Remove Person">
                                             <FaTrash className="h-4 w-4" />
                                         </Button>
                                     )}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                         <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground">Name</Label>
-                                            <Textarea value={item.name} onChange={(e) => updateName(index, 'name', e.target.value)} placeholder="Full Name" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSaving} />
+                                            <Textarea value={item.name} onChange={(e) => updateName(index, 'name', e.target.value)} placeholder="Full Name" className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 text-sm min-h-0" readOnly={isSaving} />
                                         </div>
                                         <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground">CID#</Label>
-                                            <Textarea value={item.cid || ''} onChange={(e) => updateName(index, 'cid', e.target.value)} placeholder="Citizen ID (Optional)" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSaving} />
+                                            <Textarea value={item.cid || ''} onChange={(e) => updateName(index, 'cid', e.target.value)} placeholder="Citizen ID (Optional)" className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 text-sm min-h-0" readOnly={isSaving} />
                                         </div>
                                          <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground">Phone Number</Label>
-                                            <Textarea value={item.phoneNumber || ''} onChange={(e) => updateName(index, 'phoneNumber', e.target.value)} placeholder="Phone # (Optional)" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSaving} />
+                                            <Textarea value={item.phoneNumber || ''} onChange={(e) => updateName(index, 'phoneNumber', e.target.value)} placeholder="Phone # (Optional)" className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 text-sm min-h-0" readOnly={isSaving} />
                                         </div>
                                         <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground">Role</Label>
-                                            <Textarea value={item.role} onChange={(e) => updateName(index, 'role', e.target.value)} placeholder="Suspect, Witness, Victim..." rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSaving} />
+                                            <Textarea value={item.role} onChange={(e) => updateName(index, 'role', e.target.value)} placeholder="Suspect, Witness, Victim..." className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 text-sm min-h-0" readOnly={isSaving} />
                                         </div>
                                         <div className="space-y-1 md:col-span-2">
                                             <Label className="text-xs text-muted-foreground">Gang Affiliation / Notes</Label>
-                                            <Textarea value={item.affiliation} onChange={(e) => updateName(index, 'affiliation', e.target.value)} placeholder="Gang Name or relevant notes" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSaving} />
+                                            <Textarea value={item.affiliation} onChange={(e) => updateName(index, 'affiliation', e.target.value)} placeholder="Gang Name or relevant notes" className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 text-sm min-h-0" readOnly={isSaving} />
                                         </div>
                                     </div>
                                 </div>
@@ -1000,18 +1035,18 @@ ${videoNotes || 'N/A'}
                     </Card>
 
                     <Card className="bg-black/95 border-border shadow-sm">
-                        <CardHeader>
+                        <CardHeader className="pt-6">
                             <CardTitle className="text-lg text-white">Evidence</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent ref={evidenceContainerRef} className="space-y-6">
                             {evidence.map((item, index) => (
-                                <div key={item.id} className="p-3 border border-border/50 rounded-md space-y-3 relative">
+                                <div key={item.id} className="p-4 border border-border/50 rounded-md space-y-4 relative">
                                      {evidence.length > 1 && (
                                         <Button type="button" variant="ghost" size="icon" onClick={() => removeEvidenceRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" disabled={isSaving} title="Remove Evidence">
                                             <FaTrash className="h-4 w-4" />
                                         </Button>
                                     )}
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                                         <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground">Type</Label>
                                             <Select
@@ -1036,10 +1071,9 @@ ${videoNotes || 'N/A'}
                                             <Label className="text-xs text-muted-foreground">Location Collected</Label>
                                             <Textarea
                                                 value={item.location}
-                                                onChange={(e) => updateEvidence(index, 'location', e.target.value)}
+                                                onChange={(e) => updateEvidence(index, 'location', e.target.value, e)}
                                                 placeholder="Location"
-                                                rows={1}
-                                                className="bg-input border-border text-sm min-h-0 h-auto resize-none py-1.5 px-3"
+                                                className="bg-input border-border text-sm resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0 auto-resize-evidence"
                                                 readOnly={isSaving}
                                             />
                                         </div>
@@ -1047,10 +1081,9 @@ ${videoNotes || 'N/A'}
                                             <Label className="text-xs text-muted-foreground">Description</Label>
                                             <Textarea
                                                 value={item.description}
-                                                onChange={(e) => updateEvidence(index, 'description', e.target.value)}
+                                                onChange={(e) => updateEvidence(index, 'description', e.target.value, e)}
                                                 placeholder="Description of evidence"
-                                                rows={1}
-                                                className="bg-input border-border text-sm min-h-0 h-auto resize-none py-1.5 px-3"
+                                                className="bg-input border-border text-sm resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0 auto-resize-evidence"
                                                 readOnly={isSaving}
                                             />
                                         </div>
@@ -1058,10 +1091,9 @@ ${videoNotes || 'N/A'}
                                             <Label className="text-xs text-muted-foreground">Notes (Optional)</Label>
                                             <Textarea
                                                 value={item.notes || ''}
-                                                onChange={(e) => updateEvidence(index, 'notes', e.target.value)}
+                                                onChange={(e) => updateEvidence(index, 'notes', e.target.value, e)}
                                                 placeholder="Additional notes (e.g., DNA code, serial #, file hash)"
-                                                className="bg-input border-border text-sm"
-                                                rows={2}
+                                                className="bg-input border-border text-sm resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0 auto-resize-evidence"
                                                 readOnly={isSaving}
                                             />
                                         </div>
@@ -1069,10 +1101,9 @@ ${videoNotes || 'N/A'}
                                             <Label className="text-xs text-muted-foreground">Photo Link (Optional)</Label>
                                             <Textarea
                                                 value={item.photoLink || ''}
-                                                onChange={(e) => updateEvidence(index, 'photoLink', e.target.value)}
+                                                onChange={(e) => updateEvidence(index, 'photoLink', e.target.value, e)}
                                                 placeholder="https://example.com/evidence_photo.png"
-                                                rows={1}
-                                                className="bg-input border-border text-sm min-h-0 h-auto resize-none py-1.5 px-3"
+                                                className="bg-input border-border text-sm resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0 auto-resize-evidence"
                                                 readOnly={isSaving}
                                             />
                                         </div>
@@ -1086,19 +1117,19 @@ ${videoNotes || 'N/A'}
                     </Card>
 
                     <Card className="bg-black/95 border-border shadow-sm">
-                        <CardHeader>
+                        <CardHeader className="pt-6">
                             <CardTitle className="text-lg text-white">Photos (Links)</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3">
+                        <CardContent className="space-y-4">
                              <div className="space-y-2">
                                 <Label htmlFor="photoSectionDescriptionEdit">Photo Section Description</Label>
                                 <Textarea
                                     id="photoSectionDescriptionEdit"
+                                    ref={photoSectionDescriptionRef}
                                     value={photoSectionDescription}
                                     onChange={(e) => setPhotoSectionDescription(e.target.value)}
                                     placeholder="Optional: Describe the photos linked below (e.g., crime scene photos, suspect identification photos)."
-                                    rows={3}
-                                    className="bg-input border-border"
+                                    className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0"
                                     readOnly={isSaving || isGeneratingDocx}
                                 />
                             </div>
@@ -1109,8 +1140,7 @@ ${videoNotes || 'N/A'}
                                             value={link}
                                             onChange={(e) => updatePhotoLink(index, e.target.value)}
                                             placeholder="https://example.com/image.png"
-                                            rows={1}
-                                            className="flex-grow bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3"
+                                            className="flex-grow bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0"
                                             readOnly={isSaving}
                                         />
                                         {photos.length > 1 && (
@@ -1144,36 +1174,36 @@ ${videoNotes || 'N/A'}
                     </Card>
 
                     <Card className="bg-black/95 border-border shadow-sm">
-                        <CardHeader>
+                        <CardHeader className="pt-6">
                             <CardTitle className="text-lg text-white">Bodycam/Dashcam/Video Notes</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <Textarea
                                 id="videoNotes"
+                                ref={videoNotesRef}
                                 value={videoNotes}
                                 onChange={(e) => setVideoNotes(e.target.value)}
                                 placeholder="Add links to bodycam/dashcam footage, YouTube videos, or general notes about video evidence..."
-                                rows={4}
-                                className="bg-input border-border"
+                                className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0"
                                 readOnly={isSaving}
                             />
                         </CardContent>
                     </Card>
 
                     <Card className="bg-black/95 border-border shadow-sm">
-                         <CardHeader>
+                         <CardHeader className="pt-6">
                             <CardTitle className="text-lg text-white">Gang Information</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Textarea id="gangInfo" value={gangInfo} onChange={(e) => setGangInfo(e.target.value)} placeholder="Details about gang involvement, if any..." rows={4} className="bg-input border-border" readOnly={isSaving} />
+                            <Textarea id="gangInfo" ref={gangInfoRef} value={gangInfo} onChange={(e) => setGangInfo(e.target.value)} placeholder="Details about gang involvement, if any..." className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0" readOnly={isSaving} />
                         </CardContent>
                     </Card>
 
                     <Card className="bg-black/95 border-border shadow-sm">
-                        <CardHeader>
+                        <CardHeader className="pt-6">
                             <CardTitle className="text-lg text-white">Status & Assignment</CardTitle>
                         </CardHeader>
-                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
                             <div className="space-y-2">
                                 <Label>Status</Label>
                                 <div className="flex items-center space-x-2">
@@ -1213,8 +1243,8 @@ ${videoNotes || 'N/A'}
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="updates" className="flex-grow flex flex-col space-y-4 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
-                    <div className="space-y-3 flex-grow overflow-y-auto pr-1 custom-scrollbar">
+                <TabsContent value="updates" className="flex-grow flex flex-col space-y-6 pb-4">
+                    <div className="space-y-4 flex-grow pr-2">
                         {updates.length === 0 ? (
                             <p className="text-muted-foreground italic text-sm">No updates recorded yet.</p>
                         ) : (
@@ -1223,14 +1253,13 @@ ${videoNotes || 'N/A'}
                                 const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toDate().getTime() : (b.timestamp instanceof Date ? b.timestamp.getTime() : 0);
                                 return timeB - timeA;
                             }).map((update) => (
-                                <div key={update.id} className="p-3 border rounded-md bg-black/95 border-border text-sm relative group">
+                                <div key={update.id} className="p-4 border rounded-md bg-black/95 border-border text-sm relative group">
                                     {editingUpdateId === update.id ? (
                                         <div className="space-y-2">
                                             <Textarea
                                                 value={editedUpdateText}
                                                 onChange={(e) => setEditedUpdateText(e.target.value)}
-                                                rows={3}
-                                                className="bg-input border-border"
+                                                className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0"
                                                 readOnly={isSaving}
                                             />
                                             <div className="flex justify-end space-x-2">
@@ -1244,12 +1273,9 @@ ${videoNotes || 'N/A'}
                                         </div>
                                     ) : (
                                         <>
-                                            <p className="whitespace-pre-wrap">{update.note}</p>
+                                            <p className="whitespace-pre-line break-words">{update.note}</p>
                                             <p className="text-xs text-muted-foreground text-right mt-1">
-                                                - {update.userName} on {formatTimestampForDisplay(update.timestamp)}
-                                                {update.edited && update.editedByUserName && (
-                                                    <span className="italic"> (edited by {formatEditorName(update.editedByUserName)})</span>
-                                                )}
+                                                - {update.userName} on {formatTimestampForDisplay(update.timestamp)} {update.edited ? '(edited)' : ''}
                                             </p>
                                             {canModifyUpdate(update) && !isSaving && (
                                                 <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1271,11 +1297,11 @@ ${videoNotes || 'N/A'}
                         <Label htmlFor="newNote">Add New Update/Note</Label>
                         <Textarea
                             id="newNote"
+                            ref={newNoteRef}
                             value={newNote}
                             onChange={(e) => setNewNote(e.target.value)}
                             placeholder="Record any updates or notes..."
-                            rows={3}
-                            className="bg-input border-border"
+                            className="bg-input border-border resize-none h-auto overflow-hidden py-1.5 px-3 min-h-0"
                             readOnly={isSaving || editingUpdateId !== null}
                         />
                         <Button
@@ -1291,7 +1317,7 @@ ${videoNotes || 'N/A'}
                     </div>
                 </TabsContent>
 
-                <TabsContent value="warrant" className="flex-grow flex flex-col space-y-4 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
+                <TabsContent value="warrant" className="flex-grow flex flex-col space-y-6 pb-4">
                      <div className="flex justify-between items-center mb-2 shrink-0">
                         <h3 className="text-lg font-semibold text-white">Arrest Warrant Generation</h3>
                         <div className="space-x-2">
@@ -1310,8 +1336,7 @@ ${videoNotes || 'N/A'}
                     <Textarea
                         readOnly
                         value={warrantText}
-                        className="flex-grow w-full bg-input border-border font-mono text-xs resize-none"
-                        rows={25}
+                        className="flex-grow w-full bg-input border-border font-mono text-xs resize-none h-auto overflow-hidden whitespace-pre-line break-words py-1.5 px-3 min-h-0"
                         placeholder="Warrant text preview will be generated here based on case details..."
                     />
                      <p className="text-xs text-muted-foreground italic mt-1 shrink-0">
@@ -1320,24 +1345,13 @@ ${videoNotes || 'N/A'}
                 </TabsContent>
             </Tabs>
 
-            <div className="pt-4 mt-4 border-t-2 border-[#f3c700] shrink-0 flex justify-end space-x-3">
+            <div className="pt-6 mt-6 border-t-2 border-[#f3c700] shrink-0 flex justify-end space-x-4">
                 <Button type="button" variant="outline" onClick={onClose} disabled={isSaving || isGeneratingDocx}>Cancel</Button>
                 <Button type="button" onClick={() => handleSave()} disabled={isSaving || isGeneratingDocx || editingUpdateId !== null} className="bg-accent hover:bg-accent/90 text-accent-foreground">
                     <FaSave className="mr-2 h-4 w-4" />
                     {isSaving ? 'Saving...' : 'Save Changes'}
                 </Button>
             </div>
-
-            <ConfirmationModal
-                isOpen={isConfirmModalOpen}
-                onClose={cancelDeleteUpdate}
-                onCancel={cancelDeleteUpdate}
-                onConfirm={confirmDeleteUpdate}
-                title="Confirm Deletion"
-                message="Are you sure you want to delete this update? This action cannot be undone."
-                confirmText="Delete"
-                cancelText="Cancel"
-            />
         </div>
     );
 };

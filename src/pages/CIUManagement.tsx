@@ -5,7 +5,7 @@ import GangManagementTab from '../components/Gangs/GangManagementTab';
 import CaseFilesTab from '../components/CaseFiles/CaseFilesTab';
 import { CIUChatInterface } from '../components/Chat/CIUChatInterface';
 import CreateCaseModal from '../components/CaseFiles/CreateCaseModal';
-import EditCaseModal from '../components/CaseFiles/CaseDetailsModal';
+import EditCaseModal from '../components/CaseFiles/EditCaseModal';
 import { useAuth } from '../context/AuthContext';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db as dbFirestore } from '../firebase';
@@ -130,9 +130,12 @@ export default function CIUManagement() {
             />
           </div>
         )}
-        {isEditCaseModalOpen && selectedCaseForEdit && (
+        {isEditCaseModalOpen && selectedCaseForEdit && currentUser && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm">
             <EditCaseModal
+              isOpen={isEditCaseModalOpen}
+              currentUser={currentUser}
+              allUsers={eligibleAssignees}
               caseData={selectedCaseForEdit}
               onClose={handleCloseEditCaseModal}
               onSaveSuccess={handleEditCaseSaveSuccess}

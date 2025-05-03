@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'; // Import React
-import { doc, onSnapshot, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, Timestamp, serverTimestamp, updateDoc, FieldValue } from 'firebase/firestore';
 import { db as dbFirestore } from '../../firebase';
 import GangRoster from './GangRoster';
 import { Skeleton } from '../ui/skeleton';
@@ -10,8 +10,9 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
-import { updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify'; // Import toast for notifications
+import { FaEdit, FaSave, FaTimes } from 'react-icons/fa'; // Add icons for notes edit
+import { cn } from '../../lib/utils'; // Import cn utility
 
 // Define Gang type inline if not imported
 interface Gang {
@@ -27,10 +28,21 @@ interface Gang {
     level?: number | null; // Changed to number
     createdAt?: Timestamp;
     createdByName?: string;
-    updatedAt?: Timestamp;
+    updatedAt?: Timestamp | FieldValue;
     updatedByName?: string;
 }
 
+// Helper function for Threat Level styling
+const getThreatLevelStyle = (level: number | null | undefined): { bgColor: string; textColor: string; label: string } => {
+    switch (level) {
+        case 1: return { bgColor: 'bg-green-600', textColor: 'text-white', label: 'Level 1 - Low' };
+        case 2: return { bgColor: 'bg-yellow-500', textColor: 'text-black', label: 'Level 2 - Moderate' };
+        case 3: return { bgColor: 'bg-orange-500', textColor: 'text-white', label: 'Level 3 - Elevated' };
+        case 4: return { bgColor: 'bg-red-600', textColor: 'text-white', label: 'Level 4 - High' };
+        case 5: return { bgColor: 'bg-red-800', textColor: 'text-white', label: 'Level 5 - Severe' };
+        default: return { bgColor: 'bg-gray-500', textColor: 'text-white', label: 'Level Unknown' };
+    }
+};
 
 interface GangDetailsProps {
   gangId: string;
@@ -42,6 +54,8 @@ const GangDetails: React.FC<GangDetailsProps> = ({ gangId }) => {
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editState, setEditState] = useState<Partial<Gang>>({});
+  const [editNotesMode, setEditNotesMode] = useState(false); // State for notes edit mode
+  const [editedNotes, setEditedNotes] = useState<string>(''); // State for edited notes
 
   useEffect(() => {
     setLoading(true);
@@ -80,7 +94,7 @@ const GangDetails: React.FC<GangDetailsProps> = ({ gangId }) => {
   if (loading) {
     return (
         // Use theme secondary background for card and skeleton
-        <div className="p-4 bg-secondary rounded-lg shadow border border-border space-y-4">
+        <div className="p-4 bg-card border border-border rounded-lg shadow space-y-4"> {/* Changed to bg-card */}
             <Skeleton className="h-8 w-3/4 bg-muted border border-border" />
             <Skeleton className="h-4 w-1/2 bg-muted border border-border" />
             <Skeleton className="h-4 w-1/4 bg-muted border border-border" />
@@ -112,28 +126,43 @@ const GangDetails: React.FC<GangDetailsProps> = ({ gangId }) => {
     try {
       const gangRef = doc(dbFirestore, 'gangs', gang.id);
       // Prepare update data, ensuring null/empty strings are handled
-      const updateData = {
-        name: editState.name?.trim() || gang.name, // Ensure name is not empty
-        description: editState.description?.trim() || null, // Allow null description
-        level: editState.level ?? null, // Allow null level
-        clothingInfo: editState.clothingInfo?.trim() || null,
-        locationInfo: editState.locationInfo?.trim() || null,
-        vehiclesInfo: editState.vehiclesInfo?.trim() || null,
-        photoUrl: editState.photoUrl?.trim() || '', // Save empty string if cleared
-        notes: editState.notes?.trim() || null,
+      const updateData: Partial<Gang> & { updatedAt: Timestamp | FieldValue } = {
+        ...(editMode && {
+            name: editState.name?.trim() || gang.name, // Ensure name is not empty
+            description: editState.description?.trim() || undefined, // Convert null to undefined
+            level: editState.level ?? undefined, // Convert null to undefined
+            clothingInfo: editState.clothingInfo?.trim() || undefined, // Convert null to undefined
+            locationInfo: editState.locationInfo?.trim() || undefined, // Convert null to undefined
+            vehiclesInfo: editState.vehiclesInfo?.trim() || undefined, // Convert null to undefined
+            photoUrl: editState.photoUrl?.trim() || '', // Save empty string if cleared
+        }),
+        ...(editNotesMode && {
+            notes: editedNotes.trim() || undefined, // Convert null to undefined
+        }),
         updatedAt: serverTimestamp(), // Add timestamp
-        // Optionally add updatedByName if currentUser is available
       };
 
-      // Validate name before saving
-      if (!updateData.name) {
+      if (editMode && !updateData.name) {
           toast.error("Gang name cannot be empty.");
           return;
       }
 
+      if (!editMode && !editNotesMode) {
+          toast.info("No changes to save.");
+          return;
+      }
+
       await updateDoc(gangRef, updateData);
-      setEditMode(false);
-      setEditState({});
+
+      if (editMode) {
+          setEditMode(false);
+          setEditState({});
+      }
+      if (editNotesMode) {
+          setEditNotesMode(false);
+          setEditedNotes('');
+      }
+
       toast.success("Gang info updated.");
     } catch (err) {
       toast.error("Failed to update gang info.");
@@ -154,14 +183,13 @@ const GangDetails: React.FC<GangDetailsProps> = ({ gangId }) => {
   });
 
   return (
-    <Tabs defaultValue="roster" className="w-full">
+    <Tabs defaultValue="information" className="w-full">
       {/* Use direct yellow color for active tab */}
       <TabsList className="flex space-x-1 border-b border-border mb-6 bg-transparent p-0">
-        {(["roster", "information", "notes"] as const).map(tab => (
+        {(["information", "roster", "notes"] as const).map(tab => (
              <TabsTrigger
                 key={tab}
                 value={tab}
-                // Use direct color for active state
                 className={`px-4 py-2 text-sm font-medium rounded-t-md focus:outline-none transition-colors data-[state=active]:bg-[#f3c700] data-[state=active]:text-black data-[state=active]:font-semibold bg-transparent text-muted-foreground hover:bg-muted/50 hover:text-[#f3c700] data-[state=inactive]:border-b-0 data-[state=inactive]:rounded-b-none`} // Use direct color
             >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -169,26 +197,39 @@ const GangDetails: React.FC<GangDetailsProps> = ({ gangId }) => {
         ))}
       </TabsList>
 
-      {/* Roster Tab Content */}
-      <TabsContent value="roster" className="p-4 rounded-b-md">
-        <Card className="bg-card border border-border">
-            <CardHeader>
-                {/* Use direct yellow color for title */}
-                <CardTitle className="text-xl font-semibold text-[#f3c700] border-b border-border pb-2">{gang.name} Roster</CardTitle>
-                <CardDescription className="text-muted-foreground pt-2">Manage and view gang members.</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
-                <GangRoster gangId={gang.id} />
-            </CardContent>
-        </Card>
-      </TabsContent>
-
       {/* Information Tab Content */}
-      <TabsContent value="information" className="p-4 rounded-b-md">
-         <Card className="bg-card border border-border">
-            <CardHeader>
-                {/* Use direct yellow color for title */}
-                <CardTitle className="text-xl font-semibold text-[#f3c700] border-b border-border pb-2">Gang Information</CardTitle>
+      <TabsContent value="information" className="p-0 rounded-b-md"> {/* Removed padding */}
+         <Card className="bg-card border border-border shadow-none"> {/* Removed shadow */}
+            <CardHeader className="border-b border-border pb-2"> {/* Removed CardTitle wrapping */}
+                <div className="flex justify-between items-center"> {/* Flex container for title and badge */}
+                    {/* Use direct yellow color for title */}
+                    <CardTitle className="text-xl font-semibold text-[#f3c700]">Gang Information</CardTitle>
+                    {/* Styled Threat Level Badge - Moved to Header */}
+                    {!editMode && ( // Only show badge in display mode
+                        gang.level !== null && gang.level !== undefined ? (
+                            (() => {
+                                const { bgColor, textColor, label } = getThreatLevelStyle(gang.level);
+                                return (
+                                    <span title={`Threat Level: ${label}`} className={cn(
+                                        'px-4 py-1.5 rounded-full text-sm font-bold shadow', // Increased padding and font size
+                                        bgColor,
+                                        textColor
+                                    )}>
+                                        Level {gang.level}
+                                    </span>
+                                );
+                            })()
+                        ) : (
+                            <span title="Threat Level Unknown" className={cn(
+                                'px-4 py-1.5 rounded-full text-sm font-bold shadow', // Increased padding and font size
+                                getThreatLevelStyle(null).bgColor,
+                                getThreatLevelStyle(null).textColor
+                            )}>
+                                Unknown
+                            </span>
+                        )
+                    )}
+                </div>
                 <CardDescription className="text-muted-foreground pt-2">
                     {gang.description || `General details about ${gang.name}.`}
                 </CardDescription>
@@ -212,17 +253,12 @@ const GangDetails: React.FC<GangDetailsProps> = ({ gangId }) => {
                     <div>
                       {/* Use direct yellow color for heading */}
                       <h4 className="text-md font-semibold mb-1 text-[#f3c700]">Name</h4>
-                      <p className="text-lg text-foreground">{gang.name}</p>
+                      <p className="text-lg text-foreground font-medium">{gang.name}</p>
                     </div>
                     <div>
                       {/* Use direct yellow color for heading */}
                       <h4 className="text-md font-semibold mb-1 text-[#f3c700]">Description</h4>
                       {renderTextContent(gang.description, 'No description.')}
-                    </div>
-                    <div>
-                      {/* Use direct yellow color for heading */}
-                      <h4 className="text-md font-semibold mb-1 text-[#f3c700]">Threat Level</h4>
-                      <p className="text-sm text-foreground">{gang.level ?? <span className="italic text-muted-foreground">Not specified</span>}</p>
                     </div>
                     <div>
                       {/* Use direct yellow color for heading */}
@@ -245,7 +281,7 @@ const GangDetails: React.FC<GangDetailsProps> = ({ gangId }) => {
                       </p>
                       {gang.updatedAt && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Last updated on {formatTimestamp(gang.updatedAt)}
+                          Last updated on {gang.updatedAt instanceof Timestamp ? formatTimestamp(gang.updatedAt) : 'N/A'}
                           {gang.updatedByName && ` by ${gang.updatedByName}`}
                         </p>
                       )}
@@ -269,65 +305,68 @@ const GangDetails: React.FC<GangDetailsProps> = ({ gangId }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         {/* Use theme label/input styles */}
-                        <Label className="block text-foreground/80 mb-1">Name</Label>
+                        <Label className="block text-foreground/80 mb-1 text-xs font-medium">Name *</Label> {/* Adjusted label style */}
                         <Input
                           value={editState.name ?? ''}
                           onChange={e => setEditState(s => ({ ...s, name: e.target.value }))}
-                          className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                          className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Added focus ring
                         />
                       </div>
                       <div>
-                        <Label className="block text-foreground/80 mb-1">Threat Level</Label>
+                        <Label className="block text-foreground/80 mb-1 text-xs font-medium">Threat Level</Label> {/* Adjusted label style */}
                         <Input
                           type="number"
+                          min="1"
+                          max="5"
                           value={editState.level ?? ''}
                           onChange={e => setEditState(s => ({ ...s, level: e.target.value === '' ? null : Number(e.target.value) }))}
-                          className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                          className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Added focus ring
+                          placeholder="1-5 (Optional)"
                         />
                       </div>
                     </div>
                     <div>
-                      <Label className="block text-foreground/80 mb-1">Description</Label>
+                      <Label className="block text-foreground/80 mb-1 text-xs font-medium">Description</Label> {/* Adjusted label style */}
                       <Textarea
                         value={editState.description ?? ''}
                         onChange={e => setEditState(s => ({ ...s, description: e.target.value }))}
                         rows={2}
-                        className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Added focus ring
                       />
                     </div>
                     <div>
-                      <Label className="block text-foreground/80 mb-1">Photo URL</Label>
+                      <Label className="block text-foreground/80 mb-1 text-xs font-medium">Photo URL</Label> {/* Adjusted label style */}
                       <Input
                         value={editState.photoUrl ?? ''}
                         onChange={e => setEditState(s => ({ ...s, photoUrl: e.target.value }))}
-                        className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Added focus ring
                       />
                     </div>
                     <div>
-                      <Label className="block text-foreground/80 mb-1">Clothing / Colors</Label>
+                      <Label className="block text-foreground/80 mb-1 text-xs font-medium">Clothing / Colors</Label> {/* Adjusted label style */}
                       <Textarea
                         value={editState.clothingInfo ?? ''}
                         onChange={e => setEditState(s => ({ ...s, clothingInfo: e.target.value }))}
                         rows={2}
-                        className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Added focus ring
                       />
                     </div>
                     <div>
-                      <Label className="block text-foreground/80 mb-1">Known Locations / Territory</Label>
+                      <Label className="block text-foreground/80 mb-1 text-xs font-medium">Known Locations / Territory</Label> {/* Adjusted label style */}
                       <Textarea
                         value={editState.locationInfo ?? ''}
                         onChange={e => setEditState(s => ({ ...s, locationInfo: e.target.value }))}
                         rows={2}
-                        className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Added focus ring
                       />
                     </div>
                     <div>
-                      <Label className="block text-foreground/80 mb-1">Known Vehicles</Label>
+                      <Label className="block text-foreground/80 mb-1 text-xs font-medium">Known Vehicles</Label> {/* Adjusted label style */}
                       <Textarea
                         value={editState.vehiclesInfo ?? ''}
                         onChange={e => setEditState(s => ({ ...s, vehiclesInfo: e.target.value }))}
                         rows={2}
-                        className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                        className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]" // Added focus ring
                       />
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
@@ -341,17 +380,71 @@ const GangDetails: React.FC<GangDetailsProps> = ({ gangId }) => {
          </Card>
       </TabsContent>
 
+      {/* Roster Tab Content */}
+      <TabsContent value="roster" className="p-0 rounded-b-md"> {/* Removed padding */}
+        <Card className="bg-card border border-border shadow-none"> {/* Removed shadow */}
+            <CardHeader>
+                {/* Use direct yellow color for title */}
+                <CardTitle className="text-xl font-semibold text-[#f3c700] border-b border-border pb-2">{gang.name} Roster</CardTitle>
+                <CardDescription className="text-muted-foreground pt-2">Manage and view gang members.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0"> {/* Removed padding top */}
+                {/* GangRoster now has its own padding */}
+                <GangRoster gangId={gang.id} />
+            </CardContent>
+        </Card>
+      </TabsContent>
+
       {/* Notes Tab Content */}
-      <TabsContent value="notes" className="p-4 rounded-b-md">
-        <Card className="bg-card border border-border">
+      <TabsContent value="notes" className="p-0 rounded-b-md"> {/* Removed padding */}
+        <Card className="bg-card border border-border shadow-none"> {/* Removed shadow */}
             <CardHeader>
                 {/* Use direct yellow color for title */}
                 <CardTitle className="text-xl font-semibold text-[#f3c700] border-b border-border pb-2">General Notes</CardTitle>
                 <CardDescription className="text-muted-foreground pt-2">General observations and intelligence about {gang.name}.</CardDescription>
             </CardHeader>
-            <CardContent className="pt-4">
-                {renderTextContent(gang.notes, 'No general notes recorded for this gang.')}
-                 {/* TODO: Add Edit/Save for Notes here if needed */}
+            <CardContent className="pt-4 space-y-4">
+                {!editNotesMode ? (
+                    <>
+                        {renderTextContent(gang.notes, 'No general notes recorded for this gang.')}
+                        <div className="flex justify-end pt-2">
+                            {/* Edit Button for Notes */}
+                            <Button
+                                onClick={() => {
+                                    setEditedNotes(gang.notes || '');
+                                    setEditNotesMode(true);
+                                    setEditMode(false); // Ensure info edit mode is off
+                                    setEditState({});
+                                }}
+                                className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black"
+                            >
+                                <FaEdit className="mr-2 h-4 w-4" /> Edit Notes
+                            </Button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        {/* Edit Mode for Notes */}
+                        <div>
+                            <Label className="block text-foreground/80 mb-1 text-xs font-medium">Notes</Label>
+                            <Textarea
+                                value={editedNotes}
+                                onChange={e => setEditedNotes(e.target.value)}
+                                rows={8}
+                                className="bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-[#f3c700]"
+                                placeholder="Enter general notes..."
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button variant="outline" onClick={() => { setEditNotesMode(false); setEditedNotes(''); }} className="border-border text-muted-foreground hover:bg-muted/50">
+                                <FaTimes className="mr-2 h-4 w-4" /> Cancel
+                            </Button>
+                            <Button onClick={handleSave} className="bg-[#f3c700] hover:bg-[#f3c700]/90 text-black">
+                                <FaSave className="mr-2 h-4 w-4" /> Save Notes
+                            </Button>
+                        </div>
+                    </>
+                )}
             </CardContent>
         </Card>
       </TabsContent>

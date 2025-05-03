@@ -214,9 +214,9 @@
   /* Ensure text selection is enabled for read-only textareas */
   textarea[readonly] {
     user-select: text !important; /* Keep !important */
-    -webkit-user-select: text !important;
-    -moz-user-select: text !important;
-    -ms-user-select: text !important;
+    -webkit-user-select: text !important; /* Keep !important */
+    -moz-user-select: text !important; /* Keep !important */
+    -ms-user-select: text !important; /* Keep !important */
   }
 
   /* Add rule targeting data-slot attribute specifically */
