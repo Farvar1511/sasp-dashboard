@@ -102,7 +102,7 @@ const CreateCaseModal: React.FC<CreateCaseModalProps> = ({ onClose, onSuccess, e
     const addEvidenceRow = () => setEvidence([...evidence, { id: Date.now(), type: 'Other', description: '', location: '', notes: '', photoLink: '' }]);
     const updateEvidence = (index: number, field: keyof EvidenceItem, value: string | EvidenceItem['type']) => {
         const updated = [...evidence];
-        updated[index] = { ...updated[index], [field]: value };
+        updated[index] = { ...updated[index], [field]: value as any };
         setEvidence(updated);
     };
     const removeEvidenceRow = (index: number) => setEvidence(evidence.filter((_, i) => i !== index));
@@ -263,12 +263,12 @@ ${videoNotes || 'N/A'}
     const isActive = ['Open - Unassigned', 'Open - Assigned', 'Under Review'].includes(status);
 
     return (
-        <div className="w-[95vw] max-w-5xl mx-auto p-4 sm:p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl transition-all duration-300 ease-in-out border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative">
+        <div className="w-[95vw] max-w-5xl mx-auto p-4 sm:p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative overflow-hidden">
             <Button variant="ghost" size="icon" className="absolute top-2 right-2 sm:top-3 sm:right-3 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
                 <FaTimes className="h-5 w-5" />
                 <span className="sr-only">Close</span>
             </Button>
-            <div className="pb-4 mb-4 border-b-2 border-[#f3c700]">
+            <div className="pb-4 mb-4 border-b-2 border-[#f3c700] shrink-0">
                 <h2 className="text-xl md:text-2xl font-semibold">Create New Case File</h2>
             </div>
             <Tabs defaultValue="details" className="w-full flex-grow flex flex-col overflow-hidden">
@@ -278,7 +278,7 @@ ${videoNotes || 'N/A'}
                     <TabsTrigger value="warrant" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Warrant</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="details" className="flex-grow space-y-5 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
+                <TabsContent value="details" className="flex-grow space-y-5 overflow-y-auto custom-scrollbar pr-4 pl-1 pb-2">
                     <Card className="bg-black/95 border-border shadow-sm">
                         <CardHeader>
                             <CardTitle className="text-lg text-white">Basic Information</CardTitle>
@@ -287,16 +287,16 @@ ${videoNotes || 'N/A'}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="caseTitleCreate">Case Title *</Label>
-                                    <Textarea id="caseTitleCreate" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Bank Robbery at Fleeca" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3" readOnly={isSubmitting} />
+                                    <Textarea id="caseTitleCreate" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Bank Robbery at Fleeca" className="bg-input border-border py-1.5 px-3" rows={1} readOnly={isSubmitting} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="incidentReportCreate">Incident Report (Link or #)</Label>
-                                    <Textarea id="incidentReportCreate" value={incidentReport} onChange={(e) => setIncidentReport(e.target.value)} placeholder="e.g., #12345 or URL" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3" readOnly={isSubmitting} />
+                                    <Textarea id="incidentReportCreate" value={incidentReport} onChange={(e) => setIncidentReport(e.target.value)} placeholder="e.g., #12345 or URL" className="bg-input border-border py-1.5 px-3" rows={1} readOnly={isSubmitting} />
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="locationCreate">Location of Incident</Label>
-                                <Textarea id="locationCreate" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Pacific Standard Bank, Vinewood Blvd" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3" readOnly={isSubmitting} />
+                                <Textarea id="locationCreate" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Pacific Standard Bank, Vinewood Blvd" className="bg-input border-border py-1.5 px-3" rows={1} readOnly={isSubmitting} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="summaryCreate">Summary</Label>
@@ -400,23 +400,23 @@ ${videoNotes || 'N/A'}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                         <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground">Name</Label>
-                                            <Textarea value={item.name} onChange={(e) => updateName(index, 'name', e.target.value)} placeholder="Full Name" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSubmitting} />
+                                            <Textarea value={item.name} onChange={(e) => updateName(index, 'name', e.target.value)} placeholder="Full Name" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSubmitting} />
                                         </div>
                                         <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground">CID#</Label>
-                                            <Textarea value={item.cid || ''} onChange={(e) => updateName(index, 'cid', e.target.value)} placeholder="Citizen ID (Optional)" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSubmitting} />
+                                            <Textarea value={item.cid || ''} onChange={(e) => updateName(index, 'cid', e.target.value)} placeholder="Citizen ID (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSubmitting} />
                                         </div>
                                          <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground">Phone Number</Label>
-                                            <Textarea value={item.phoneNumber || ''} onChange={(e) => updateName(index, 'phoneNumber', e.target.value)} placeholder="Phone # (Optional)" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSubmitting} />
+                                            <Textarea value={item.phoneNumber || ''} onChange={(e) => updateName(index, 'phoneNumber', e.target.value)} placeholder="Phone # (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSubmitting} />
                                         </div>
                                         <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground">Role</Label>
-                                            <Textarea value={item.role} onChange={(e) => updateName(index, 'role', e.target.value)} placeholder="Suspect, Witness, Victim..." rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSubmitting} />
+                                            <Textarea value={item.role} onChange={(e) => updateName(index, 'role', e.target.value)} placeholder="Suspect, Witness, Victim..." className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSubmitting} />
                                         </div>
                                         <div className="space-y-1 md:col-span-2">
                                             <Label className="text-xs text-muted-foreground">Gang Affiliation / Notes</Label>
-                                            <Textarea value={item.affiliation} onChange={(e) => updateName(index, 'affiliation', e.target.value)} placeholder="Gang Name or relevant notes" rows={1} className="bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3 text-sm" readOnly={isSubmitting} />
+                                            <Textarea value={item.affiliation} onChange={(e) => updateName(index, 'affiliation', e.target.value)} placeholder="Gang Name or relevant notes" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSubmitting} />
                                         </div>
                                     </div>
                                 </div>
@@ -466,8 +466,8 @@ ${videoNotes || 'N/A'}
                                                 value={item.location}
                                                 onChange={(e) => updateEvidence(index, 'location', e.target.value)}
                                                 placeholder="Location"
+                                                className="bg-input border-border text-sm py-1.5 px-3"
                                                 rows={1}
-                                                className="bg-input border-border text-sm min-h-0 h-auto resize-none py-1.5 px-3"
                                                 readOnly={isSubmitting}
                                             />
                                         </div>
@@ -477,8 +477,8 @@ ${videoNotes || 'N/A'}
                                                 value={item.description}
                                                 onChange={(e) => updateEvidence(index, 'description', e.target.value)}
                                                 placeholder="Description of evidence"
+                                                className="bg-input border-border text-sm py-1.5 px-3"
                                                 rows={1}
-                                                className="bg-input border-border text-sm min-h-0 h-auto resize-none py-1.5 px-3"
                                                 readOnly={isSubmitting}
                                             />
                                         </div>
@@ -499,8 +499,8 @@ ${videoNotes || 'N/A'}
                                                 value={item.photoLink || ''}
                                                 onChange={(e) => updateEvidence(index, 'photoLink', e.target.value)}
                                                 placeholder="https://example.com/evidence_photo.png"
+                                                className="bg-input border-border text-sm py-1.5 px-3"
                                                 rows={1}
-                                                className="bg-input border-border text-sm min-h-0 h-auto resize-none py-1.5 px-3"
                                                 readOnly={isSubmitting}
                                             />
                                         </div>
@@ -537,8 +537,8 @@ ${videoNotes || 'N/A'}
                                             value={link}
                                             onChange={(e) => updatePhotoLink(index, e.target.value)}
                                             placeholder="https://example.com/image.png"
+                                            className="flex-grow bg-input border-border py-1.5 px-3"
                                             rows={1}
-                                            className="flex-grow bg-input border-border min-h-0 h-auto resize-none py-1.5 px-3"
                                             readOnly={isSubmitting}
                                         />
                                         {photos.length > 1 && (
@@ -568,6 +568,23 @@ ${videoNotes || 'N/A'}
                             <Button type="button" variant="outline" size="sm" onClick={addPhotoLink} className="mt-2 bg-[#f3c700] text-white hover:bg-[#f3c700]/90 border-0" disabled={isSubmitting}>
                                 <FaPlus className="mr-2 h-3 w-3" /> Add Photo Link
                             </Button>
+                        </CardContent>
+                    </Card>
+
+                     <Card className="bg-black/95 border-border shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-lg text-white">Bodycam/Dashcam/Video Notes</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Textarea
+                                id="videoNotesCreate"
+                                value={videoNotes}
+                                onChange={(e) => setVideoNotes(e.target.value)}
+                                placeholder="Add links to bodycam/dashcam footage, YouTube videos, or general notes about video evidence..."
+                                className="bg-input border-border"
+                                rows={3}
+                                readOnly={isSubmitting}
+                            />
                         </CardContent>
                     </Card>
 
@@ -624,14 +641,14 @@ ${videoNotes || 'N/A'}
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="updates" className="flex-grow flex flex-col space-y-4 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
-                    <div className="space-y-3 flex-grow overflow-y-auto pr-1 custom-scrollbar">
+                <TabsContent value="updates" className="flex-grow flex flex-col space-y-4 overflow-y-auto custom-scrollbar pr-4 pl-1 pb-2">
+                    <div className="space-y-3 flex-grow">
                         <p className="text-muted-foreground italic text-sm">Updates can be added after the case is created.</p>
                     </div>
                 </TabsContent>
 
-                <TabsContent value="warrant" className="flex-grow flex flex-col space-y-4 overflow-y-auto pr-2 pl-1 pb-2 custom-scrollbar">
-                     <div className="flex justify-between items-center mb-2">
+                <TabsContent value="warrant" className="flex-grow flex flex-col space-y-4 overflow-y-auto custom-scrollbar pr-4 pl-1 pb-2">
+                     <div className="flex justify-between items-center mb-2 shrink-0">
                         <h3 className="text-lg font-semibold text-white">Arrest Warrant Preview</h3>
                         <div className="space-x-2">
                              <Button variant="outline" size="sm" onClick={handleRegenerateWarrantPreview} title="Regenerate text preview" className="bg-blue-600 hover:bg-blue-700 text-white border-blue-700" disabled={isSubmitting || isGeneratingDocx}>
@@ -648,16 +665,17 @@ ${videoNotes || 'N/A'}
                     <Textarea
                         readOnly
                         value={warrantText}
-                        className="flex-grow w-full bg-input border-border font-mono text-xs h-[calc(100%-60px)] resize-none"
-                        rows={25}
+                        className="flex-grow w-full bg-input border-border font-mono text-xs whitespace-pre-line break-words"
                         placeholder="Warrant text preview will be generated here based on case details..."
+                        style={{ minHeight: '300px' }}
                     />
-                     <p className="text-xs text-muted-foreground italic mt-1">
+                     <p className="text-xs text-muted-foreground italic mt-1 shrink-0">
                         This is a simplified preview. Use 'Export DOCX' (after creation) to generate the official warrant document.
                     </p>
                 </TabsContent>
             </Tabs>
 
+            {/* Footer buttons */}
             <div className="pt-4 mt-4 border-t-2 border-[#f3c700] shrink-0 flex justify-end space-x-3">
                 <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
                 <Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="bg-accent hover:bg-accent/90 text-accent-foreground">
