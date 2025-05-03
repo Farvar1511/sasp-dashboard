@@ -253,35 +253,35 @@ ${videoNotes || 'N/A'}
     };
 
     const exportAsDocx = () => {
-        toast.info("DOCX export is available after the case is created.");
+        toast.info("DOCX export is available after the case is created (via Edit).");
     };
 
     const exportAsPdf = () => {
-        toast.info("PDF export is available after the case is created.");
+        toast.info("PDF export is available after the case is created (via Edit).");
     };
 
     const isActive = ['Open - Unassigned', 'Open - Assigned', 'Under Review'].includes(status);
 
     return (
-        <div className="w-[95vw] max-w-5xl mx-auto p-4 sm:p-6 md:p-8 bg-black/95 text-foreground rounded-lg shadow-2xl border-[#f3c700] border-2 flex flex-col max-h-[90vh] relative overflow-hidden">
+        <div className={`w-[95vw] max-w-5xl mx-auto p-4 sm:p-6 md:p-8 bg-background text-foreground rounded-lg shadow-2xl border border-border flex flex-col max-h-[90vh] relative overflow-hidden`}>
             <Button variant="ghost" size="icon" className="absolute top-2 right-2 sm:top-3 sm:right-3 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
                 <FaTimes className="h-5 w-5" />
                 <span className="sr-only">Close</span>
             </Button>
-            <div className="pb-4 mb-4 border-b-2 border-[#f3c700] shrink-0">
+            <div className="pb-4 mb-4 border-b border-border shrink-0">
                 <h2 className="text-xl md:text-2xl font-semibold">Create New Case File</h2>
             </div>
             <Tabs defaultValue="details" className="w-full flex-grow flex flex-col overflow-hidden">
-                <TabsList className="mb-4 shrink-0 bg-transparent p-0 border-b border-border">
-                    <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Details</TabsTrigger>
-                    <TabsTrigger value="updates" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Updates</TabsTrigger>
-                    <TabsTrigger value="warrant" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Warrant</TabsTrigger>
+                <TabsList className="mb-4 shrink-0 bg-muted p-0 border-b border-border">
+                    <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Details</TabsTrigger>
+                    <TabsTrigger value="updates" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Updates</TabsTrigger>
+                    <TabsTrigger value="warrant" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Warrant</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className="flex-grow space-y-5 overflow-y-auto custom-scrollbar pr-4 pl-1 pb-2">
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-muted border-border shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg text-white">Basic Information</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Basic Information</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -305,9 +305,9 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-muted border-border shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg text-white">Charges</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Charges</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="relative">
@@ -325,7 +325,7 @@ ${videoNotes || 'N/A'}
                                     />
                                 </div>
                                 {searchResults.length > 0 && (
-                                    <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-y-auto penal-code-search-results">
+                                    <div className="absolute z-10 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto penal-code-search-results">
                                         {searchResults.map(code => (
                                             <div
                                                 key={code.pc}
@@ -346,7 +346,7 @@ ${videoNotes || 'N/A'}
                                 ) : (
                                     <div className="border rounded-md border-border overflow-hidden overflow-x-auto">
                                         <table className="w-full text-sm min-w-[600px]">
-                                            <thead className="bg-muted/50">
+                                            <thead className="bg-muted">
                                                 <tr>
                                                     <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Code</th>
                                                     <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Title</th>
@@ -385,13 +385,13 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-muted border-border shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg text-white">Names of Interest</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Names of Interest</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {namesOfInterest.map((item, index) => (
-                                <div key={item.id} className="p-3 border border-border/50 rounded-md space-y-3 relative">
+                                <div key={item.id} className="p-3 border border-border/50 rounded-md space-y-3 relative bg-background">
                                     {namesOfInterest.length > 1 && (
                                         <Button type="button" variant="ghost" size="icon" onClick={() => removeNameRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" disabled={isSubmitting} title="Remove Person">
                                             <FaTrash className="h-4 w-4" />
@@ -421,19 +421,19 @@ ${videoNotes || 'N/A'}
                                     </div>
                                 </div>
                             ))}
-                            <Button type="button" variant="outline" size="sm" onClick={addNameRow} className="mt-2 bg-[#f3c700] text-white hover:bg-[#f3c700]/90 border-0" disabled={isSubmitting}>
+                            <Button type="button" variant="outline" size="sm" onClick={addNameRow} className="mt-2 bg-primary text-primary-foreground hover:bg-primary/90 border-0" disabled={isSubmitting}>
                                 <FaPlus className="mr-2 h-3 w-3" /> Add Person
                             </Button>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-muted border-border shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg text-white">Evidence</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Evidence</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {evidence.map((item, index) => (
-                                <div key={item.id} className="p-3 border border-border/50 rounded-md space-y-3 relative">
+                                <div key={item.id} className="p-3 border border-border/50 rounded-md space-y-3 relative bg-background">
                                     {evidence.length > 1 && (
                                         <Button type="button" variant="ghost" size="icon" onClick={() => removeEvidenceRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" disabled={isSubmitting} title="Remove Evidence">
                                             <FaTrash className="h-4 w-4" />
@@ -450,7 +450,7 @@ ${videoNotes || 'N/A'}
                                                 <SelectTrigger className="bg-input border-border h-9 text-sm">
                                                     <SelectValue placeholder="Select type" />
                                                 </SelectTrigger>
-                                                <SelectContent className="bg-black/95 text-popover-foreground border-border shadow-md z-50">
+                                                <SelectContent className="bg-background text-popover-foreground border-border shadow-md z-50">
                                                     <SelectItem value="Blood">Blood</SelectItem>
                                                     <SelectItem value="Casing">Casing</SelectItem>
                                                     <SelectItem value="Weapon">Weapon</SelectItem>
@@ -507,15 +507,15 @@ ${videoNotes || 'N/A'}
                                     </div>
                                 </div>
                             ))}
-                            <Button type="button" variant="outline" size="sm" onClick={addEvidenceRow} className="mt-2 bg-[#f3c700] text-white hover:bg-[#f3c700]/90 border-0" disabled={isSubmitting}>
+                            <Button type="button" variant="outline" size="sm" onClick={addEvidenceRow} className="mt-2 bg-primary text-primary-foreground hover:bg-primary/90 border-0" disabled={isSubmitting}>
                                 <FaPlus className="mr-2 h-3 w-3" /> Add Evidence
                             </Button>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-muted border-border shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg text-white">Photos (Links)</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Photos (Links)</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <div className="space-y-2">
@@ -565,15 +565,15 @@ ${videoNotes || 'N/A'}
                                     )}
                                 </div>
                             ))}
-                            <Button type="button" variant="outline" size="sm" onClick={addPhotoLink} className="mt-2 bg-[#f3c700] text-white hover:bg-[#f3c700]/90 border-0" disabled={isSubmitting}>
+                            <Button type="button" variant="outline" size="sm" onClick={addPhotoLink} className="mt-2 bg-primary text-primary-foreground hover:bg-primary/90 border-0" disabled={isSubmitting}>
                                 <FaPlus className="mr-2 h-3 w-3" /> Add Photo Link
                             </Button>
                         </CardContent>
                     </Card>
 
-                     <Card className="bg-black/95 border-border shadow-sm">
+                     <Card className="bg-muted border-border shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg text-white">Bodycam/Dashcam/Video Notes</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Bodycam/Dashcam/Video Notes</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <Textarea
@@ -588,18 +588,18 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-muted border-border shadow-sm">
                          <CardHeader>
-                            <CardTitle className="text-lg text-white">Gang Information</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Gang Information</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <Textarea id="gangInfoCreate" value={gangInfo} onChange={(e) => setGangInfo(e.target.value)} placeholder="Details about gang involvement, if any..." rows={4} className="bg-input border-border" readOnly={isSubmitting} />
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-muted border-border shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg text-white">Status & Assignment</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Status & Assignment</CardTitle>
                         </CardHeader>
                         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                             <div className="space-y-2">
@@ -610,7 +610,7 @@ ${videoNotes || 'N/A'}
                                         <SelectTrigger className="bg-input border-border flex-1">
                                             <SelectValue placeholder="Select status" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-black/95 text-popover-foreground border-border shadow-md z-50">
+                                        <SelectContent className="bg-background text-popover-foreground border-border shadow-md z-50">
                                             <SelectItem value="Open - Unassigned">Open - Unassigned</SelectItem>
                                             <SelectItem value="Open - Assigned">Open - Assigned</SelectItem>
                                             <SelectItem value="Under Review">Under Review</SelectItem>
@@ -627,7 +627,7 @@ ${videoNotes || 'N/A'}
                                     <SelectTrigger className="bg-input border-border">
                                         <SelectValue placeholder="Select detective" />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-black/95 text-popover-foreground border-border shadow-md z-50">
+                                    <SelectContent className="bg-background text-popover-foreground border-border shadow-md z-50">
                                         <SelectItem value="unassigned">-- Unassigned --</SelectItem>
                                         {eligibleAssignees.map(user => (
                                             <SelectItem key={user.id} value={user.id || 'unknown'}>
@@ -649,15 +649,15 @@ ${videoNotes || 'N/A'}
 
                 <TabsContent value="warrant" className="flex-grow flex flex-col space-y-4 overflow-y-auto custom-scrollbar pr-4 pl-1 pb-2">
                      <div className="flex justify-between items-center mb-2 shrink-0">
-                        <h3 className="text-lg font-semibold text-white">Arrest Warrant Preview</h3>
+                        <h3 className="text-lg font-semibold text-foreground">Arrest Warrant Preview</h3>
                         <div className="space-x-2">
-                             <Button variant="outline" size="sm" onClick={handleRegenerateWarrantPreview} title="Regenerate text preview" className="bg-blue-600 hover:bg-blue-700 text-white border-blue-700" disabled={isSubmitting || isGeneratingDocx}>
+                             <Button variant="outline" size="sm" onClick={handleRegenerateWarrantPreview} title="Regenerate text preview" className="border-primary text-primary hover:bg-primary/10" disabled={isSubmitting || isGeneratingDocx}>
                                 <FaSync className="mr-2 h-3 w-3" /> Regenerate Preview
                             </Button>
-                            <Button variant="outline" size="sm" onClick={exportAsDocx} title="Export as DOCX (Available after creation)" className="bg-sky-600 hover:bg-sky-700 text-white border-sky-700" disabled={true}>
+                            <Button variant="outline" size="sm" onClick={exportAsDocx} title="Export as DOCX (Available after creation)" className="border-muted-foreground text-muted-foreground" disabled={true}>
                                 <FaFileWord className="mr-2 h-3 w-3" /> Export DOCX
                             </Button>
-                            <Button variant="outline" size="sm" onClick={exportAsPdf} title="Export Preview as PDF (Available after creation)" className="bg-red-600 hover:bg-red-700 text-white border-red-700" disabled={true}>
+                            <Button variant="outline" size="sm" onClick={exportAsPdf} title="Export Preview as PDF (Available after creation)" className="border-muted-foreground text-muted-foreground" disabled={true}>
                                 <FaFilePdf className="mr-2 h-3 w-3" /> Export PDF Preview
                             </Button>
                         </div>
@@ -676,9 +676,9 @@ ${videoNotes || 'N/A'}
             </Tabs>
 
             {/* Footer buttons */}
-            <div className="pt-4 mt-4 border-t-2 border-[#f3c700] shrink-0 flex justify-end space-x-3">
+            <div className="pt-4 mt-4 border-t border-border shrink-0 flex justify-end space-x-3">
                 <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
-                <Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                <Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                     <FaSave className="mr-2 h-4 w-4" />
                     {isSubmitting ? 'Creating...' : 'Create Case'}
                 </Button>

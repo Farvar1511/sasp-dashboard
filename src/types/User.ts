@@ -13,6 +13,7 @@ export type SizePresetKey = keyof typeof sizePresets;
 // -----------------------------
 // 🔐 Certification Types
 // -----------------------------
+// Ensure 'SUPER' covers supervisor roles or add 'SUPERVISOR' if needed.
 export type CertStatus = "CERT" | "LEAD" | "SUPER" | "TRAIN" | null;
 
 // -----------------------------
