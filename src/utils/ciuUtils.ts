@@ -1,5 +1,9 @@
 import { User } from '../types/User'; // Assuming User type is here
 import { Timestamp, FieldValue } from 'firebase/firestore'; // Import Timestamp and FieldValue if needed for other types
+// Ensure TipDetails and related types are imported if they are not already global or defined here
+// For this example, assuming TipDetails, NameOfInterest, EvidenceItem, PenalCode are accessible
+// If not, they would need to be imported from '../components/CaseFiles/SubmitCIUTipModal'
+import { TipDetails as OriginalTipDetails } from '../components/CaseFiles/SubmitCIUTipModal';
 
 // Define interfaces
 export interface Gang {
@@ -61,27 +65,40 @@ export type CaseStatus = 'Open - Unassigned' | 'Open - Assigned' | 'Under Review
 export interface CaseFile {
   id: string;
   title: string;
-  description: string; // Brief overview
+  description: string; 
   status: CaseStatus;
   createdAt: Timestamp;
-  createdBy: string; // User ID
-  createdByName: string; // User Name
-  updatedAt: Timestamp | FieldValue;  assignedToId?: string | null;
+  createdBy: string; 
+  createdByName: string; 
+  updatedAt: Timestamp | FieldValue;  
+  assignedToId?: string | null;
   assignedToName?: string | null;
-  lastUpdatedAt?: Timestamp;
+  lastUpdatedAt?: Timestamp; 
   imageLinks?: string[];
-  details?: string; // JSON string containing incidentReport, evidence, photos, location, namesOfInterest, gangInfo, updates
+  details?: string; // JSON string containing incidentReport, evidence, photos, location, namesOfInterest, gangInfo, updates, originalTipId
 }
+
+// --- CIU Tip Interface ---
+export type TipStatus = 'New' | 'Viewed' | 'Processing' | 'ConvertedToCase' | 'Archived' | 'Rejected';
+
+export interface FirestoreTip extends OriginalTipDetails {
+  id: string; // Firestore document ID
+  createdAt: Timestamp;
+  status: TipStatus;
+  // submittedBy?: { id: string; name: string }; // For future non-anonymous tips
+  // convertedToCaseId?: string; // Optional: ID of the case file if converted
+  // updatedAt?: Timestamp | FieldValue; // Optional: if you want to track updates to tips
+}
+
 
 /**
  * Checks if a user has the required CIU certification level.
  * Allowed levels: TRAIN, CERT, LEAD, SUPER
  */
 export const hasCIUPermission = (user: User | null): boolean => {
-  if (!user || !user.certifications || !user.certifications.CIU) {
+  if (!user || !user.certifications || !user.certifications['CIU']) {
     return false;
   }
-  const ciuCert = user.certifications.CIU.toUpperCase();
-  // Add 'TRAIN' to the allowed list
-  return ['TRAIN', 'CERT', 'LEAD', 'SUPER'].includes(ciuCert);
+  const ciuLevel = user.certifications['CIU'];
+  return ['TRAIN', 'CERT', 'LEAD', 'SUPER'].includes(ciuLevel);
 };

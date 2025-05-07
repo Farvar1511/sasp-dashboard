@@ -76,15 +76,20 @@ export function formatTimestampForDisplay(
   if (!timestamp) {
     return "N/A";
   }
-  const date =
-    timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  try {
+    const date =
+      timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch (error) {
+    console.error("Error formatting timestamp:", error);
+    return "Invalid Date";
+  }
 }
 
 /**

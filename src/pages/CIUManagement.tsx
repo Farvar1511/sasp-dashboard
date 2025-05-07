@@ -7,14 +7,21 @@ import { CIUChatInterface } from '../components/Chat/CIUChatInterface';
 import CreateCaseModal from '../components/CaseFiles/CreateCaseModal';
 import EditCaseModal from '../components/CaseFiles/EditCaseModal';
 import { useAuth } from '../context/AuthContext';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db as dbFirestore } from '../firebase';
 import { User } from '../types/User';
 import { Badge } from '../components/ui/badge';
 import { useNotificationStore } from '../store/notificationStore';
-import { CaseFile } from '@/utils/ciuUtils';
+import { CaseFile, FirestoreTip, TipStatus } from '@/utils/ciuUtils'; // Ensure FirestoreTip, TipStatus are imported
 import CIUPersonnelTab from '../components/CIUPersonnel/CIUPersonnelTab';
 import { toast } from 'react-toastify';
+import { TipDetails } from '../components/CaseFiles/SubmitCIUTipModal';
+import { serverTimestamp } from 'firebase/firestore';
+
+// Define a type for the data used to pre-fill CreateCaseModal from a tip
+export interface TipConversionData extends TipDetails {
+  originalTipId: string;
+}
 
 export default function CIUManagement() {
   const { user: currentUser } = useAuth();
@@ -23,6 +30,7 @@ export default function CIUManagement() {
   const [selectedCaseForEdit, setSelectedCaseForEdit] = useState<CaseFile | null>(null);
   const [eligibleAssignees, setEligibleAssignees] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
+  const [initialDataForCreateCase, setInitialDataForCreateCase] = useState<TipConversionData | null>(null); // Renamed for clarity
 
   const ciuUnreadCount = useNotificationStore(state =>
     state.notifications?.length ?? 0
@@ -55,11 +63,38 @@ export default function CIUManagement() {
     fetchEligibleUsers();
   }, []);
 
-  const handleOpenCreateCaseModal = () => setIsCreateCaseModalOpen(true);
-  const handleCloseCreateCaseModal = () => setIsCreateCaseModalOpen(false);
-  const handleCreateCaseSaveSuccess = () => {
-    handleCloseCreateCaseModal();
-    toast.success("New case created successfully!");
+  const handleOpenCreateCaseModal = (initialData?: TipConversionData) => { // Parameter name updated
+    if (initialData) {
+      setInitialDataForCreateCase(initialData); // State name updated
+    } else {
+      setInitialDataForCreateCase(null); // State name updated
+    }
+    setIsCreateCaseModalOpen(true);
+  };
+  const handleCloseCreateCaseModal = () => {
+    setIsCreateCaseModalOpen(false);
+    setInitialDataForCreateCase(null); // Clear initial data when modal closes
+  };
+
+  const handleCreateCaseSaveSuccess = async (newCaseId?: string) => { // newCaseId can be passed from CreateCaseModal
+    // The toast for case creation success is now handled in CreateCaseModal's onSuccess
+    // toast.success("New case created successfully!");
+
+    if (initialDataForCreateCase?.originalTipId && newCaseId) {
+      try {
+        const tipRef = doc(dbFirestore, 'ciuTips', initialDataForCreateCase.originalTipId);
+        await updateDoc(tipRef, {
+          status: 'ConvertedToCase' as TipStatus,
+          // convertedToCaseId: newCaseId, // Optionally link the case ID to the tip
+          updatedAt: fbServerTimestamp() // Assuming tips also have an updatedAt field
+        });
+        toast.info(`Tip ${initialDataForCreateCase.originalTipId} status updated to ConvertedToCase.`);
+      } catch (error) {
+        console.error("Error updating tip status:", error);
+        toast.error("Failed to update original tip status.");
+      }
+    }
+    handleCloseCreateCaseModal(); // Closes modal and clears initialDataForCreateCase
   };
 
   const handleOpenEditCaseModal = (caseFile: CaseFile) => {
@@ -125,8 +160,9 @@ export default function CIUManagement() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm">
             <CreateCaseModal
               onClose={handleCloseCreateCaseModal}
-              onSuccess={handleCreateCaseSaveSuccess}
+              onSuccess={handleCreateCaseSaveSuccess} // Pass the updated success handler
               eligibleAssignees={memoizedEligibleAssignees}
+              initialDataForCase={initialDataForCreateCase} // Pass initial data
             />
           </div>
         )}
@@ -134,8 +170,6 @@ export default function CIUManagement() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm">
             <EditCaseModal
               isOpen={isEditCaseModalOpen}
-              currentUser={currentUser}
-              allUsers={eligibleAssignees}
               caseData={selectedCaseForEdit}
               onClose={handleCloseEditCaseModal}
               onSaveSuccess={handleEditCaseSaveSuccess}
@@ -147,3 +181,8 @@ export default function CIUManagement() {
     </Layout>
   );
 }
+
+function fbServerTimestamp(): unknown {
+  return serverTimestamp();
+}
+

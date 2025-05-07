@@ -3,22 +3,23 @@ import { doc, updateDoc, serverTimestamp, Timestamp, FieldValue } from 'firebase
 import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { CaseFile, CaseStatus } from '../../utils/ciuUtils';
+import { formatTimestampForDisplay } from '../../utils/timeHelpers';
+import { computeIsAdmin } from '../../utils/isadmin.ts';
 import { User } from '../../types/User';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { toast } from 'react-toastify';
 import { FaTrash, FaPlus, FaTimes, FaSave, FaFileWord, FaFilePdf, FaSync, FaSearch, FaEdit, FaCheck, FaBan } from 'react-icons/fa';
-import { formatTimestampForDisplay } from '../../utils/timeHelpers';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, ImageRun, AlignmentType, BorderStyle, VerticalAlign, UnderlineType } from 'docx';
-import jsPDF from 'jspdf';
-import { saveAs } from 'file-saver';
 import penalCodesData from './penal_codes.ts';
-import { computeIsAdmin } from '../../utils/isadmin';
+import jsPDF from 'jspdf';
+import { Packer, Document, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, HeadingLevel, WidthType, BorderStyle, VerticalAlign, ImageRun, UnderlineType } from 'docx';
+import { saveAs } from 'file-saver';
+
 
 interface PenalCode {
     pc: string;
@@ -29,22 +30,47 @@ interface PenalCode {
     prison_time_months: number;
 }
 
-interface EvidenceItem {
+interface BaseEvidenceItem {
     id: number;
-    type: 'Blood' | 'Casing' | 'Weapon' | 'Document' | 'Digital' | 'Other';
-    description: string;
     location: string;
-    notes?: string;
     photoLink?: string;
 }
+export interface EvidenceBlood extends BaseEvidenceItem { type: 'Blood'; name?: string; dnaCode?: string; }
+export interface EvidenceCasing extends BaseEvidenceItem { type: 'Casing'; casingDetails?: string; registeredTo?: string; }
+export interface EvidenceWeapon extends BaseEvidenceItem { type: 'Weapon'; weaponDetails?: string; registeredTo?: string; sourceOfCollection?: string; }
+export interface EvidenceVehicle extends BaseEvidenceItem { type: 'Vehicle'; owner?: string; plate?: string; model?: string; }
+export interface EvidenceFingerprint extends BaseEvidenceItem { type: 'Fingerprint'; name?: string; fingerprintId?: string; }
+export interface EvidenceOther extends BaseEvidenceItem { type: 'Other'; description: string; }
+export type EvidenceItem = EvidenceBlood | EvidenceCasing | EvidenceWeapon | EvidenceVehicle | EvidenceFingerprint | EvidenceOther;
+
+export const isEvidenceItemPopulated = (item: EvidenceItem): boolean => {
+    if (item.location?.trim() || item.photoLink?.trim()) {
+        return true;
+    }
+    switch (item.type) {
+        case 'Blood':
+            return !!(item.name?.trim() || item.dnaCode?.trim());
+        case 'Vehicle':
+            return !!(item.owner?.trim() || item.plate?.trim() || item.model?.trim());
+        case 'Fingerprint':
+            return !!(item.name?.trim() || item.fingerprintId?.trim());
+        case 'Casing':
+            return !!(item.casingDetails?.trim() || item.registeredTo?.trim());
+        case 'Weapon':
+            return !!(item.weaponDetails?.trim() || item.registeredTo?.trim() || item.sourceOfCollection?.trim());
+        case 'Other':
+            return !!item.description?.trim();
+    }
+    return false;
+};
 
 interface NameOfInterest { id: number; name: string; role: string; affiliation: string; cid?: string; phoneNumber?: string; }
 interface CaseUpdate { id: string | number; timestamp: Timestamp | Date; userId: string; userName: string; note: string; edited?: boolean; }
 
 interface EditCaseModalProps {
-  isOpen: boolean;
-  currentUser: User | null;
-  allUsers: User[];
+  isOpen: boolean; // This prop might not be needed if modal visibility is handled by parent through conditional rendering
+  // currentUser: User | null; // This can be obtained from useAuth
+  // allUsers: User[]; // This might be better fetched within or passed if static
   onClose: () => void;
   onSaveSuccess: () => void;
   caseData: CaseFile;
@@ -121,15 +147,30 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
                 const details = JSON.parse(caseData.details);
                 setIncidentReport(details.incidentReport || '');
                 setEvidence(details.evidence?.length
-                    ? details.evidence.map((e: any) => ({
-                        id: e.id || Date.now(),
-                        type: e.type || 'Other',
-                        description: e.description || '',
-                        location: e.location || '',
-                        notes: e.notes || '',
-                        photoLink: e.photoLink || '',
-                      }))
-                    : [{ id: Date.now(), type: 'Other', description: '', location: '', notes: '', photoLink: '' }]);
+                    ? details.evidence.map((e: any): EvidenceItem => {
+                        const base: BaseEvidenceItem = { // Explicitly type base
+                            id: e.id || Date.now(),
+                            location: e.location || '',
+                            photoLink: e.photoLink || '',
+                        };
+
+                        let currentType = e.type;
+                        if (!currentType || !['Blood', 'Casing', 'Weapon', 'Vehicle', 'Fingerprint', 'Other'].includes(currentType)) {
+                            currentType = 'Other';
+                        }
+
+                        switch (currentType) {
+                            case 'Blood': return { ...base, type: 'Blood', name: e.name || '', dnaCode: e.dnaCode || '' };
+                            case 'Vehicle': return { ...base, type: 'Vehicle', owner: e.owner || '', plate: e.plate || '', model: e.model || '' };
+                            case 'Fingerprint': return { ...base, type: 'Fingerprint', name: e.name || '', fingerprintId: e.fingerprintId || '' };
+                            case 'Casing': return { ...base, type: 'Casing', casingDetails: e.casingDetails || e.description || '', registeredTo: e.registeredTo || '' };
+                            case 'Weapon': return { ...base, type: 'Weapon', weaponDetails: e.weaponDetails || e.description || '', registeredTo: e.registeredTo || '', sourceOfCollection: e.sourceOfCollection || '' };
+                            case 'Other': 
+                            default:    
+                                return { ...base, type: 'Other', description: e.description || '' };
+                        }
+                      })
+                    : [{ id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }] as EvidenceItem[]);
                 setNamesOfInterest(details.namesOfInterest?.length
                     ? details.namesOfInterest.map((n: any) => ({ ...n, id: n.id || Date.now(), cid: n.cid || '', phoneNumber: n.phoneNumber || '' }))
                     : [{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]
@@ -139,15 +180,15 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
                 setVideoNotes(details.videoNotes || '');
                 setUpdates(details.updates?.map((u: any, index: number) => ({
                     ...u,
-                    id: u.id || (u.timestamp?.toMillis ? u.timestamp.toMillis() : `initial-${Date.now()}-${index}`),
+                    id: u.id || (u.timestamp?.toMillis ? u.timestamp.toMillis() : `initial-${Date.now()}-${index}`), // Ensure ID exists
                     timestamp: u.timestamp?.toDate ? u.timestamp.toDate() : (u.timestamp instanceof Date ? u.timestamp : new Date()),
                 })) || []);
                 setSelectedCharges(details.charges || []);
                 setPhotoSectionDescription(details.photoSectionDescription || '');
             } catch (e) {
                 console.error("Failed to parse case details JSON:", e);
-                toast.error("Error loading case details.");
-                setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', notes: '', photoLink: '' }]);
+                toast.error("Error loading case details. Some information might be missing or corrupted.");
+                setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }]);
                 setNamesOfInterest([{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]);
                 setUpdates([]);
                 setSelectedCharges([]);
@@ -155,7 +196,7 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
                 setPhotoSectionDescription('');
             }
         } else {
-             setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', notes: '', photoLink: '' }]);
+             setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }]);
              setNamesOfInterest([{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]);
              setUpdates([]);
              setSelectedCharges([]);
@@ -164,18 +205,56 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
         }
         setPhotos(caseData.imageLinks?.length ? caseData.imageLinks : ['']);
         setAssignedToId(caseData.assignedToId ?? null);
+        setTitle(caseData.title); // Ensure title is reset if caseData changes
+        setSummary(caseData.description || ''); // Ensure summary is reset
+        setStatus(caseData.status); // Ensure status is reset
     }, [caseData]);
 
     useEffect(() => {
         setWarrantText(generateWarrantTextPreview());
     }, [title, incidentReport, location, summary, namesOfInterest, evidence, photos, photoSectionDescription, gangInfo, videoNotes, selectedCharges, currentUser, caseData.id]);
 
-    const addEvidenceRow = () => setEvidence([...evidence, { id: Date.now(), type: 'Other', description: '', location: '', notes: '', photoLink: '' }]);
-    const updateEvidence = (index: number, field: keyof EvidenceItem, value: string | EvidenceItem['type']) => {
+    const addEvidenceRow = () => setEvidence([...evidence, { id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }]);
+    
+    const updateEvidence = (index: number, field: string, value: any) => {
         const updated = [...evidence];
-        updated[index] = { ...updated[index], [field]: value as any };
+        const currentItem = updated[index];
+
+        if (field === 'type') {
+            const newType = value as EvidenceItem['type'];
+            const baseProperties: Pick<BaseEvidenceItem, 'id' | 'location' | 'photoLink'> = {
+                id: currentItem.id,
+                location: (currentItem as any).location || '',
+                photoLink: (currentItem as any).photoLink || '',
+            };
+
+            switch (newType) {
+                case 'Blood':
+                    updated[index] = { ...baseProperties, type: 'Blood', name: (currentItem as EvidenceBlood).name || '', dnaCode: (currentItem as EvidenceBlood).dnaCode || '' };
+                    break;
+                case 'Vehicle':
+                    updated[index] = { ...baseProperties, type: 'Vehicle', owner: (currentItem as EvidenceVehicle).owner || '', plate: (currentItem as EvidenceVehicle).plate || '', model: (currentItem as EvidenceVehicle).model || '' };
+                    break;
+                case 'Fingerprint':
+                    updated[index] = { ...baseProperties, type: 'Fingerprint', name: (currentItem as EvidenceFingerprint).name || '', fingerprintId: (currentItem as EvidenceFingerprint).fingerprintId || '' };
+                    break;
+                case 'Casing':
+                    updated[index] = { ...baseProperties, type: 'Casing', casingDetails: (currentItem as EvidenceCasing).casingDetails || '', registeredTo: (currentItem as EvidenceCasing).registeredTo || '' };
+                    break;
+                case 'Weapon':
+                    updated[index] = { ...baseProperties, type: 'Weapon', weaponDetails: (currentItem as EvidenceWeapon).weaponDetails || '', registeredTo: (currentItem as EvidenceWeapon).registeredTo || '', sourceOfCollection: (currentItem as EvidenceWeapon).sourceOfCollection || '' };
+                    break;
+                case 'Other':
+                default:
+                    updated[index] = { ...baseProperties, type: 'Other', description: (currentItem as EvidenceOther).description || '' };
+                    break;
+            }
+        } else {
+            (updated[index] as any)[field] = value;
+        }
         setEvidence(updated);
     };
+
     const removeEvidenceRow = (index: number) => setEvidence(evidence.filter((_, i) => i !== index));
 
     const addPhotoLink = () => setPhotos([...photos, '']);
@@ -200,16 +279,21 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
         if (newAssigneeId && status === 'Open - Unassigned') {
             setStatus('Open - Assigned');
         } else if (!newAssigneeId && status === 'Open - Assigned') {
+            // If unassigning from 'Open - Assigned', revert to 'Open - Unassigned'
             setStatus('Open - Unassigned');
+        } else if (!newAssigneeId && (status === 'Closed - Solved' || status === 'Closed - Unsolved' || status === 'Under Review')) {
+            // If unassigning from a closed/review status, it's okay, just remove assignee
         }
     };
 
     const handleStatusChange = (value: CaseStatus) => {
         setStatus(value);
         if (value === 'Open - Unassigned' && assignedToId) {
+            // If changing to 'Open - Unassigned', clear assignee
             setAssignedToId(null);
         }
         if (value === 'Open - Assigned' && !assignedToId) {
+            // If changing to 'Open - Assigned' without an assignee, revert to 'Open - Unassigned' and toast
             setStatus('Open - Unassigned');
             toast.info("Select an assignee to set status to 'Open - Assigned'.");
         }
@@ -217,8 +301,9 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
 
     const canModifyUpdate = (update: CaseUpdate): boolean => {
         if (!currentUser) return false;
-        if (isAdmin) return true;
-        if (update.userId === currentUser.id) return true;
+        if (isAdmin) return true; // Admin can always modify
+        if (update.userId === currentUser.id) return true; // User can modify their own updates
+        // Allow CIU Lead/Super to modify any update
         const ciuCert = currentUser.certifications?.['CIU'];
         if (ciuCert === 'LEAD' || ciuCert === 'SUPER') return true;
         return false;
@@ -235,53 +320,56 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
     };
 
     const handleSaveEditUpdate = async () => {
-        if (editingUpdateId === null) return;
+        if (editingUpdateId === null || !currentUser) return;
 
-        const originalUpdates = [...updates];
+        const originalUpdates = [...updates]; // Keep a copy in case save fails
         const updatedUpdates = updates.map(u =>
             u.id === editingUpdateId
-                ? { ...u, note: editedUpdateText, edited: true, timestamp: new Date() }
+                ? { ...u, note: editedUpdateText, edited: true, timestamp: new Date() } // Mark as edited and update timestamp
                 : u
         );
-        setUpdates(updatedUpdates);
+        setUpdates(updatedUpdates); // Optimistically update UI
         setEditingUpdateId(null);
         setEditedUpdateText('');
 
-        const success = await handleSave(false, updatedUpdates);
+        // Attempt to save the entire case with the updated 'updates' array
+        const success = await handleSave(false, updatedUpdates); // Pass false to not close modal, pass updated array
 
         if (!success) {
-            setUpdates(originalUpdates);
+            setUpdates(originalUpdates); // Revert UI on failure
             toast.error("Failed to save update edit.");
         } else {
             toast.success("Update edited successfully.");
         }
     };
-
+    
     const handleDeleteUpdateClick = async (updateId: string | number) => {
+        if (!currentUser) return;
         if (!window.confirm("Are you sure you want to delete this update? This cannot be undone.")) {
             return;
         }
 
         const originalUpdates = [...updates];
         const updatedUpdates = updates.filter(u => u.id !== updateId);
-        setUpdates(updatedUpdates);
+        setUpdates(updatedUpdates); // Optimistically update UI
 
-        const success = await handleSave(false, updatedUpdates);
+        const success = await handleSave(false, updatedUpdates); // Save with the modified updates array
 
         if (!success) {
-            setUpdates(originalUpdates);
+            setUpdates(originalUpdates); // Revert UI on failure
             toast.error("Failed to delete update.");
         } else {
             toast.success("Update deleted successfully.");
         }
     };
 
+
     const handleSave = async (closeOnSuccess: boolean = true, updatesToSave?: CaseUpdate[]): Promise<boolean> => {
         if (!currentUser || !caseData.id) {
             toast.error("Cannot save changes. User or Case ID missing.");
             return false;
         }
-        if (!title) {
+        if (!title.trim()) {
             toast.error("Case Title is required.");
             return false;
         }
@@ -289,52 +377,60 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
 
         const assignedUser = eligibleAssignees.find(u => u.id === assignedToId);
 
-        let finalUpdates = updatesToSave ? [...updatesToSave] : [...updates];
+        let finalUpdatesForUI = updatesToSave ? [...updatesToSave] : [...updates];
         let newUpdateEntryForFirestore: any = null;
         let temporaryIdForNewNote: string | null = null;
 
+        // If not saving a specific set of updates (e.g., from edit/delete) AND newNote has content
         if (!updatesToSave && newNote.trim()) {
-             temporaryIdForNewNote = `temp-${Date.now()}`;
-             newUpdateEntryForFirestore = {
+             temporaryIdForNewNote = `temp-${Date.now()}`; // Create a temporary ID for UI
+             newUpdateEntryForFirestore = { // This is the object that will be structured for Firestore
                 userId: currentUser?.id || 'Unknown',
                 userName: currentUser?.name || 'Unknown',
                 note: newNote.trim(),
-                edited: false,
+                // timestamp will be serverTimestamp()
+                edited: false, // New notes are not edited
             };
-            finalUpdates.push({
+            // Add to UI optimistically with a client-side timestamp
+            finalUpdatesForUI.push({
                 ...newUpdateEntryForFirestore,
-                id: temporaryIdForNewNote,
-                timestamp: new Date()
+                id: temporaryIdForNewNote, // Use temporary ID for UI key
+                timestamp: new Date() // Client-side timestamp for immediate display
             });
 
+            // If we are not closing on success (i.e., just adding a note), update UI state
             if (!closeOnSuccess) {
-                setUpdates(finalUpdates);
-                setNewNote('');
+                setUpdates(finalUpdatesForUI);
+                setNewNote(''); // Clear input after adding
             }
         }
-
-        const updatesForFirestore = finalUpdates.map(u => {
-            const { id, ...rest } = u;
+        
+        // Prepare updates for Firestore: use serverTimestamp for new/edited notes
+        const updatesForFirestore = finalUpdatesForUI.map(u => {
+            const { id, ...rest } = u; // Exclude client-side 'id' from Firestore object if it's temporary
             let timestampValue: Timestamp | FieldValue;
 
+            // If it's the new note we just added, or an update being edited now
             if (id.toString().startsWith('temp-') || (editingUpdateId === id && updatesToSave)) {
                 timestampValue = serverTimestamp();
-            } else if (u.timestamp instanceof Date) {
+            } else if (u.timestamp instanceof Date) { // Existing notes with Date objects
                 timestampValue = Timestamp.fromDate(u.timestamp);
-            } else {
+            } else { // Already a Firestore Timestamp
                 timestampValue = u.timestamp;
             }
-
+            
             return {
-                ...rest,
+                ...rest, // Spread the rest of the update properties (userId, userName, note, edited)
                 timestamp: timestampValue,
+                // Ensure 'edited' flag is correctly set if this update was just edited
                 edited: (editingUpdateId === id && updatesToSave) ? true : (u.edited || false)
             };
         });
 
+
         const updatedDetailsObject = {
             incidentReport,
-            evidence: evidence.filter(e => e.description.trim() || e.location.trim() || e.notes?.trim() || e.photoLink?.trim()),
+            evidence: evidence.filter(isEvidenceItemPopulated),
             photos: photos.filter(p => p.trim()),
             photoSectionDescription,
             location,
@@ -342,43 +438,46 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
             gangInfo,
             videoNotes,
             charges: selectedCharges,
-            updates: updatesForFirestore
+            updates: updatesForFirestore // Use the processed updates for Firestore
         };
 
         const updateData: Partial<CaseFile> & { details: string; updatedAt: FieldValue } = {
-            title,
-            description: summary,
+            title: title.trim(),
+            description: summary.trim(),
             status,
             assignedToId: assignedToId,
             assignedToName: assignedUser?.name || null,
-            imageLinks: updatedDetailsObject.photos,
+            imageLinks: updatedDetailsObject.photos, // Ensure this is just an array of strings
             details: JSON.stringify(updatedDetailsObject),
             updatedAt: serverTimestamp(),
         };
 
         try {
             const caseRef = doc(dbFirestore, 'caseFiles', caseData.id);
-            await updateDoc(caseRef, updateData as any);
+            await updateDoc(caseRef, updateData as any); // Use 'as any' if type conflicts persist with FieldValue
 
             if (closeOnSuccess) {
-                toast.success(`Case "${title}" updated successfully.`);
-                onSaveSuccess();
-                onClose();
+                toast.success(`Case "${title.trim()}" updated successfully.`);
+                onSaveSuccess(); // Callback to refresh data in parent
+                onClose(); // Close modal
             } else {
-                 if (newUpdateEntryForFirestore) {
+                 // If not closing, and a new note was added, clear the input
+                 if (newUpdateEntryForFirestore) { // Check if a new note was part of this save
                     setNewNote('');
                  }
-                 onSaveSuccess();
+                 // Refresh parent data even if not closing (e.g., after adding a note)
+                 onSaveSuccess(); 
             }
-            return true;
+            return true; // Indicate success
 
         } catch (error) {
             console.error("Error updating case file:", error);
             toast.error("Failed to update case file.");
+            // If save failed and we optimistically added a new note to UI, remove it
             if (temporaryIdForNewNote && !closeOnSuccess) {
                  setUpdates(prev => prev.filter(u => u.id !== temporaryIdForNewNote));
             }
-            return false;
+            return false; // Indicate failure
         } finally {
             setIsSaving(false);
         }
@@ -392,9 +491,38 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
             .map(w => `${w.name}${w.cid ? ` (CID: ${w.cid})` : ''}${w.phoneNumber ? ` (Phone: ${w.phoneNumber})` : ''}`)
             .join(', ') || 'None';
         const victims = namesOfInterest.filter(n => n.role?.toLowerCase().includes('victim')).map(v => v.name).join(', ') || 'None';
-        const evidenceSummary = evidence.filter(e => e.description.trim() || e.location.trim() || e.notes?.trim() || e.photoLink?.trim()).map((e, i) =>
-            `  - Exhibit ${String.fromCharCode(65 + i)}: [${e.type}] ${e.description}${e.notes ? ` (Notes: ${e.notes})` : ''} (Collected at: ${e.location || 'N/A'})${e.photoLink ? ` (Photo: ${e.photoLink})` : ''}`
-        ).join('\n') || '  - No specific evidence listed.';
+        
+        const evidenceSummary = evidence
+            .filter(isEvidenceItemPopulated)
+            .map((item, i) => {
+                let details = `[${item.type}] `;
+                switch (item.type) {
+                    case 'Blood':
+                        details += `Name: ${item.name || 'N/A'}, DNA: ${item.dnaCode || 'N/A'}`;
+                        break;
+                    case 'Vehicle':
+                        details += `Owner: ${item.owner || 'N/A'}, Plate: ${item.plate || 'N/A'}, Model: ${item.model || 'N/A'}`;
+                        break;
+                    case 'Fingerprint':
+                        details += `Name: ${item.name || 'N/A'}, ID: ${item.fingerprintId || 'N/A'}`;
+                        break;
+                    case 'Casing':
+                        details += `Details: ${item.casingDetails || 'N/A'}, Registered: ${item.registeredTo || 'N/A'}`;
+                        break;
+                    case 'Weapon':
+                        details += `Details: ${item.weaponDetails || 'N/A'}, Registered: ${item.registeredTo || 'N/A'}, Source: ${item.sourceOfCollection || 'N/A'}`;
+                        break;
+                    case 'Other':
+                         if (item.type === 'Other') { // Explicit check for EvidenceOther
+                            details += `Desc: ${item.description || 'N/A'}`;
+                        }
+                        break;
+                }
+                details += ` (Loc: ${item.location || 'N/A'})`;
+                if (item.photoLink) details += ` (Photo: ${item.photoLink})`;
+                return `  - Exhibit ${String.fromCharCode(65 + i)}: ${details}`;
+            }).join('\n') || '  - No specific evidence listed.';
+
         const photoSummary = photos.filter(p => p.trim()).map((p, i) => `  - Photo ${i + 1}: ${p}`).join('\n') || '  - No photo links provided.';
         const chargesSummary = selectedCharges.length > 0
             ? selectedCharges.map(c => `  - ${c.pc}: ${c.title}`).join('\n')
@@ -468,13 +596,38 @@ ${videoNotes || 'N/A'}
             criminalCodes.push({ code: '[No Charges]', title: '[No Charges Listed]' });
         }
 
-        const evidenceList = evidence.filter(e => e.description.trim() || e.location.trim() || e.notes?.trim() || e.photoLink?.trim()).map(e => ({
-            type: e.type,
-            description: e.description,
-            location: e.location || 'N/A',
-            notes: e.notes || '',
-            photoLink: e.photoLink || '',
-        }));
+        const evidenceList = evidence
+            .filter(isEvidenceItemPopulated)
+            .map(item => {
+                let descriptionForDocx = '';
+                switch (item.type) {
+                    case 'Blood':
+                        descriptionForDocx = `Name: ${item.name || 'N/A'}, DNA: ${item.dnaCode || 'N/A'}.`;
+                        break;
+                    case 'Weapon':
+                        descriptionForDocx = `Details: ${item.weaponDetails || 'N/A'}. Registered To: ${item.registeredTo || 'N/A'}. Source: ${item.sourceOfCollection || 'N/A'}.`;
+                        break;
+                    case 'Vehicle':
+                        descriptionForDocx = `Owner: ${item.owner || 'N/A'}, Plate: ${item.plate || 'N/A'}, Model: ${item.model || 'N/A'}.`;
+                        break;
+                    case 'Fingerprint':
+                        descriptionForDocx = `Name: ${item.name || 'N/A'}, ID: ${item.fingerprintId || 'N/A'}.`;
+                        break;
+                    case 'Casing':
+                        descriptionForDocx = `Details: ${item.casingDetails || 'N/A'}. Registered To (Weapon): ${item.registeredTo || 'N/A'}.`;
+                        break;
+                    case 'Other':
+                        descriptionForDocx = item.description || 'N/A';
+                        break;
+                }
+                return {
+                    type: item.type,
+                    description: descriptionForDocx,
+                    location: item.location || 'N/A',
+                    // notes: item.notes || '', // Removed
+                    photoLink: item.photoLink || '',
+                };
+            });
         const witnessList = namesOfInterest
             .filter(n => n.role?.toLowerCase().includes('witness'))
             .map(w => ({
@@ -638,7 +791,7 @@ ${videoNotes || 'N/A'}
                 ...evidenceList.map((item, index) => new TableRow({
                     children: [
                         new TableCell({ children: [new Paragraph(`Exhibit ${String.fromCharCode(65 + index)}`)], verticalAlign: VerticalAlign.CENTER }),
-                        new TableCell({ children: [new Paragraph(`[${item.type}] ${item.description} (Loc: ${item.location})${item.notes ? ` Notes: ${item.notes}` : ''}${item.photoLink ? ` Photo: ${item.photoLink}` : ''}`)], verticalAlign: VerticalAlign.CENTER }),
+                        new TableCell({ children: [new Paragraph(`[${item.type}] ${item.description} (Loc: ${item.location})${/*item.notes ? ` Notes: ${item.notes}` : ''*/''}${item.photoLink ? ` Photo: ${item.photoLink}` : ''}`)], verticalAlign: VerticalAlign.CENTER }),
                     ]
                 })),
                 ...witnessList.map((item, index) => new TableRow({
@@ -788,60 +941,107 @@ ${videoNotes || 'N/A'}
 
     const handleAddNoteClick = () => {
         if (newNote.trim()) {
-            handleSave(false);
+            handleSave(false); // Pass false to not close the modal
         } else {
             toast.info("Please enter a note to add.");
         }
     };
 
     return (
-        <div className="case-details-modal-root w-[98vw] max-w-7xl mx-auto p-6 sm:p-8 md:p-12 bg-black/95 text-foreground rounded-lg shadow-2xl border-[#f3c700] border-2 flex flex-col max-h-[95vh] relative overflow-hidden">
+        <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] sm:max-w-none max-h-[95vh] overflow-hidden bg-card text-foreground rounded-lg shadow-2xl border-brand border-2 flex flex-col p-6 sm:p-8 md:p-12">
             <Button variant="ghost" size="icon" className="absolute top-4 right-4 sm:top-6 sm:right-6 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
                 <FaTimes className="h-5 w-5" />
                 <span className="sr-only">Close</span>
             </Button>
 
-            <div className="pb-6 mb-6 border-b-2 border-[#f3c700] shrink-0">
+            <div className="pb-6 mb-6 border-b-2 border-brand shrink-0">
                 <h2 className="text-2xl md:text-3xl font-semibold">Edit Case File: {caseData.title}</h2>
             </div>
 
+            {/* NEW: Add Status & Assignment Card at the top */}
+            <Card className="bg-card-foreground/5 border-border shadow-sm mb-6">
+                <CardHeader className="pt-6">
+                    <CardTitle className="text-lg text-foreground">Status & Assignment</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                    <div className="space-y-2">
+                        <Label>Status</Label>
+                        <div className="flex items-center space-x-2">
+                            {['Open - Unassigned', 'Open - Assigned', 'Under Review'].includes(status) && <span className="h-2.5 w-2.5 bg-green-500 rounded-full inline-block" title="Active Case"></span>}
+                            {!['Open - Unassigned', 'Open - Assigned', 'Under Review'].includes(status) && <span className="h-2.5 w-2.5 bg-red-500 rounded-full inline-block" title="Closed Case"></span>}
+                            <Select value={status} onValueChange={(value: CaseStatus) => handleStatusChange(value)} disabled={isSaving}>
+                                <SelectTrigger className="bg-input border-border flex-1">
+                                    <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover text-popover-foreground border-border shadow-md z-50">
+                                    <SelectItem value="Open - Unassigned">Open - Unassigned</SelectItem>
+                                    <SelectItem value="Open - Assigned">Open - Assigned</SelectItem>
+                                    <SelectItem value="Under Review">Under Review</SelectItem>
+                                    <SelectItem value="Closed - Solved">Closed - Solved</SelectItem>
+                                    <SelectItem value="Closed - Unsolved">Closed - Unsolved</SelectItem>
+                                    <SelectItem value="Archived">Archived</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Assign Detective</Label>
+                        <Select value={assignedToId || "unassigned"} onValueChange={handleAssigneeChange} disabled={isSaving}>
+                            <SelectTrigger className="bg-input border-border">
+                                <SelectValue placeholder="Select detective" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover text-popover-foreground border-border shadow-md z-50">
+                                <SelectItem value="unassigned">-- Unassigned --</SelectItem>
+                                {eligibleAssignees.map(user => (
+                                    user.id && (
+                                        <SelectItem key={user.id} value={user.id}>
+                                            {user.name} ({user.callsign || 'N/A'})
+                                        </SelectItem>
+                                    )
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </CardContent>
+            </Card>
+
             <Tabs defaultValue="details" className="w-full flex-grow flex flex-col overflow-hidden">
                 <TabsList className="mb-6 shrink-0 bg-transparent p-0 border-b border-border gap-4">
-                    <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Details</TabsTrigger>
-                    <TabsTrigger value="updates" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Updates</TabsTrigger>
-                    <TabsTrigger value="warrant" className="data-[state=active]:border-b-2 data-[state=active]:border-[#f3c700] data-[state=active]:text-[#f3c700] data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Warrant</TabsTrigger>
+                    <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-brand data-[state=active]:text-brand data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Details</TabsTrigger>
+                    <TabsTrigger value="updates" className="data-[state=active]:border-b-2 data-[state=active]:border-brand data-[state=active]:text-brand data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Updates</TabsTrigger>
+                    <TabsTrigger value="warrant" className="data-[state=active]:border-b-2 data-[state=active]:border-brand data-[state=active]:text-brand data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Warrant</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className="flex-grow space-y-8 pb-4 overflow-y-auto custom-scrollbar pr-4 pl-1">
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-white">Basic Information</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Basic Information</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <Label htmlFor="caseTitle">Case Title *</Label>
-                                    <Textarea id="caseTitle" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Bank Robbery at Fleeca" className="bg-input border-border py-2 px-3" rows={1} readOnly={isSaving} />
+                                    <Label htmlFor="caseTitleEdit">Case Title *</Label>
+                                    <Textarea id="caseTitleEdit" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Bank Robbery at Fleeca" className="bg-input border-border py-2 px-3" rows={1} readOnly={isSaving} />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="incidentReport">Incident Report (Link or #)</Label>
-                                    <Textarea id="incidentReport" value={incidentReport} onChange={(e) => setIncidentReport(e.target.value)} placeholder="e.g., #12345 or URL" className="bg-input border-border py-2 px-3" rows={1} readOnly={isSaving} />
+                                    <Label htmlFor="incidentReportEdit">Incident Report (Link or #)</Label>
+                                    <Textarea id="incidentReportEdit" value={incidentReport} onChange={(e) => setIncidentReport(e.target.value)} placeholder="e.g., #12345 or URL" className="bg-input border-border py-2 px-3" rows={1} readOnly={isSaving} />
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="location">Location of Incident</Label>
-                                <Textarea id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Pacific Standard Bank, Vinewood Blvd" className="bg-input border-border py-2 px-3" rows={1} readOnly={isSaving} />
+                                <Label htmlFor="locationEdit">Location of Incident</Label>
+                                <Textarea id="locationEdit" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Pacific Standard Bank, Vinewood Blvd" className="bg-input border-border py-2 px-3" rows={1} readOnly={isSaving} />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="summary">Summary</Label>
-                                <Textarea id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Briefly summarize the investigation..." className="bg-input border-border whitespace-pre-line break-words py-2 px-3" rows={4} readOnly={isSaving} />
+                                <Label htmlFor="summaryEdit">Summary</Label>
+                                <Textarea id="summaryEdit" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Briefly summarize the investigation..." className="bg-input border-border whitespace-pre-line break-words py-2 px-3" rows={4} readOnly={isSaving} />
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-white">Charges</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Charges</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="relative space-y-2">
@@ -879,7 +1079,7 @@ ${videoNotes || 'N/A'}
                                     <p className="text-sm text-muted-foreground italic">No charges added yet.</p>
                                 ) : (
                                     <div className="border rounded-md border-border overflow-x-auto">
-                                        <table className="w-full text-sm">
+                                        <table className="w-full text-sm min-w-[600px]">
                                             <thead className="bg-muted/50">
                                                 <tr>
                                                     <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Code</th>
@@ -919,13 +1119,13 @@ ${videoNotes || 'N/A'}
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-white">Names of Interest</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Names of Interest</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                              {namesOfInterest.map((item, index) => (
-                                <div key={item.id} className="p-4 border border-border/50 rounded-md space-y-4 relative">
+                                <div key={item.id} className="p-4 border border-border/60 rounded-md space-y-4 relative bg-input/30">
                                      {namesOfInterest.length > 1 && (
                                         <Button type="button" variant="ghost" size="icon" onClick={() => removeNameRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" disabled={isSaving} title="Remove Person">
                                             <FaTrash className="h-4 w-4" />
@@ -933,103 +1133,157 @@ ${videoNotes || 'N/A'}
                                     )}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                         <div className="space-y-1">
-                                            <Label className="text-xs text-muted-foreground">Name</Label>
-                                            <Textarea value={item.name} onChange={(e) => updateName(index, 'name', e.target.value)} placeholder="Full Name" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Label htmlFor={`name-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Name</Label>
+                                            <Textarea id={`name-edit-${item.id}-${index}`} value={item.name} onChange={(e) => updateName(index, 'name', e.target.value)} placeholder="Full Name" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label className="text-xs text-muted-foreground">CID#</Label>
-                                            <Textarea value={item.cid || ''} onChange={(e) => updateName(index, 'cid', e.target.value)} placeholder="Citizen ID (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Label htmlFor={`cid-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">CID#</Label>
+                                            <Textarea id={`cid-edit-${item.id}-${index}`} value={item.cid || ''} onChange={(e) => updateName(index, 'cid', e.target.value)} placeholder="Citizen ID (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
                                         </div>
                                          <div className="space-y-1">
-                                            <Label className="text-xs text-muted-foreground">Phone Number</Label>
-                                            <Textarea value={item.phoneNumber || ''} onChange={(e) => updateName(index, 'phoneNumber', e.target.value)} placeholder="Phone # (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Label htmlFor={`phone-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Phone Number</Label>
+                                            <Textarea id={`phone-edit-${item.id}-${index}`} value={item.phoneNumber || ''} onChange={(e) => updateName(index, 'phoneNumber', e.target.value)} placeholder="Phone # (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label className="text-xs text-muted-foreground">Role</Label>
-                                            <Textarea value={item.role} onChange={(e) => updateName(index, 'role', e.target.value)} placeholder="Suspect, Witness, Victim..." className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Label htmlFor={`role-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Role</Label>
+                                            <Textarea id={`role-edit-${item.id}-${index}`} value={item.role} onChange={(e) => updateName(index, 'role', e.target.value)} placeholder="Suspect, Witness, Victim..." className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
                                         </div>
                                         <div className="space-y-1 md:col-span-2">
-                                            <Label className="text-xs text-muted-foreground">Gang Affiliation / Notes</Label>
-                                            <Textarea value={item.affiliation} onChange={(e) => updateName(index, 'affiliation', e.target.value)} placeholder="Gang Name or relevant notes" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Label htmlFor={`affiliation-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Gang Affiliation / Notes</Label>
+                                            <Textarea id={`affiliation-edit-${item.id}-${index}`} value={item.affiliation} onChange={(e) => updateName(index, 'affiliation', e.target.value)} placeholder="Gang Name or relevant notes" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
                                         </div>
                                     </div>
                                 </div>
                             ))}
-                            <Button type="button" variant="outline" size="sm" onClick={addNameRow} className="mt-2 bg-[#f3c700] text-white hover:bg-[#f3c700]/90 border-0" disabled={isSaving}>
+                            <Button type="button" variant="outline" size="sm" onClick={addNameRow} className="mt-2 bg-brand text-brand-foreground hover:bg-brand/90 border-0" disabled={isSaving}>
                                 <FaPlus className="mr-2 h-3 w-3" /> Add Person
                             </Button>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-white">Evidence</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Evidence</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {evidence.map((item, index) => (
-                                <div key={item.id} className="p-4 border border-border/50 rounded-md space-y-4 relative">
+                                <div key={item.id} className="p-4 border border-border/60 rounded-md space-y-4 relative bg-input/30">
                                      {evidence.length > 1 && (
                                         <Button type="button" variant="ghost" size="icon" onClick={() => removeEvidenceRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" disabled={isSaving} title="Remove Evidence">
                                             <FaTrash className="h-4 w-4" />
                                         </Button>
                                     )}
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
-                                        <div className="space-y-1">
-                                            <Label className="text-xs text-muted-foreground">Type</Label>
-                                            <Select
-                                                value={item.type}
-                                                onValueChange={(value: EvidenceItem['type']) => updateEvidence(index, 'type', value)}
-                                                disabled={isSaving}
-                                            >
-                                                <SelectTrigger className="bg-input border-border h-9 text-sm">
-                                                    <SelectValue placeholder="Select type" />
-                                                </SelectTrigger>
-                                                <SelectContent className="bg-black/95 text-popover-foreground border-border shadow-md z-50">
-                                                    <SelectItem value="Blood">Blood</SelectItem>
-                                                    <SelectItem value="Casing">Casing</SelectItem>
-                                                    <SelectItem value="Weapon">Weapon</SelectItem>
-                                                    <SelectItem value="Document">Document</SelectItem>
-                                                    <SelectItem value="Digital">Digital</SelectItem>
-                                                    <SelectItem value="Other">Other</SelectItem>
-                                                </SelectContent>
-                                            </Select>
+                                   <div className="space-y-1 mb-4">
+                                        <Label htmlFor={`evidence-type-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Type</Label>
+                                        <Select
+                                            value={item.type}
+                                            onValueChange={(value: EvidenceItem['type']) => updateEvidence(index, 'type', value)}
+                                            disabled={isSaving}
+                                        >
+                                            <SelectTrigger id={`evidence-type-edit-${item.id}-${index}`} className="bg-input border-border h-9 text-sm w-full">
+                                                <SelectValue placeholder="Select type" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-popover text-popover-foreground border-border shadow-md z-50">
+                                                <SelectItem value="Blood">Blood</SelectItem>
+                                                <SelectItem value="Casing">Casing</SelectItem>
+                                                <SelectItem value="Weapon">Weapon</SelectItem>
+                                                <SelectItem value="Vehicle">Vehicle</SelectItem>
+                                                <SelectItem value="Fingerprint">Fingerprint</SelectItem>
+                                                <SelectItem value="Other">Other</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                                        {item.type === 'Blood' && (
+                                            <>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`evidence-blood-name-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Name (Person)</Label>
+                                                    <Textarea id={`evidence-blood-name-edit-${item.id}-${index}`} value={(item as EvidenceBlood).name || ''} onChange={(e) => updateEvidence(index, 'name', e.target.value)} placeholder="Name of individual" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`evidence-blood-dna-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">DNA Code</Label>
+                                                    <Textarea id={`evidence-blood-dna-edit-${item.id}-${index}`} value={(item as EvidenceBlood).dnaCode || ''} onChange={(e) => updateEvidence(index, 'dnaCode', e.target.value)} placeholder="DNA Code" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                            </>
+                                        )}
+                                        {item.type === 'Weapon' && (
+                                            <>
+                                                <div className="space-y-1 sm:col-span-2">
+                                                    <Label htmlFor={`evidence-weapon-details-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Weapon Details (Type, Model, SN)</Label>
+                                                    <Textarea id={`evidence-weapon-details-edit-${item.id}-${index}`} value={(item as EvidenceWeapon).weaponDetails || ''} onChange={(e) => updateEvidence(index, 'weaponDetails', e.target.value)} placeholder="e.g., Pistol, Glock 19, SN: XYZ123" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`evidence-weapon-registered-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Registered To</Label>
+                                                    <Textarea id={`evidence-weapon-registered-edit-${item.id}-${index}`} value={(item as EvidenceWeapon).registeredTo || ''} onChange={(e) => updateEvidence(index, 'registeredTo', e.target.value)} placeholder="Registered To" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`evidence-weapon-source-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Source of Collection</Label>
+                                                    <Textarea id={`evidence-weapon-source-edit-${item.id}-${index}`} value={(item as EvidenceWeapon).sourceOfCollection || ''} onChange={(e) => updateEvidence(index, 'sourceOfCollection', e.target.value)} placeholder="e.g., Collected from John Doe" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                            </>
+                                        )}
+                                        {item.type === 'Casing' && (
+                                            <>
+                                                <div className="space-y-1 sm:col-span-2">
+                                                    <Label htmlFor={`evidence-casing-details-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Casing Details (Caliber, Markings)</Label>
+                                                    <Textarea id={`evidence-casing-details-edit-${item.id}-${index}`} value={(item as EvidenceCasing).casingDetails || ''} onChange={(e) => updateEvidence(index, 'casingDetails', e.target.value)} placeholder="e.g., 9mm, FC headstamp" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`evidence-casing-registered-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Registered To (Weapon, if known)</Label>
+                                                    <Textarea id={`evidence-casing-registered-edit-${item.id}-${index}`} value={(item as EvidenceCasing).registeredTo || ''} onChange={(e) => updateEvidence(index, 'registeredTo', e.target.value)} placeholder="Registered To (related weapon)" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                            </>
+                                        )}
+                                        {item.type === 'Vehicle' && (
+                                            <>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`evidence-vehicle-owner-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Owner</Label>
+                                                    <Textarea id={`evidence-vehicle-owner-edit-${item.id}-${index}`} value={(item as EvidenceVehicle).owner || ''} onChange={(e) => updateEvidence(index, 'owner', e.target.value)} placeholder="Vehicle Owner" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`evidence-vehicle-plate-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Plate</Label>
+                                                    <Textarea id={`evidence-vehicle-plate-edit-${item.id}-${index}`} value={(item as EvidenceVehicle).plate || ''} onChange={(e) => updateEvidence(index, 'plate', e.target.value)} placeholder="License Plate" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                                <div className="space-y-1 sm:col-span-2">
+                                                    <Label htmlFor={`evidence-vehicle-model-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Model</Label>
+                                                    <Textarea id={`evidence-vehicle-model-edit-${item.id}-${index}`} value={(item as EvidenceVehicle).model || ''} onChange={(e) => updateEvidence(index, 'model', e.target.value)} placeholder="Vehicle Model" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                            </>
+                                        )}
+                                        {item.type === 'Fingerprint' && (
+                                            <>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`evidence-fingerprint-name-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Name (Person)</Label>
+                                                    <Textarea id={`evidence-fingerprint-name-edit-${item.id}-${index}`} value={(item as EvidenceFingerprint).name || ''} onChange={(e) => updateEvidence(index, 'name', e.target.value)} placeholder="Name of individual" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`evidence-fingerprint-id-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Fingerprint ID</Label>
+                                                    <Textarea id={`evidence-fingerprint-id-edit-${item.id}-${index}`} value={(item as EvidenceFingerprint).fingerprintId || ''} onChange={(e) => updateEvidence(index, 'fingerprintId', e.target.value)} placeholder="Fingerprint ID" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                </div>
+                                            </>
+                                        )}
+                                        {(item.type === 'Other') && (
+                                            <div className="space-y-1 sm:col-span-2">
+                                                <Label htmlFor={`evidence-desc-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Evidence Details</Label>
+                                                <Textarea id={`evidence-desc-edit-${item.id}-${index}`} value={(item as EvidenceOther).description} onChange={(e) => updateEvidence(index, 'description', e.target.value)} placeholder="Description of evidence" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                            </div>
+                                        )}
+                                        <div className="space-y-1 sm:col-span-2">
+                                            <Label htmlFor={`evidence-location-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">
+                                                {item.type === 'Blood' ? 'Location Blood was Found' :
+                                                 item.type === 'Casing' ? 'Location Casing was Found' :
+                                                 item.type === 'Weapon' ? 'Location Weapon was Found/Collected' :
+                                                 item.type === 'Vehicle' ? 'Location Vehicle was Seen/Found' :
+                                                 item.type === 'Fingerprint' ? 'Location Fingerprint was Collected' :
+                                                 'Location Collected/Found'}
+                                            </Label>
+                                            <Textarea id={`evidence-location-edit-${item.id}-${index}`} value={item.location} onChange={(e) => updateEvidence(index, 'location', e.target.value)} placeholder="Location details" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
                                         </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs text-muted-foreground">Location Collected</Label>
+                                        <div className="space-y-1 sm:col-span-2">
+                                            <Label htmlFor={`evidence-photolink-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Photo/Bodycam Link (Optional)</Label>
                                             <Textarea
-                                                value={item.location}
-                                                onChange={(e) => updateEvidence(index, 'location', e.target.value)}
-                                                placeholder="Location"
-                                                className="bg-input border-border text-sm py-1.5 px-3"
-                                                rows={1}
-                                                readOnly={isSaving}
-                                            />
-                                        </div>
-                                        <div className="space-y-1 sm:col-span-3">
-                                            <Label className="text-xs text-muted-foreground">Description</Label>
-                                            <Textarea
-                                                value={item.description}
-                                                onChange={(e) => updateEvidence(index, 'description', e.target.value)}
-                                                placeholder="Description of evidence"
-                                                className="bg-input border-border text-sm py-1.5 px-3"
-                                                rows={1}
-                                                readOnly={isSaving}
-                                            />
-                                        </div>
-                                        <div className="space-y-1 col-span-1 sm:col-span-3">
-                                            <Label className="text-xs text-muted-foreground">Notes (Optional)</Label>
-                                            <Textarea
-                                                value={item.notes || ''}
-                                                onChange={(e) => updateEvidence(index, 'notes', e.target.value)}
-                                                placeholder="Additional notes (e.g., DNA code, serial #, file hash)"
-                                                className="bg-input border-border text-sm py-1.5 px-3"
-                                                rows={2}
-                                                readOnly={isSaving}
-                                            />
-                                        </div>
-                                        <div className="space-y-1 col-span-1 sm:col-span-3">
-                                            <Label className="text-xs text-muted-foreground">Photo Link (Optional)</Label>
-                                            <Textarea
+                                                id={`evidence-photolink-edit-${item.id}-${index}`}
                                                 value={item.photoLink || ''}
                                                 onChange={(e) => updateEvidence(index, 'photoLink', e.target.value)}
                                                 placeholder="https://example.com/evidence_photo.png"
@@ -1041,15 +1295,15 @@ ${videoNotes || 'N/A'}
                                     </div>
                                 </div>
                             ))}
-                            <Button type="button" variant="outline" size="sm" onClick={addEvidenceRow} className="mt-2 bg-[#f3c700] text-white hover:bg-[#f3c700]/90 border-0" disabled={isSaving}>
+                            <Button type="button" variant="outline" size="sm" onClick={addEvidenceRow} className="mt-2 bg-brand text-brand-foreground hover:bg-brand/90 border-0" disabled={isSaving}>
                                 <FaPlus className="mr-2 h-3 w-3" /> Add Evidence
                             </Button>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-white">Photos (Links)</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Photos (Links)</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                              <div className="space-y-2">
@@ -1060,7 +1314,7 @@ ${videoNotes || 'N/A'}
                                     onChange={(e) => setPhotoSectionDescription(e.target.value)}
                                     placeholder="Optional: Describe the photos linked below (e.g., crime scene photos, suspect identification photos)."
                                     className="bg-input border-border py-1.5 px-3"
-                                    rows={2}
+                                    rows={1}
                                     readOnly={isSaving || isGeneratingDocx}
                                 />
                             </div>
@@ -1099,78 +1353,27 @@ ${videoNotes || 'N/A'}
                                     )}
                                 </div>
                             ))}
-                            <Button type="button" variant="outline" size="sm" onClick={addPhotoLink} className="mt-2 bg-[#f3c700] text-white hover:bg-[#f3c700]/90 border-0" disabled={isSaving}>
+                            <Button type="button" variant="outline" size="sm" onClick={addPhotoLink} className="mt-2 bg-brand text-brand-foreground hover:bg-brand/90 border-0" disabled={isSaving}>
                                 <FaPlus className="mr-2 h-3 w-3" /> Add Photo Link
                             </Button>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-white">Bodycam/Dashcam/Video Notes</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Bodycam/Dashcam/Video Notes</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Textarea
-                                id="videoNotes"
-                                value={videoNotes}
-                                onChange={(e) => setVideoNotes(e.target.value)}
-                                placeholder="Add links to bodycam/dashcam footage, YouTube videos, or general notes about video evidence..."
-                                className="bg-input border-border py-1.5 px-3"
-                                rows={3}
-                                readOnly={isSaving}
-                            />
+                            <Textarea id="videoNotesEdit" value={videoNotes} onChange={(e) => setVideoNotes(e.target.value)} placeholder="Add links to bodycam/dashcam footage, YouTube videos, or general notes about video evidence..." className="bg-input border-border py-1.5 px-3" rows={3} readOnly={isSaving} />
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-black/95 border-border shadow-sm">
+                    <Card className="bg-card-foreground/5 border-border shadow-sm">
                          <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-white">Gang Information</CardTitle>
+                            <CardTitle className="text-lg text-foreground">Gang Information</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Textarea id="gangInfo" value={gangInfo} onChange={(e) => setGangInfo(e.target.value)} placeholder="Details about gang involvement, if any..." className="bg-input border-border py-1.5 px-3" rows={3} readOnly={isSaving} />
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-black/95 border-border shadow-sm">
-                        <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-white">Status & Assignment</CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                            <div className="space-y-2">
-                                <Label>Status</Label>
-                                <div className="flex items-center space-x-2">
-                                    {isActive && <span className="h-2.5 w-2.5 bg-green-500 rounded-full inline-block" title="Active Case"></span>}
-                                    <Select value={status} onValueChange={(value: CaseStatus) => handleStatusChange(value)} disabled={isSaving}>
-                                        <SelectTrigger className="bg-input border-border flex-1">
-                                            <SelectValue placeholder="Select status" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-black/95 text-popover-foreground border-border shadow-md z-50">
-                                            <SelectItem value="Open - Unassigned">Open - Unassigned</SelectItem>
-                                            <SelectItem value="Open - Assigned">Open - Assigned</SelectItem>
-                                            <SelectItem value="Under Review">Under Review</SelectItem>
-                                            <SelectItem value="Closed - Solved">Closed - Solved</SelectItem>
-                                            <SelectItem value="Closed - Unsolved">Closed - Unsolved</SelectItem>
-                                            <SelectItem value="Archived">Archived</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Assign Detective</Label>
-                                <Select value={assignedToId || "unassigned"} onValueChange={handleAssigneeChange} disabled={isSaving}>
-                                    <SelectTrigger className="bg-input border-border">
-                                        <SelectValue placeholder="Select detective" />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-black/95 text-popover-foreground border-border shadow-md z-50">
-                                        <SelectItem value="unassigned">-- Unassigned --</SelectItem>
-                                        {eligibleAssignees.map(user => (
-                                            <SelectItem key={user.id} value={user.id || 'unknown'}>
-                                                {user.name} ({user.callsign})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                            <Textarea id="gangInfoEdit" value={gangInfo} onChange={(e) => setGangInfo(e.target.value)} placeholder="Details about gang involvement, if any..." className="bg-input border-border py-1.5 px-3" rows={3} readOnly={isSaving} />
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -1183,7 +1386,7 @@ ${videoNotes || 'N/A'}
                             [...updates].sort((a, b) => {
                                 const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toDate().getTime() : (a.timestamp instanceof Date ? a.timestamp.getTime() : 0);
                                 const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toDate().getTime() : (b.timestamp instanceof Date ? b.timestamp.getTime() : 0);
-                                return timeB - timeA;
+                                return timeB - timeA; // Sort descending
                             }).map((update) => (
                                 <div key={update.id} className="p-4 border rounded-md bg-black/95 border-border text-sm relative group">
                                     {editingUpdateId === update.id ? (
@@ -1227,9 +1430,9 @@ ${videoNotes || 'N/A'}
                         )}
                     </div>
                     <div className="shrink-0 space-y-2 pt-4 border-t border-border">
-                        <Label htmlFor="newNote">Add New Update/Note</Label>
+                        <Label htmlFor="newNoteEdit">Add New Update/Note</Label>
                         <Textarea
-                            id="newNote"
+                            id="newNoteEdit"
                             value={newNote}
                             onChange={(e) => setNewNote(e.target.value)}
                             placeholder="Record any updates or notes..."
@@ -1243,7 +1446,7 @@ ${videoNotes || 'N/A'}
                             size="sm"
                             onClick={handleAddNoteClick}
                             disabled={isSaving || !newNote.trim() || editingUpdateId !== null}
-                            className="bg-[#f3c700] text-black hover:bg-[#f3c700]/90 border-0"
+                            className="bg-brand text-brand-foreground hover:bg-brand/90 border-0"
                         >
                             Add Note
                         </Button>
@@ -1279,7 +1482,7 @@ ${videoNotes || 'N/A'}
                 </TabsContent>
             </Tabs>
 
-            <div className="pt-6 mt-6 border-t-2 border-[#f3c700] shrink-0 flex justify-end space-x-4">
+            <div className="pt-6 mt-6 border-t-2 border-brand shrink-0 flex justify-end space-x-4">
                 <Button type="button" variant="outline" onClick={onClose} disabled={isSaving || isGeneratingDocx}>Cancel</Button>
                 <Button type="button" onClick={() => handleSave()} disabled={isSaving || isGeneratingDocx || editingUpdateId !== null} className="bg-accent hover:bg-accent/90 text-accent-foreground">
                     <FaSave className="mr-2 h-4 w-4" />
