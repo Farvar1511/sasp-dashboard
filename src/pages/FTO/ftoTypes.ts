@@ -35,5 +35,5 @@ export const initialProgressState: { [key in ProgressItemKey]: boolean } = Objec
   {} as { [key in ProgressItemKey]: boolean }
 );
 
-export type FtoTabKey = "home" | "announcements" | "add" | "logs" | "progress" | "personnel";
+export type FtoTabKey = "home" | "announcements" | "add" | "logs" | "progress" | "personnel" | "graduated";
 export type CadetTabKey = "home";

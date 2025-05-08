@@ -58,6 +58,10 @@ const FTOPage: React.FC = () => {
   const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'log' | 'note' | 'announcement' } | null>(null);
 
   const cadets = useMemo(() => allUsers.filter((u) => u.rank === "Cadet"), [allUsers]);
+  const graduatedUsers = useMemo(() => {
+    const cadetNamesFromLogs = new Set(logs.map(log => log.cadetName));
+    return allUsers.filter(u => u.rank !== "Cadet" && cadetNamesFromLogs.has(u.name));
+  }, [allUsers, logs]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -338,6 +342,58 @@ const FTOPage: React.FC = () => {
     </div>
   );
 
+  const renderGraduated = () => (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-[#f3c700] border-b border-border pb-2">Graduated Cadets Overview</h2>
+      {graduatedUsers.length === 0 ? <p className="text-muted-foreground italic">No graduated cadets with logs found.</p> : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {graduatedUsers.map((user) => {
+            const totalHours = getCadetTotalHours(user.name);
+            const lastLog = getCadetLastLog(user.name);
+            const currentProgress = getCurrentProgressState(user.name);
+            const completedCount = Object.values(currentProgress).filter(Boolean).length;
+            const progressPercent = totalProgressItems > 0 ? Math.round((completedCount / totalProgressItems) * 100) : 0;
+            const latestNote = allFtoCadetNotes.filter(note => note.cadetId === user.id)?.sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))[0];
+
+            return (
+              <Card key={user.id} className="flex flex-col justify-between border-border bg-card">
+                <CardHeader className="pt-4">
+                  <CardTitle className="text-lg text-[#f3c700]">{user.name} | {user.badge || "N/A"}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p className="text-foreground"><span className="font-semibold text-muted-foreground">Total Hours:</span> {totalHours.toFixed(1)}</p>
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">Progress ({completedCount}/{totalProgressItems})</p>
+                    <Progress value={progressPercent} className="h-2 [&>div]:bg-[#f3c700]" />
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-col items-start space-y-3 text-xs pt-4 border-t border-border">
+                  {lastLog ? (
+                    <div className="w-full">
+                      <p className="font-semibold text-muted-foreground mb-0.5">Last Session:</p>
+                      <p className="text-foreground"><span className="font-medium">Date:</span> {formatDateToMMDDYY(lastLog.date)}</p>
+                      <p className="text-foreground"><span className="font-medium">Hours:</span> {lastLog.sessionHours.toFixed(1)}</p>
+                      <p className="text-foreground"><span className="font-medium">FTO:</span> {lastLog.ftoName}</p>
+                    </div>
+                  ) : <p className="text-muted-foreground italic w-full">No sessions logged.</p>}
+                  <div className="w-full pt-3 border-t border-border/50">
+                    <p className="font-semibold text-muted-foreground mb-0.5">Latest FTO Note:</p>
+                    {latestNote ? (
+                      <>
+                        <p className="italic text-foreground truncate" title={latestNote.note}>"{latestNote.note}"</p>
+                        <p className="text-muted-foreground/80">- {latestNote.ftoName} on {formatTimestampForDisplay(latestNote.createdAt)}</p>
+                      </>
+                    ) : <p className="italic text-muted-foreground/80">No notes added.</p>}
+                  </div>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   const renderCadetHome = () => {
     const self = allUsers.find(u => u.id === authUser?.id);
     const selfNotes = allFtoCadetNotes
@@ -472,7 +528,7 @@ const FTOPage: React.FC = () => {
 
         {!isCadet && (
           <div className="flex space-x-1 border-b border-border mb-6">
-            {(["home", "announcements", "add", "logs", "progress", "personnel"] as FtoTabKey[]).map((tab) => (
+            {(["home", "announcements", "add", "logs", "progress", "personnel", "graduated"] as FtoTabKey[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -550,6 +606,7 @@ const FTOPage: React.FC = () => {
                       getNotesByFTO={getNotesByFTO}
                     />
                   )}
+                  {activeTab === "graduated" && renderGraduated()}
                 </>
               )}
             </>
