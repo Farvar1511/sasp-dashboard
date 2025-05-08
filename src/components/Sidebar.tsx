@@ -272,24 +272,22 @@ Tip Summary: ${tipDetails.summary}`;
                 )}
             </nav>
 
-            {/* Submit CIU Tip Button - Placed above the clock */}
-            {canAccessCIU && (
-                <div className="px-3 py-2">
-                    <Button
-                        onClick={() => setIsCIUTipModalOpen(true)}
-                        className={`w-full flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out border border-transparent text-white hover:bg-white/10 hover:text-black ${isCollapsed ? 'justify-center' : 'justify-start'}`}
-                        title="Submit CIU Tip"
-                        variant="ghost"
-                    >
-                        <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                            <Lightbulb className="text-[18px] text-[#f3c700]" />
-                        </div>
-                        {!isCollapsed && (
-                            <span className="ml-3 whitespace-nowrap">Submit CIU Tip</span>
-                        )}
-                    </Button>
-                </div>
-            )}
+            {/* Submit CIU Tip Button - Now available to all users */}
+            <div className="px-3 py-2">
+                <Button
+                    onClick={() => setIsCIUTipModalOpen(true)}
+                    className={`w-full flex items-center px-3 py-2.5 rounded-md transition-colors duration-150 ease-in-out border border-transparent text-white hover:bg-white/10 hover:text-black ${isCollapsed ? 'justify-center' : 'justify-start'}`}
+                    title="Submit CIU Tip"
+                    variant="ghost"
+                >
+                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                        <Lightbulb className="text-[18px] text-[#f3c700]" />
+                    </div>
+                    {!isCollapsed && (
+                        <span className="ml-3 whitespace-nowrap">Submit CIU Tip</span>
+                    )}
+                </Button>
+            </div>
 
             {/* Clock section */}
             {!isCollapsed && (
