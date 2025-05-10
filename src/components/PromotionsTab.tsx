@@ -52,6 +52,28 @@ const highCommandRanks = [
   "commissioner",
 ];
 
+// New rank order as provided
+const rankOrder: { [key: string]: number } = {
+  Commissioner: 1,
+  "Deputy Commissioner": 2,
+  "Assistant Commissioner": 3,
+  Commander: 4,
+  Captain: 5,
+  Lieutenant: 6,
+  "Master Sergeant": 7,
+  "Gunnery Sergeant": 8,
+  Sergeant: 9,
+  Corporal: 10,
+  "Master Trooper": 11,
+  "Senior Trooper": 12,
+  "Trooper First Class": 13,
+  "Trooper Second Class": 14,
+  Trooper: 15,
+  "Probationary Trooper": 16,
+  Cadet: 17,
+  Unknown: 99, // For any ranks not explicitly listed
+};
+
 type PromotionVote = 'promote' | 'deny' | 'needs_time';
 
 interface PromotionVoteData {
@@ -110,11 +132,14 @@ export default function PromotionsTab(): JSX.Element {
     const voters: RosterUser[] = [];
     allUsers.forEach(u => {
       const rankLower = u.rank?.toLowerCase() || "";
-      const isEligible = !commandPlusRanks.includes(rankLower) && isOlderThanDays(u.lastPromotionDate, 14);
+      // Add !u.isTerminated check here
+      const isEligible = !commandPlusRanks.includes(rankLower) && 
+                         isOlderThanDays(u.lastPromotionDate, 14) &&
+                         !u.isTerminated; 
       if (isEligible) {
         eligible.push(u);
       }
-      if (adminVoterRanks.includes(rankLower)) {
+      if (adminVoterRanks.includes(rankLower) && !u.isTerminated) { // Also ensure voters are not terminated
         voters.push(u);
       }
     });
@@ -265,7 +290,22 @@ export default function PromotionsTab(): JSX.Element {
       data = data.filter(userPromoData => !userPromoData.voteData?.isManuallyHidden);
     }
 
-    data.sort((a, b) => a.name.localeCompare(b.name));
+    // Updated sorting logic
+    data.sort((a, b) => {
+      const aRankOrder = rankOrder[a.rank] || rankOrder.Unknown;
+      const bRankOrder = rankOrder[b.rank] || rankOrder.Unknown;
+
+      if (aRankOrder !== bRankOrder) {
+        return aRankOrder - bRankOrder;
+      }
+      // Secondary sort by callsign if ranks are equal
+      const callsignComparison = (a.callsign || "").localeCompare(b.callsign || "");
+      if (callsignComparison !== 0) {
+        return callsignComparison;
+      }
+      // Tertiary sort by name if callsigns are also equal or missing
+      return a.name.localeCompare(b.name);
+    });
 
     return data;
   }, [promotionData, searchTerm, showHiddenByVotes]);

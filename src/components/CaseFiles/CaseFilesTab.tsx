@@ -180,7 +180,16 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
                         <TableCell className="px-4 py-3 font-medium cursor-pointer hover:underline text-foreground text-sm" onClick={() => openEditModal(caseFile)}>
                             {caseFile.title}
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">{caseFile.assignedToName || 'Unassigned'}</TableCell>
+                        <TableCell className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
+                          {activeTab === 'unassigned' ? (
+                            <>
+                              <span className="text-xs block text-muted-foreground/70">Submitted by:</span>
+                              {caseFile.createdByName || 'Unknown Submitter'}
+                            </>
+                          ) : (
+                            caseFile.assignedToName || 'Unassigned'
+                          )}
+                        </TableCell>
                         <TableCell className="px-4 py-3 text-sm">
                           <Badge
                             variant={
@@ -236,7 +245,16 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
                     <TableCell className="px-4 py-3 font-medium cursor-pointer hover:underline text-foreground text-sm" onClick={() => openEditModal(caseFile)}>
                         {caseFile.title}
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">{caseFile.assignedToName || 'Unassigned'}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
+                      {activeTab === 'unassigned' ? (
+                        <>
+                          <span className="text-xs block text-muted-foreground/70">Submitted by:</span>
+                          {caseFile.createdByName || 'Unknown Submitter'}
+                        </>
+                      ) : (
+                        caseFile.assignedToName || 'Unassigned'
+                      )}
+                    </TableCell>
                     <TableCell className="px-4 py-3 text-sm">
                         <Badge
                           variant={

@@ -57,41 +57,60 @@ const FTOPage: React.FC = () => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'log' | 'note' | 'announcement' } | null>(null);
 
-  const cadets = useMemo(() => allUsers.filter((u) => u.rank === "Cadet"), [allUsers]);
+  const cadets = useMemo(() => allUsers.filter((u) => u.rank === "Cadet" && !u.isTerminated), [allUsers]);
   const graduatedUsers = useMemo(() => {
     const cadetNamesFromLogs = new Set(logs.map(log => log.cadetName));
-    return allUsers.filter(u => u.rank !== "Cadet" && cadetNamesFromLogs.has(u.name));
+    return allUsers.filter(u => 
+      u.rank !== "Cadet" && 
+      u.isTerminated === false && // Explicitly check if not terminated
+      cadetNamesFromLogs.has(u.name)
+    );
   }, [allUsers, logs]);
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true); setLoadingAnnouncements(true); setError(null); setErrorAnnouncements(null);
+      setLoading(true);
+      setError(null);
       try {
-        const usersQuery = query(collection(dbFirestore, "users"), orderBy("name"));
-        const usersSnapshot = await getDocs(usersQuery);
-        setAllUsers(usersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as RosterUser[]);
+        const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
+        const usersData = usersSnapshot.docs.map((doc) => {
+          const data = doc.data();
+          // Ensure RosterUser type here includes isTerminated
+          return { 
+            id: doc.id, 
+            ...data,
+            isTerminated: data.isTerminated ?? false, // Fetch isTerminated
+          } as RosterUser; 
+        });
+        setAllUsers(usersData);
 
-        const logsQuery = query(collection(dbFirestore, "cadetLogs"), orderBy("createdAt", "desc"));
-        const logsSnapshot = await getDocs(logsQuery);
-        setLogs(logsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as CadetLog[]);
+        const logsSnapshot = await getDocs(query(collection(dbFirestore, "cadetLogs"), orderBy("createdAt", "desc"))); // Changed "ftoLogs" to "cadetLogs"
+        const logsData = logsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as CadetLog));
+        setLogs(logsData);
 
-        const announcementsQuery = query(collection(dbFirestore, "ftoAnnouncements"), orderBy("createdAt", "desc"));
-        const announcementsSnapshot = await getDocs(announcementsQuery);
-        setFtoAnnouncements(announcementsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as FTOAnnouncement[]);
+        const notesSnapshot = await getDocs(query(collection(dbFirestore, "ftoCadetNotes"), orderBy("createdAt", "desc")));
+        const notesData = notesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as FTOCadetNote));
+        setAllFtoCadetNotes(notesData);
 
-        const allNotesQuery = query(collection(dbFirestore, "ftoCadetNotes"), orderBy("createdAt", "desc"));
-        const allNotesSnapshot = await getDocs(allNotesQuery);
-        setAllFtoCadetNotes(allNotesSnapshot.docs.map((doc) => ({
-          id: doc.id, ...doc.data(),
-          createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now()
-        })) as FTOCadetNote[]);
+        // Fetch FTO Announcements
+        setLoadingAnnouncements(true);
+        setErrorAnnouncements(null);
+        try {
+          const announcementsSnapshot = await getDocs(query(collection(dbFirestore, "ftoAnnouncements"), orderBy("createdAt", "desc")));
+          const announcementsData = announcementsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FTOAnnouncement));
+          setFtoAnnouncements(announcementsData);
+        } catch (annErr) {
+          console.error("Error fetching FTO announcements:", annErr);
+          setErrorAnnouncements("Failed to load announcements.");
+        } finally {
+          setLoadingAnnouncements(false);
+        }
 
       } catch (err) {
         console.error("Error fetching FTO data:", err);
-        setError("Failed to load FTO data."); setErrorAnnouncements("Failed to load announcements.");
-        toast.error("Failed to load FTO data.");
+        setError("Failed to load FTO data.");
       } finally {
-        setLoading(false); setLoadingAnnouncements(false);
+        setLoading(false);
       }
     };
     fetchData();

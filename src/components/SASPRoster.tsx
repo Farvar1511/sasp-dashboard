@@ -197,6 +197,7 @@ const SASPRoster: React.FC = () => {
               ? data.lastPromotionDate
               : null,
           isPlaceholder: false,
+          isTerminated: data.isTerminated ?? false, // Fetch isTerminated
         } as RosterUser;
       });
 
@@ -263,6 +264,7 @@ const SASPRoster: React.FC = () => {
               discordId: normalizedTemplateEntry.discordId || "-",
               email: normalizedTemplateEntry.email || "",
               isPlaceholder: true,
+              isTerminated: normalizedTemplateEntry.isTerminated ?? false, // Add for template
             } as RosterUser;
           }
         }
@@ -274,6 +276,8 @@ const SASPRoster: React.FC = () => {
 
       const lowerSearchTerm = searchTerm.toLowerCase();
       const filteredRoster = mergedRoster.filter((u) => {
+        if (u.isTerminated) return false; // Filter out terminated users
+
         const matchesSearch =
           !lowerSearchTerm ||
           u.name?.toLowerCase().includes(lowerSearchTerm) ||

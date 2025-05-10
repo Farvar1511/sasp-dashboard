@@ -27,6 +27,7 @@ export interface RosterTemplateEntry {
   disciplineIssuedAt?: string | null; 
   joinDate?: string | null; 
   lastPromotionDate?: string | null; 
+  isTerminated?: boolean; // Added isTerminated property
 }
 
 const fullRosterTemplate: RosterTemplateEntry[] = [
@@ -928,4 +929,5 @@ export interface RosterUser {
   discipline?: string; 
   notesIssuedAt?: string | null; 
   disciplineIssuedAt?: string | null; 
+  isTerminated: boolean; // Added isTerminated property
 }

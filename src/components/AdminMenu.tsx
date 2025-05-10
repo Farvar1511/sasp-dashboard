@@ -47,6 +47,28 @@ export const rankCategories = {
   HIGH_COMMAND: "High Command",
 };
 
+// Define the new rankOrder constant here
+const rankOrder: { [key: string]: number } = {
+  Commissioner: 1,
+  "Deputy Commissioner": 2,
+  "Assistant Commissioner": 3,
+  Commander: 4,
+  Captain: 5,
+  Lieutenant: 6,
+  "Master Sergeant": 7,
+  "Gunnery Sergeant": 8,
+  Sergeant: 9,
+  Corporal: 10,
+  "Master Trooper": 11,
+  "Senior Trooper": 12,
+  "Trooper First Class": 13,
+  "Trooper Second Class": 14,
+  Trooper: 15,
+  "Probationary Trooper": 16,
+  Cadet: 17,
+  Unknown: 99, // For any ranks not explicitly listed
+};
+
 const commandPlusRanks = [
   "Lieutenant",
   "Captain",
@@ -126,6 +148,7 @@ const filterOptions = {
   ALL: "All Ranks",
   ...rankCategories,
   ...Object.fromEntries(availableRanks.map((rank) => [rank, rank])),
+  TERMINATED: "Terminated", // Added Terminated
 };
 
 const assignTaskFilterOptions = {
@@ -133,6 +156,7 @@ const assignTaskFilterOptions = {
   ALL: "All Users",
   ...rankCategories,
   ...Object.fromEntries(availableRanks.map((rank) => [rank, rank])),
+  TERMINATED: "Terminated Users", // Added Terminated
 };
 
 // Helper function to get rank abbreviation
@@ -231,6 +255,7 @@ export default function AdminMenu(): JSX.Element {
   const [showOnlyUsersWithCompletedTasks, setShowOnlyUsersWithCompletedTasks] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for Add User Modal
   const [showInactiveUsers, setShowInactiveUsers] = useState<boolean>(false); // State for showing inactive users - Default to false
+  const [showTerminatedUsersInAssign, setShowTerminatedUsersInAssign] = useState<boolean>(false); // New state for assign task section
 
   const fetchAdminData = useCallback(async () => {
     setUsersLoading(true);
@@ -402,6 +427,22 @@ export default function AdminMenu(): JSX.Element {
       });
 
       const resolvedUsersData = await Promise.all(usersPromises);
+      
+      // Update FirestoreUserWithDetails to include isTerminated from userData
+      interface UserDocData {
+        isTerminated?: boolean;
+        [key: string]: any;
+      }
+
+      interface FinalUserData extends FirestoreUserWithDetails {
+        isTerminated: boolean;
+      }
+
+      const finalUsersData: FinalUserData[] = resolvedUsersData.map((user: FirestoreUserWithDetails) => ({
+        ...user,
+        isTerminated: usersSnapshot.docs.find((d) => d.id === user.id)?.data()?.isTerminated ?? false
+      }));
+
 
       // --- Perform LOA Cleanup ---
       if (usersToClearLOA.length > 0) {
@@ -435,7 +476,7 @@ export default function AdminMenu(): JSX.Element {
       setUsersData(
         resolvedUsersData.filter(
           (user) => user !== null && !user.isPlaceholder
-        ) as FirestoreUserWithDetails[] // Keep cast here as filter might change type slightly
+        ).map(u => ({ ...u, isTerminated: usersSnapshot.docs.find(doc => doc.id === u.id)?.data()?.isTerminated ?? false })) as FirestoreUserWithDetails[]
       );
     } catch (error) {
       setUsersError("Failed to load user, task, or discipline data.");
@@ -458,77 +499,68 @@ export default function AdminMenu(): JSX.Element {
 
     let filteredForSelection = [...usersData];
 
-    // Apply isActive filter unless showing inactive
-    if (!showInactiveUsers) {
-        filteredForSelection = filteredForSelection.filter(user => user.isActive);
-    }
+    if (selectedAssignFilter === "TERMINATED") {
+      filteredForSelection = filteredForSelection.filter(user => user.isTerminated);
+    } else {
+      // For non-terminated selections, always filter out terminated users first
+      filteredForSelection = filteredForSelection.filter(user => !user.isTerminated);
+      
+      // Then apply isActive filter unless showing inactive
+      if (!showInactiveUsers) {
+          filteredForSelection = filteredForSelection.filter(user => user.isActive);
+      }
 
-    if (selectedAssignFilter !== "ALL") {
-      if (Object.keys(rankCategories).includes(selectedAssignFilter)) {
-        // Filter by category
-        filteredForSelection = filteredForSelection.filter(
-          (user) => getRankCategory(user.rank) === selectedAssignFilter
-        );
-      } else {
-        // Filter by specific rank
-        filteredForSelection = filteredForSelection.filter(
-          (user) => user.rank === selectedAssignFilter
-        );
+      if (selectedAssignFilter !== "ALL") {
+        if (Object.keys(rankCategories).includes(selectedAssignFilter)) {
+          // Filter by category
+          filteredForSelection = filteredForSelection.filter(
+            (user) => getRankCategory(user.rank) === selectedAssignFilter
+          );
+        } else {
+          // Filter by specific rank
+          filteredForSelection = filteredForSelection.filter(
+            (user) => user.rank === selectedAssignFilter
+          );
+        }
       }
     }
-    // If 'ALL', no additional rank/category filtering needed beyond isActive
-
     setSelectedUsers(filteredForSelection.map(user => user.id));
 
   }, [selectedAssignFilter, usersData, showInactiveUsers]); // Add showInactiveUsers dependency
 
 
   const filteredUsersData = useMemo(() => {
-    let filtered: FirestoreUserWithDetails[] = [...usersData].sort((a, b) => {
-      if (sortBy === "rank") {
-        const rankOrder: { [key: string]: number } = {
-          Commissioner: 1,
-          "Deputy Commissioner": 2,
-          "Assistant Commissioner": 3,
-          Commander: 4,
-          Captain: 5,
-          Lieutenant: 6,
-          "Staff Sergeant": 7,
-          Sergeant: 8,
-          Corporal: 9,
-          "Trooper First Class": 10,
-          Trooper: 11,
-          Cadet: 12,
-        };
-        const aOrder = rankOrder[a.rank] || Infinity;
-        const bOrder = rankOrder[b.rank] || Infinity;
-        if (aOrder !== bOrder) {
-          return aOrder - bOrder;
+    let filtered: FirestoreUserWithDetails[] = [...usersData];
+
+    // Primary filter: Terminated status
+    if (selectedCategory === "TERMINATED") {
+      filtered = filtered.filter(user => user.isTerminated);
+    } else {
+      filtered = filtered.filter(user => !user.isTerminated);
+      // Secondary filter: Active status (only for non-terminated view)
+      if (!showInactiveUsers) {
+        filtered = filtered.filter(user => user.isActive);
+      }
+      // Tertiary filter: Rank/Category (only for non-terminated view)
+      if (selectedCategory !== "ALL") {
+        if (Object.keys(rankCategories).includes(selectedCategory)) {
+          filtered = filtered.filter(
+            (user) => getRankCategory(user.rank) === selectedCategory
+          );
+        } else {
+          filtered = filtered.filter((user) => user.rank === selectedCategory);
         }
       }
-      return a.name.localeCompare(b.name);
-    });
-
-    if (!showInactiveUsers) {
-      filtered = filtered.filter(user => user.isActive);
     }
-
-    if (selectedCategory !== "ALL") {
-      if (Object.keys(rankCategories).includes(selectedCategory)) {
-        filtered = filtered.filter(
-          (user) => getRankCategory(user.rank) === selectedCategory
-        );
-      } else {
-        filtered = filtered.filter((user) => user.rank === selectedCategory);
-      }
-    }
-
+    
+    // Apply search term
     if (searchTerm) {
       filtered = filtered.filter((user) =>
         user.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
+    // Apply showHiddenCards (applies to all, including terminated if that filter is active)
     if (!showHiddenCards) {
       const now = Timestamp.now();
       filtered = filtered.filter(user => {
@@ -536,12 +568,35 @@ export default function AdminMenu(): JSX.Element {
         return !hideUntil || hideUntil.toMillis() <= now.toMillis();
       });
     }
-
+    
+    // Apply showOnlyUsersWithCompletedTasks (applies to all)
     if (showOnlyUsersWithCompletedTasks) {
       filtered = filtered.filter(user =>
         user.tasks?.some(task => task.completed && !task.archived)
       );
     }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      if (sortBy === "rank") {
+        // Use the new rankOrder constant defined at the top of the file
+        const aOrder = rankOrder[a.rank] || rankOrder.Unknown;
+        const bOrder = rankOrder[b.rank] || rankOrder.Unknown;
+        
+        if (aOrder !== bOrder) {
+          return aOrder - bOrder;
+        }
+        // Secondary sort by callsign if ranks are equal
+        const callsignComparison = (a.callsign || "").localeCompare(b.callsign || "");
+        if (callsignComparison !== 0) {
+            return callsignComparison;
+        }
+        // Tertiary sort by name if callsigns are also equal (or missing)
+        return a.name.localeCompare(b.name);
+      }
+      // Default sort by name (when sortBy is "name")
+      return a.name.localeCompare(b.name);
+    });
 
     return filtered;
   }, [usersData, sortBy, selectedCategory, searchTerm, showHiddenCards, showOnlyUsersWithCompletedTasks, showInactiveUsers]);
@@ -961,7 +1016,11 @@ export default function AdminMenu(): JSX.Element {
                 className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 bg-black/80 p-3 rounded ${borderAccent} max-h-60 overflow-y-auto custom-scrollbar`}
               >
                 {[...usersData]
-                  .filter(user => showInactiveUsers || user.isActive)
+                  .filter(user => {
+                    if (selectedAssignFilter === "TERMINATED") return user.isTerminated;
+                    if (showInactiveUsers) return !user.isTerminated; // Show all non-terminated if showInactive is true
+                    return !user.isTerminated && user.isActive; // Default: show active non-terminated
+                  })
                   .sort((a, b) => a.name.localeCompare(b.name))
                   .map((user) => (
                     <label
@@ -985,7 +1044,7 @@ export default function AdminMenu(): JSX.Element {
                       <span className="text-xs leading-tight">
                         {user.name} <br />
                         <span className="text-[10px] opacity-80">
-                          {user.rank} - {user.badge || 'N/A'} {!user.isActive ? '(Inactive)' : ''}
+                          {user.rank} - {user.badge || 'N/A'} {!user.isActive ? '(Inactive)' : ''} {user.isTerminated ? '(Terminated)' : ''}
                         </span>
                       </span>
                     </label>
@@ -1148,20 +1207,24 @@ export default function AdminMenu(): JSX.Element {
 
                     const loaCardClass = isOnLOA ? 'border-orange-500 bg-orange-900/20' : '';
                     const loaTextClass = isOnLOA ? 'text-orange-400' : '';
+                    const terminatedCardClass = userData.isTerminated ? 'border-red-500 bg-red-900/30 opacity-60' : '';
+                    const terminatedTextClass = userData.isTerminated ? 'text-red-400 line-through' : '';
+
 
                     return (
                       <div
                         key={userData.id}
-                        className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md min-h-[250px] ${isHiddenByRule && showHiddenCards ? 'opacity-70 border-dashed border-orange-500' : ''} ${loaCardClass}`}
-                        title={`${isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}${isOnLOA ? ' User is currently on LOA' : ''}`}
+                        className={`user-card p-3 border ${borderAccent}/50 rounded-lg flex flex-col bg-black/90 text-white shadow-md min-h-[250px] ${isHiddenByRule && showHiddenCards ? 'opacity-70 border-dashed border-orange-500' : ''} ${loaCardClass} ${terminatedCardClass}`}
+                        title={`${isHiddenByRule && showHiddenCards ? `Normally hidden until ${formatTimestampDateTime(userData.promotionStatus?.hideUntil)}` : ''}${isOnLOA ? ' User is currently on LOA' : ''}${userData.isTerminated ? ' User is Terminated' : ''}`}
                       >
                         <div className="flex-grow">
                           <div className="flex justify-between items-start mb-1">
-                            <h4 className={`font-semibold ${textAccent} ${loaTextClass}`}>
+                            <h4 className={`font-semibold ${textAccent} ${loaTextClass} ${terminatedTextClass}`}>
                               {userData.name}
+                              {userData.isTerminated && <span className="text-xs text-red-400 ml-2">(Terminated)</span>}
                             </h4>
                             <div className="flex flex-col items-end gap-1">
-                              {isOnLOA && (
+                              {isOnLOA && !userData.isTerminated && (
                                 <span className="text-xs text-orange-400 bg-orange-900/60 px-1.5 py-0.5 rounded border border-orange-600 flex items-center gap-1">
                                   On LOA
                                 </span>
@@ -1188,10 +1251,10 @@ export default function AdminMenu(): JSX.Element {
                               )}
                             </div>
                           </div>
-                          <p className={`text-sm ${textSecondary} ${loaTextClass}`}>
+                          <p className={`text-sm ${textSecondary} ${loaTextClass} ${terminatedTextClass}`}>
                             {userData.rank} - {userData.callsign || "N/A"}
                           </p>
-                          <p className={`text-sm ${textSecondary} mb-2 ${loaTextClass}`}>
+                          <p className={`text-sm ${textSecondary} mb-2 ${loaTextClass} ${terminatedTextClass}`}>
                             Badge: {userData.badge}
                           </p>
 
@@ -1259,6 +1322,7 @@ export default function AdminMenu(): JSX.Element {
               disciplineEntries: editingUser.disciplineEntries || [],
               generalNotes: editingUser.generalNotes || [],
               promotionStatus: editingUser.promotionStatus,
+              isTerminated: editingUser.isTerminated ?? false, // Pass isTerminated
             }}
             onClose={() => setEditingUser(null)}
             onSave={handleSave}

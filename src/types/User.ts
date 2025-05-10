@@ -133,35 +133,25 @@ export interface User {
 // 🧑‍✈️ Full Firestore User Document (Collection: /users)
 // -----------------------------
 export interface RosterUser {
-  id: string; // Same as email (doc ID)
+  id: string;
   name: string;
   rank: string;
-  badge?: string;
-  callsign?: string;
-  certifications?: { [key: string]: CertStatus };
-  isActive?: boolean;
+  badge: string;
+  callsign: string;
+  certifications: { [key: string]: CertStatus | null };
+  category: string | null;
+  cid?: string; // Character ID
   discordId?: string;
-  cid?: string; // Character ID?
-  email?: string; // Often the same as id
-  joinDate?: string | Timestamp | null;
-  lastPromotionDate?: string | Timestamp | null;
-  loaStartDate?: string | Timestamp | null;
-  loaEndDate?: string | Timestamp | null;
-  tasks?: UserTask[]; // Populated in AdminMenu/Home
-  disciplineEntries?: DisciplineEntry[]; // Populated in AdminMenu/Home
-  generalNotes?: NoteEntry[]; // Populated in AdminMenu/Home
-  isPlaceholder?: boolean; // For template entries
-  category?: string | null; // UI grouping (High Command, etc.)
-  role?: string; // e.g., 'admin', 'user'
-  isAdmin?: boolean; // derived/calculated field
-  assignedVehicleId?: string | null; // Assigned vehicle ID (plate)
-  photoURL?: string | null; // Add photoURL for consistency
-  lastSignInTime?: Timestamp | string | null; // Ensure this exists if used in AdminMenu
-  promotionStatus?: {
-    votes?: { [voterId: string]: 'Approve' | 'Deny' | 'Needs Time' };
-    hideUntil?: Timestamp | null; // Hide card until this time if majority Deny/Needs Time
-    lastVoteTimestamp?: Timestamp; // Track when the last vote affecting status occurred
-  };
+  email?: string; // User's email, often used as ID
+  isActive: boolean; // Tracks if the user is an active member
+  isPlaceholder?: boolean; // True if this is a template/placeholder entry
+  joinDate?: string | Timestamp | null; // Date the user joined
+  lastPromotionDate?: string | Timestamp | null; // Date of last promotion
+  loaStartDate?: string | Timestamp | null; // Leave of Absence start
+  loaEndDate?: string | Timestamp |null; // Leave of Absence end
+  role?: string; // e.g., 'user', 'admin'
+  assignedVehicleId?: string | null; // Plate of assigned vehicle
+  isTerminated?: boolean; // If the user is terminated
 }
 
 // -----------------------------
@@ -199,7 +189,15 @@ export interface FTOCadetNote {
 // -----------------------------
 export interface FirestoreUserWithDetails extends RosterUser {
   tasks: UserTask[];
-  generalNotes: NoteEntry[];
   disciplineEntries: DisciplineEntry[];
-  displayName?: string; // Add displayName if used in AdminMenu rendering
+  generalNotes: NoteEntry[];
+  lastSignInTime?: Timestamp | string | null;
+  promotionStatus?: {
+    votes?: { [voterId: string]: "Approve" | "Deny" | "Needs Time" };
+    hideUntil?: Timestamp | null;
+    lastVoteTimestamp?: Timestamp;
+  };
+  isAdmin?: boolean;
+  displayName?: string; // Added for consistency if name isn't directly available
+  isTerminated?: boolean; // Ensure this is here too
 }

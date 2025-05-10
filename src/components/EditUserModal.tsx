@@ -48,6 +48,7 @@ interface EditUserModalProps {
       hideUntil?: Timestamp | null; // Timestamp type is now correctly imported
       lastVoteTimestamp?: Timestamp; // Timestamp type is now correctly imported
     };
+    isTerminated?: boolean; // Added isTerminated
   };
   onClose: () => void;
   onSave: () => void;
@@ -144,6 +145,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
       hideUntil?: Timestamp | null; // Timestamp type is now correctly imported
       lastVoteTimestamp?: Timestamp; // Timestamp type is now correctly imported
     };
+    isTerminated?: boolean; // Added isTerminated
   }>({
     ...user,
     // Format dates from user prop (likely YYYY-MM-DD or other) to MM/DD/YY for display
@@ -161,6 +163,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
     showAddDiscipline: false,
     showAddNote: false,
     statusMessage: null,
+    isTerminated: user.isTerminated ?? false, // Initialize isTerminated
   });
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<
@@ -259,7 +262,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
         formData;
 
       // Parse MM/DD/YY input from form to YYYY-MM-DD (or null) for Firestore storage
-      const updateData = {
+      const updateData: any = { // Use 'any' temporarily for flexibility or define a more specific type
         ...rosterData,
         assignedVehicleId: rosterData.assignedVehicleId || null, // Ensure no undefined values
         // Use the parser here
@@ -267,6 +270,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
         loaEndDate: parseMMDDYYToYYYYMMDD(rosterData.loaEndDate),
         joinDate: parseMMDDYYToYYYYMMDD(rosterData.joinDate),
         lastPromotionDate: parseMMDDYYToYYYYMMDD(rosterData.lastPromotionDate),
+        isTerminated: rosterData.isTerminated ?? false, // Add isTerminated
       };
 
       // Check if rank has changed
@@ -923,6 +927,23 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) 
                     }))
                   }
                   className="form-checkbox h-4 w-4 text-yellow-500 bg-gray-700 border-gray-600 rounded"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-300">
+                  Is Terminated
+                </label>
+                <input
+                  type="checkbox"
+                  name="isTerminated"
+                  checked={formData.isTerminated}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      isTerminated: e.target.checked,
+                    }))
+                  }
+                  className="form-checkbox h-4 w-4 text-red-500 bg-gray-700 border-gray-600 rounded"
                 />
               </div>
               <button
