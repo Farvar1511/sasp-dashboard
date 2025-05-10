@@ -43,14 +43,25 @@ const NONE_VALUE = "___NONE___";
 const rankCategories: { [key: string]: string[] } = {
   "High Command": [
     "Commissioner",
-    "Assistant Deputy Commissioner",
     "Deputy Commissioner",
     "Assistant Commissioner",
     "Commander",
   ],
   Command: ["Captain", "Lieutenant"],
-  Supervisors: ["Staff Sergeant", "Sergeant"],
-  "State Troopers": ["Corporal", "Trooper First Class", "Trooper"],
+  Supervisors: [
+    "Master Sergeant",
+    "Gunnery Sergeant",
+    "Sergeant",
+  ],
+  "State Troopers": [
+    "Corporal",
+    "Master Trooper",
+    "Senior Trooper",
+    "Trooper First Class",
+    "Trooper Second Class",
+    "Trooper",
+    "Probationary Trooper",
+  ],
   Cadets: ["Cadet"],
 };
 
@@ -91,9 +102,10 @@ const processRosterData = (
     if (rankA !== rankB) {
       return rankA - rankB;
     }
-    const callsignA = a.callsign || "";
-    const callsignB = b.callsign || "";
-    return callsignA.localeCompare(callsignB);
+    // MODIFIED: Secondary sort by name instead of callsign
+    const nameA = a.name?.toLowerCase() || "";
+    const nameB = b.name?.toLowerCase() || "";
+    return nameA.localeCompare(nameB);
   });
 
   const grouped: { [category: string]: RosterUser[] } = {};

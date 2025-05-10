@@ -56,19 +56,23 @@ export type CertStatus = "LEAD" | "SUPER" | "CERT" | "TRAIN" | null;
 
 export const rankOrder: { [key: string]: number } = {
   Commissioner: 1,
-  "Assistant Deputy Commissioner": 2,
-  "Deputy Commissioner": 3,
-  "Assistant Commissioner": 4,
-  Commander: 5,
-  Captain: 6,
-  Lieutenant: 7,
-  "Staff Sergeant": 8,
+  "Deputy Commissioner": 2,
+  "Assistant Commissioner": 3,
+  Commander: 4,
+  Captain: 5,
+  Lieutenant: 6,
+  "Master Sergeant": 7, // Updated from Staff Sergeant and re-ordered
+  "Gunnery Sergeant": 8, // New
   Sergeant: 9,
   Corporal: 10,
-  "Trooper First Class": 11,
-  Trooper: 12,
-  Cadet: 13,
-  Unknown: 99,
+  "Master Trooper": 11, // New
+  "Senior Trooper": 12, // New
+  "Trooper First Class": 13,
+  "Trooper Second Class": 14, // New
+  Trooper: 15,
+  "Probationary Trooper": 16, // New
+  Cadet: 17,
+  Unknown: 99, // For any ranks not explicitly listed
 };
 
 export const certOptions: {
