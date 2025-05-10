@@ -102,10 +102,10 @@ const processRosterData = (
     if (rankA !== rankB) {
       return rankA - rankB;
     }
-    // MODIFIED: Secondary sort by name instead of callsign
-    const nameA = a.name?.toLowerCase() || "";
-    const nameB = b.name?.toLowerCase() || "";
-    return nameA.localeCompare(nameB);
+    // MODIFIED: Secondary sort by callsign
+    const callsignA = a.callsign || "";
+    const callsignB = b.callsign || "";
+    return callsignA.localeCompare(callsignB);
   });
 
   const grouped: { [category: string]: RosterUser[] } = {};
