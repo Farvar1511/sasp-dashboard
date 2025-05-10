@@ -108,8 +108,8 @@ export const certOptions: {
   {
     value: "SUPER",
     label: "SUPER",
-    bgColor: "bg-orange-600",
-    textColor: "text-white",
+    bgColor: "bg-[#F3C700]", // Changed from bg-orange-600
+    textColor: "text-black",   // Changed from text-white
   },
 ];
 

@@ -4,7 +4,7 @@ import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
 import { RosterUser, FTOCadetNote, CertStatus } from '../../types/User';
 import { CadetLog } from './ftoTypes';
 import { formatDateToMMDDYY, formatTimestampForDisplay } from '../../utils/timeHelpers';
-import { getCertStyle } from '../../types/RosterConfig';
+import { getCertStyle } from '../../data/rosterConfig'; 
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { ScrollArea } from "../../components/ui/scroll-area";
