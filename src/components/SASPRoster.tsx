@@ -324,14 +324,11 @@ const SASPRoster: React.FC = () => {
   const totalColSpan = 5 + divisionKeys.length + certificationKeys.length + 4;
 
   const handleEditClick = (user: RosterUser) => {
-    if (displayMode !== "edit" || !canEditRoster) {
-      toast.error(
-        displayMode !== "edit"
-          ? "Switch to Edit Mode to make changes."
-          : "You do not have permission to edit the roster."
-      );
+    if (!canEditRoster) {
+      toast.error("You do not have permission to edit the roster.");
       return;
     }
+    // If canEditRoster is true, proceed regardless of displayMode for initiating an edit.
     setEditingRowId(user.id);
     setEditedRowData(user);
     setOriginalRankBeforeEdit(user.rank);
@@ -475,7 +472,8 @@ const SASPRoster: React.FC = () => {
   const handleContextMenu = useCallback(
     (event: React.MouseEvent<HTMLTableRowElement>, user: RosterUser) => {
       event.preventDefault();
-      if (displayMode !== "edit" || user.isPlaceholder || !canEditRoster) return;
+      // Allow context menu if user has edit permissions and it's not a placeholder row.
+      if (user.isPlaceholder || !canEditRoster) return;
       setContextMenu({
         visible: true,
         x: event.clientX,
@@ -483,7 +481,7 @@ const SASPRoster: React.FC = () => {
         user: user,
       });
     },
-    [canEditRoster, displayMode]
+    [canEditRoster] // Removed displayMode from dependencies as it's no longer checked here
   );
 
   const handleCloseContextMenu = useCallback(() => {
@@ -579,9 +577,9 @@ const SASPRoster: React.FC = () => {
         {error && <p className="text-red-500">{error}</p>}
 
         {!loading && !error && (
-          <div className="rounded-lg border border-[#f3c700] bg-black bg-opacity-80 shadow-lg">
+          <div className="rounded-lg border border-[#f3c700] bg-black bg-opacity-80 shadow-lg"> {/* MODIFIED: Removed overflow-x-auto */}
             <table className="min-w-full border-separate border-spacing-0 text-sm table-fixed">
-              <thead className="bg-gradient-to-b from-black via-black/90 to-black/70 backdrop-blur-sm text-[#f3c700] shadow-[0_2px_4px_rgba(243,199,0,0.4)] font-semibold border-t border-b border-[#f3c700]">
+              <thead className="sticky top-0 z-30 bg-gradient-to-b from-black via-black/90 to-black/70 backdrop-blur-sm text-[#f3c700] shadow-[0_2px_4px_rgba(243,199,0,0.4)] font-semibold border-t border-b border-[#f3c700]">
                 <tr>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}></th>
                   <th className="p-2 border border-[#f3c700]" rowSpan={2}>
@@ -657,7 +655,7 @@ const SASPRoster: React.FC = () => {
                         <tr>
                           <td
                             colSpan={totalColSpan + (canEditRoster ? 1 : 0)}
-                            className="h-6"
+                            className="h-6" // This td is for spacing, no break-words needed
                           ></td>
                         </tr>
                       </tbody>
@@ -666,7 +664,7 @@ const SASPRoster: React.FC = () => {
                       <tr>
                         <td
                           rowSpan={usersInCategory.length + 1}
-                          className="text-center text-md font-bold text-[#f3c700] py-4 uppercase border-r border-[#f3c700] whitespace-pre-line"
+                          className="text-center text-md font-bold text-[#f3c700] py-4 uppercase border-r border-[#f3c700] whitespace-pre-line" // This is the vertical category name, no break-words
                           style={{
                             writingMode: "vertical-rl",
                             textOrientation: "upright",
@@ -678,7 +676,18 @@ const SASPRoster: React.FC = () => {
                       {usersInCategory.map((u, index) => {
                         const isEditing = editingRowId === u.id;
                         const isVacant = u.name === "VACANT";
-                        const isEditMode = displayMode === "edit";
+                        // const isEditMode = displayMode === "edit"; // This variable is no longer directly used for the hover effect logic here
+
+                        // Determine if the edit button/actions should be functionally enabled
+                        const canCurrentlyEditThisRow = !u.isPlaceholder && canEditRoster;
+
+                        let editButtonTitle = "Edit Roster Entry";
+                        if (u.isPlaceholder) {
+                          editButtonTitle = "Cannot edit placeholder rows";
+                        } else if (!canEditRoster) {
+                          editButtonTitle = "You do not have permission to edit";
+                        }
+
 
                         return (
                           <tr
@@ -690,7 +699,7 @@ const SASPRoster: React.FC = () => {
                               transform transition-transform duration-200 ease-out
                               relative
                               ${
-                                !isEditMode
+                                editingRowId === null // Apply hover effect only when no row is being edited
                                   ? "hover:scale-105 hover:z-20 hover:bg-black origin-[60%_50%]"
                                   : ""
                               }
@@ -699,40 +708,40 @@ const SASPRoster: React.FC = () => {
                                 !isVacant && !u.isActive ? "opacity-50" : ""
                               }
                               ${
-                                !u.isPlaceholder && canEditRoster && isEditMode
+                                canCurrentlyEditThisRow // Updated condition for context menu cursor
                                   ? "cursor-context-menu"
                                   : ""
                               }
                             `}
                           >
-                            <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700] text-center break-words">
                               {isEditing ? (
                                 <Input
                                   type="text"
                                   name="callsign"
                                   value={editedRowData.callsign || ""}
                                   onChange={handleInputChange}
-                                  className="input-edit"
+                                  className="input-edit w-full h-auto p-1 text-xs"
                                 />
                               ) : (
                                 u.callsign || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700] text-center break-words">
                               {isEditing ? (
                                 <Input
                                   type="text"
                                   name="badge"
                                   value={editedRowData.badge || ""}
                                   onChange={handleInputChange}
-                                  className="input-edit"
+                                  className="input-edit w-full h-auto p-1 text-xs"
                                 />
                               ) : (
                                 u.badge || "-"
                               )}
                             </td>
                             <td
-                              className={`p-2 border border-[#f3c700] text-center ${
+                              className={`p-2 border border-[#f3c700] text-center break-words ${
                                 u.rank && !isEditing
                                   ? "bg-[#f3c700] text-black font-semibold"
                                   : ""
@@ -748,7 +757,7 @@ const SASPRoster: React.FC = () => {
                                     } as any)
                                   }
                                 >
-                                  <SelectTrigger className="input-edit">
+                                  <SelectTrigger className="input-edit w-full h-auto p-1 text-xs">
                                     <SelectValue placeholder="Select Rank" />
                                   </SelectTrigger>
                                   <SelectContent className="bg-popover border-border text-popover-foreground">
@@ -767,27 +776,27 @@ const SASPRoster: React.FC = () => {
                                 u.rank || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700] text-center break-words">
                               {isEditing ? (
                                 <Input
                                   type="text"
                                   name="name"
                                   value={editedRowData.name || ""}
                                   onChange={handleInputChange}
-                                  className="input-edit"
+                                  className="input-edit w-full h-auto p-1 text-xs"
                                 />
                               ) : (
                                 u.name
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700] text-center break-words">
                               {isEditing ? (
                                 <Input
                                   type="text"
                                   name="discordId"
                                   value={editedRowData.discordId || ""}
                                   onChange={handleInputChange}
-                                  className="input-edit"
+                                  className="input-edit w-full h-auto p-1 text-xs"
                                 />
                               ) : (
                                 u.discordId || "-"
@@ -805,7 +814,7 @@ const SASPRoster: React.FC = () => {
                               return (
                                 <td
                                   key={divKey}
-                                  className="p-2 border border-[#f3c700] text-center"
+                                  className="p-2 border border-[#f3c700] text-center break-words"
                                 >
                                   {isEditing ? (
                                     <Select
@@ -824,7 +833,7 @@ const SASPRoster: React.FC = () => {
                                         }))
                                       }
                                     >
-                                      <SelectTrigger className="input-edit">
+                                      <SelectTrigger className="input-edit w-full h-auto p-1 text-xs">
                                         <SelectValue placeholder="-" />
                                       </SelectTrigger>
                                       <SelectContent className="bg-popover border-border text-popover-foreground">
@@ -863,7 +872,7 @@ const SASPRoster: React.FC = () => {
                               return (
                                 <td
                                   key={certKey}
-                                  className="p-2 border border-[#f3c700] text-center"
+                                  className="p-2 border border-[#f3c700] text-center break-words"
                                 >
                                   {isEditing ? (
                                     <Select
@@ -882,7 +891,7 @@ const SASPRoster: React.FC = () => {
                                         }))
                                       }
                                     >
-                                      <SelectTrigger className="input-edit">
+                                      <SelectTrigger className="input-edit w-full h-auto p-1 text-xs">
                                         <SelectValue placeholder="-" />
                                       </SelectTrigger>
                                       <SelectContent className="bg-popover border-border text-popover-foreground">
@@ -909,7 +918,7 @@ const SASPRoster: React.FC = () => {
                                 </td>
                               );
                             })}
-                            <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700] text-center break-words">
                               {isEditing ? (
                                 <Input
                                   type="date"
@@ -923,7 +932,7 @@ const SASPRoster: React.FC = () => {
                                       : editedRowData.joinDate || ""
                                   }
                                   onChange={handleInputChange}
-                                  className="input-edit date-input"
+                                  className="input-edit date-input w-full h-auto p-1 text-xs"
                                 />
                               ) : (
                                 formatDateToMMDDYY(
@@ -933,7 +942,7 @@ const SASPRoster: React.FC = () => {
                                 ) || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700] text-center break-words">
                               {isEditing ? (
                                 <>
                                   <Input
@@ -953,7 +962,7 @@ const SASPRoster: React.FC = () => {
                                         : editedRowData.lastPromotionDate || ""
                                     }
                                     onChange={handleInputChange}
-                                    className="input-edit date-input"
+                                    className="input-edit date-input w-full h-auto p-1 text-xs"
                                     disabled={
                                       editedRowData.rank !==
                                       originalRankBeforeEdit
@@ -974,7 +983,7 @@ const SASPRoster: React.FC = () => {
                                 ) || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700] text-center break-words">
                               {isEditing ? (
                                 <Select
                                   name="isActive"
@@ -988,7 +997,7 @@ const SASPRoster: React.FC = () => {
                                     }))
                                   }
                                 >
-                                  <SelectTrigger className="input-edit">
+                                  <SelectTrigger className="input-edit w-full h-auto p-1 text-xs">
                                     <SelectValue placeholder="Status" />
                                   </SelectTrigger>
                                   <SelectContent className="bg-popover border-border text-popover-foreground">
@@ -1018,7 +1027,7 @@ const SASPRoster: React.FC = () => {
                                 </span>
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700] text-center break-words">
                               {isEditing ? (
                                 <Input
                                   type="date"
@@ -1033,7 +1042,7 @@ const SASPRoster: React.FC = () => {
                                       : editedRowData.loaStartDate || ""
                                   }
                                   onChange={handleInputChange}
-                                  className="input-edit date-input"
+                                  className="input-edit date-input w-full h-auto p-1 text-xs"
                                 />
                               ) : (
                                 formatDateToMMDDYY(
@@ -1043,7 +1052,7 @@ const SASPRoster: React.FC = () => {
                                 ) || "-"
                               )}
                             </td>
-                            <td className="p-2 border border-[#f3c700] text-center">
+                            <td className="p-2 border border-[#f3c700] text-center break-words">
                               {isEditing ? (
                                 <Input
                                   type="date"
@@ -1057,7 +1066,7 @@ const SASPRoster: React.FC = () => {
                                       : editedRowData.loaEndDate || ""
                                   }
                                   onChange={handleInputChange}
-                                  className="input-edit date-input"
+                                  className="input-edit date-input w-full h-auto p-1 text-xs"
                                 />
                               ) : (
                                 formatDateToMMDDYY(
@@ -1068,7 +1077,7 @@ const SASPRoster: React.FC = () => {
                               )}
                             </td>
                             {canEditRoster && (
-                              <td className="p-2 border border-[#f3c700] text-center">
+                              <td className="p-2 border border-[#f3c700] text-center break-words">
                                 {isEditing ? (
                                   <div className="flex gap-2 justify-center">
                                     <button
@@ -1088,20 +1097,12 @@ const SASPRoster: React.FC = () => {
                                   <button
                                     onClick={() => handleEditClick(u)}
                                     className={`bg-blue-600 text-white text-xs py-1 px-2 rounded ${
-                                      isEditMode && !u.isPlaceholder
+                                      canCurrentlyEditThisRow // Use the new condition for styling
                                         ? "hover:bg-blue-500 cursor-pointer"
                                         : "opacity-50 cursor-not-allowed"
                                     }`}
-                                    disabled={
-                                      !isEditMode || u.isPlaceholder
-                                    }
-                                    title={
-                                      !isEditMode
-                                        ? "Switch to Edit Mode to use"
-                                        : u.isPlaceholder
-                                        ? "Cannot edit placeholder rows"
-                                        : "Edit Roster Entry"
-                                    }
+                                    disabled={!canCurrentlyEditThisRow} // Use the new condition for disabled state
+                                    title={editButtonTitle} // Use the new title
                                   >
                                     Edit
                                   </button>
@@ -1121,7 +1122,7 @@ const SASPRoster: React.FC = () => {
                     <tr>
                       <td
                         colSpan={totalColSpan + (canEditRoster ? 1 : 0)}
-                        className="text-center p-4 text-white italic"
+                        className="text-center p-4 text-white italic break-words"
                       >
                         No users found matching the criteria.
                       </td>
@@ -1132,7 +1133,7 @@ const SASPRoster: React.FC = () => {
           </div>
         )}
 
-        {contextMenu.visible && displayMode === "edit" && (
+        {contextMenu.visible && canEditRoster && ( // Updated condition for rendering context menu
           <div
             className="fixed bg-popover border border-border rounded-md shadow-lg py-1 z-50 text-sm"
             style={{ top: contextMenu.y, left: contextMenu.x }}
