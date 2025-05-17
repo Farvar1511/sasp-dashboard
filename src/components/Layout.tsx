@@ -45,19 +45,27 @@ import { User } from "../types/User"; // Keep User type
 // Import Firestore functions and types
 import {
     collection, query, where, orderBy, onSnapshot, addDoc,
-    serverTimestamp, doc, updateDoc, getDoc, setDoc, Timestamp, getDocs
+    serverTimestamp, doc, updateDoc, getDoc, setDoc, Timestamp, getDocs,
+    arrayRemove, // Added arrayRemove
 } from 'firebase/firestore'; // Keep getDocs for allUsers
 import { db as dbFirestore } from '../firebase'; // Assuming db export
 import { toast } from 'react-toastify'; // Keep for potential other uses
+// Import notification store and related types/utils
+import { useNotificationStore, UnreadNotification } from '../store/notificationStore';
+import { getDirectChatId } from './Chat/CIUChatInterface'; // For stable IDs
+import { ChatGroup } from '../types/ChatGroup'; // For type checking target
 
 // REMOVED getDirectChatId if only used for bubble chat
 
 // REMOVED ActiveChatInfo interface
 
+const chatContext = 'department'; // Define context for department chats
+
 const Layout = ({ children }: { children: ReactNode }) => {
   const { user: currentUser, loading, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const setNotifications = useNotificationStore(state => state.setNotifications); // Get setNotifications from store
 
   // --- State Initialization ---
   // Read from sessionStorage immediately for initial state
@@ -69,6 +77,13 @@ const Layout = ({ children }: { children: ReactNode }) => {
   const [bgOpacity, setBgOpacity] = useState(initialOpacity); // Initialize opacity based on stored image
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // State for profile modal
   const [allUsers, setAllUsers] = useState<User[]>([]); // State for all users - KEEP for DepartmentChatPopup
+
+  // --- State for Department Notifications Logic ---
+  const [departmentForNotifications_ChatDocs, setDepartmentForNotifications_ChatDocs] = useState<any[]>([]);
+  const [departmentForNotifications_UnreadIds, setDepartmentForNotifications_UnreadIds] = useState<Set<string>>(new Set());
+  const [departmentForNotifications_HiddenChatIds, setDepartmentForNotifications_HiddenChatIds] = useState<Set<string>>(new Set());
+  const [departmentForNotifications_HiddenChatsLoaded, setDepartmentForNotifications_HiddenChatsLoaded] = useState(false);
+
 
   // Initialize isCollapsed from localStorage, default to false (expanded)
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
@@ -113,6 +128,192 @@ const Layout = ({ children }: { children: ReactNode }) => {
     };
     fetchUsers();
   }, []);
+
+  // Effect to load hidden chat IDs for department notifications
+  useEffect(() => {
+    let isMounted = true;
+    setDepartmentForNotifications_HiddenChatsLoaded(false);
+    if (currentUser?.email) {
+      const userDocRef = doc(dbFirestore, 'users', currentUser.email);
+      getDoc(userDocRef).then(docSnap => {
+        if (isMounted) {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const hiddenChats = data[`hiddenChats_${chatContext}`];
+            if (Array.isArray(hiddenChats)) {
+              setDepartmentForNotifications_HiddenChatIds(new Set(hiddenChats));
+            } else {
+              setDepartmentForNotifications_HiddenChatIds(new Set());
+            }
+          } else {
+            setDepartmentForNotifications_HiddenChatIds(new Set());
+          }
+          setDepartmentForNotifications_HiddenChatsLoaded(true);
+        }
+      }).catch(error => {
+        console.error("Layout: Error fetching user hidden chats for notifications:", error);
+        if (isMounted) {
+          setDepartmentForNotifications_HiddenChatIds(new Set());
+          setDepartmentForNotifications_HiddenChatsLoaded(true);
+        }
+      });
+    } else {
+        if (isMounted) {
+            setDepartmentForNotifications_HiddenChatIds(new Set());
+            setDepartmentForNotifications_HiddenChatsLoaded(true); // No user, so "loaded"
+        }
+    }
+    return () => { isMounted = false; };
+  }, [currentUser?.email]);
+
+  // Effect to listen to department chats for notifications
+  useEffect(() => {
+    if (!currentUser?.cid) {
+      setDepartmentForNotifications_ChatDocs([]);
+      setDepartmentForNotifications_UnreadIds(new Set());
+      return () => {};
+    }
+
+    const chatsQuery = query(
+      collection(dbFirestore, 'chats'),
+      where('members', 'array-contains', currentUser.cid),
+      where('context', '==', chatContext)
+    );
+
+    const unsubscribe = onSnapshot(chatsQuery, async (snapshot) => {
+      const newChatDocs: any[] = [];
+      const newUnreadIds = new Set<string>();
+      let changedHiddenIdsInFirestore = false;
+      const hiddenChatsUpdatePayload: { [key: string]: any } = {};
+      
+      // Use a local copy of hidden chat IDs for this snapshot processing
+      // to avoid issues with state updates within the loop.
+      let currentLocalHiddenChatIds = new Set(departmentForNotifications_HiddenChatIds);
+
+      snapshot.docs.forEach(docSnapshot => {
+        const data = docSnapshot.data();
+        const firestoreDocId = docSnapshot.id;
+        newChatDocs.push({ id: firestoreDocId, ...data });
+
+        const lastMessageTimestamp = data.lastMessageTimestamp as Timestamp | undefined;
+        const userLastReadTimestamp = currentUser?.cid ? data.lastRead?.[currentUser.cid] as Timestamp | undefined : undefined;
+        let isUnread = false;
+
+        if (lastMessageTimestamp) {
+          if (!userLastReadTimestamp || lastMessageTimestamp.toMillis() > userLastReadTimestamp.toMillis()) {
+            isUnread = true;
+            newUnreadIds.add(firestoreDocId);
+          }
+        }
+
+        // Unhide on receive logic for notifications
+        let stableId = '';
+        if (data.type === 'group') {
+          stableId = firestoreDocId;
+        } else if (data.type === 'direct') { 
+          const members = data.members as string[] || [];
+          // Due to the useEffect's top-level guard `if (!currentUser?.cid)`,
+          // currentUser is guaranteed to be non-null and currentUser.cid to be a string here.
+          const otherMemberCid = members.find(cid => cid !== currentUser!.cid); 
+          if (otherMemberCid) { 
+            // Apply type assertion to currentUser.cid
+            stableId = getDirectChatId(currentUser!.cid as string, otherMemberCid, chatContext);
+          }
+        }
+
+        if (stableId && currentLocalHiddenChatIds.has(stableId) && isUnread) {
+          hiddenChatsUpdatePayload[`hiddenChats_${chatContext}`] = arrayRemove(stableId);
+          changedHiddenIdsInFirestore = true;
+          // Update the local set for subsequent checks within this snapshot processing
+          currentLocalHiddenChatIds.delete(stableId); 
+          console.log(`Layout: Queued unhide for chat ${stableId} due to new message for notifications.`);
+        }
+      });
+
+      setDepartmentForNotifications_ChatDocs(newChatDocs);
+      setDepartmentForNotifications_UnreadIds(newUnreadIds);
+      
+      // If hidden IDs were changed by receiving a message, update local state for next render
+      // and update Firestore.
+      if (changedHiddenIdsInFirestore) {
+        setDepartmentForNotifications_HiddenChatIds(new Set(currentLocalHiddenChatIds)); 
+        if (currentUser?.email) {
+          const userDocRef = doc(dbFirestore, 'users', currentUser.email);
+          try {
+            await updateDoc(userDocRef, hiddenChatsUpdatePayload);
+            console.log(`Layout: Updated hidden chats in Firestore for notifications for user ${currentUser.email}.`);
+          } catch (error) {
+            console.error('Layout: Error updating hiddenChats in Firestore for notifications:', error);
+          }
+        }
+      }
+
+    }, (error) => {
+      console.error(`Layout: Error fetching department chats for notifications:`, error);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.cid, currentUser?.email, departmentForNotifications_HiddenChatIds]); // departmentForNotifications_HiddenChatIds is needed to correctly manage currentLocalHiddenChatIds
+
+  // Effect to update Zustand notification store for department context
+  useEffect(() => {
+    if (!currentUser?.cid || !departmentForNotifications_HiddenChatsLoaded) {
+      setNotifications('department', []);
+      return;
+    }
+
+    const derivedNotifications: UnreadNotification[] = [];
+    departmentForNotifications_UnreadIds.forEach(firestoreDocId => {
+      const chatDoc = departmentForNotifications_ChatDocs.find(d => d.id === firestoreDocId);
+      if (!chatDoc) return;
+
+      let stableId = '';
+      let targetName = 'Unknown Chat';
+      let targetType: 'direct' | 'group' = chatDoc.type;
+      let targetId = '';
+
+      if (chatDoc.type === 'group') {
+        stableId = firestoreDocId;
+        targetName = chatDoc.groupName || 'Unknown Group';
+        targetId = firestoreDocId;
+      } else if (chatDoc.type === 'direct') {
+        const members = chatDoc.members as string[] || [];
+        // Due to the useEffect's top-level guard `if (!currentUser?.cid)`,
+        // currentUser is guaranteed to be non-null and currentUser.cid to be a string here.
+        const otherMemberCid = members.find(cid => cid !== currentUser!.cid);
+        if (otherMemberCid) {
+          // Apply type assertion to currentUser.cid
+          stableId = getDirectChatId(currentUser!.cid as string, otherMemberCid, chatContext);
+          const otherUser = allUsers.find(u => u.cid === otherMemberCid);
+          targetName = otherUser ? formatUserName(otherUser) : 'Unknown User';
+          targetId = otherUser?.cid || '';
+        }
+      }
+
+      if (stableId && !departmentForNotifications_HiddenChatIds.has(stableId) && targetId) {
+        derivedNotifications.push({
+          id: firestoreDocId,
+          name: targetName,
+          context: 'department',
+          timestamp: chatDoc.lastMessageTimestamp instanceof Timestamp ? chatDoc.lastMessageTimestamp : null,
+          targetType: targetType,
+          targetId: targetId,
+          stableId: stableId,
+        });
+      }
+    });
+
+    setNotifications('department', derivedNotifications);
+
+  }, [
+    departmentForNotifications_UnreadIds,
+    departmentForNotifications_ChatDocs,
+    departmentForNotifications_HiddenChatIds,
+    departmentForNotifications_HiddenChatsLoaded,
+    allUsers,
+    currentUser?.cid,
+    setNotifications
+  ]);
 
 
   // Effect for background image loading and transition with persistence

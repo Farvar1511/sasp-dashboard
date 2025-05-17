@@ -110,6 +110,7 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({
     // const [showHiddenChats, setShowHiddenChats] = useState<boolean>(false);
     // ADD isHiddenChatsExpanded state
     const [isHiddenChatsExpanded, setIsHiddenChatsExpanded] = useState<boolean>(false);
+    const [hiddenChatsInitiallyLoaded, setHiddenChatsInitiallyLoaded] = useState(false); // ADDED: State for initial hidden chat load
     const setNotifications = useNotificationStore(state => state.setNotifications);
     const clearNotifications = useNotificationStore(state => state.clearNotifications); // Import clearNotifications
     const getUnreadCount = useNotificationStore(state => state.getUnreadCount); // Import getUnreadCount
@@ -173,35 +174,44 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({
     // ADD THIS EFFECT: Fetch hidden chats directly on mount
     useEffect(() => {
         let isMounted = true; // Flag to prevent state update on unmounted component
+        setHiddenChatsInitiallyLoaded(false); // ADDED: Reset on user/email change
+
         if (currentUser?.email) {
             const userDocRef = doc(dbFirestore, 'users', currentUser.email);
             getDoc(userDocRef).then(docSnap => {
-                if (isMounted && docSnap.exists()) {
-                    const data = docSnap.data();
-                    const hiddenChats = data[`hiddenChats_${chatContext}`]; // Use template literal
-                    if (Array.isArray(hiddenChats)) {
-                        setHiddenChatIds(new Set(hiddenChats));
-                        console.log(`DepartmentChat: Initial hidden chats loaded for ${currentUser.email}:`, hiddenChats);
+                if (isMounted) {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        const hiddenChats = data[`hiddenChats_${chatContext}`]; // Use template literal
+                        if (Array.isArray(hiddenChats)) {
+                            setHiddenChatIds(new Set(hiddenChats));
+                            console.log(`DepartmentChat: Initial hidden chats loaded for ${currentUser.email}:`, hiddenChats);
+                        } else {
+                             // Field might not exist yet, which is fine, initialize as empty
+                             setHiddenChatIds(new Set());
+                             console.log(`DepartmentChat: No 'hiddenChats_${chatContext}' field found for ${currentUser.email}, initializing empty.`);
+                        }
                     } else {
-                         // Field might not exist yet, which is fine, initialize as empty
-                         setHiddenChatIds(new Set());
-                         console.log(`DepartmentChat: No 'hiddenChats_${chatContext}' field found for ${currentUser.email}, initializing empty.`);
+                        // Document doesn't exist, initialize as empty
+                        setHiddenChatIds(new Set());
+                         console.log(`DepartmentChat: User document not found for ${currentUser.email} on initial load, initializing empty hidden chats.`);
                     }
-                } else if (isMounted) {
-                    // Document doesn't exist, initialize as empty
-                    setHiddenChatIds(new Set());
-                     console.log(`DepartmentChat: User document not found for ${currentUser.email} on initial load, initializing empty hidden chats.`);
+                    setHiddenChatsInitiallyLoaded(true); // ADDED: Mark as loaded
                 }
             }).catch(error => {
                 console.error("DepartmentChatPopup: Error fetching user document for initial hidden chats:", error);
                 // Optionally set an error state or keep hiddenChatIds empty
                 if (isMounted) {
                     setHiddenChatIds(new Set()); // Fallback to empty on error
+                    setHiddenChatsInitiallyLoaded(true); // ADDED: Mark as loaded even on error
                 }
             });
         } else {
             // No user email yet, initialize as empty
             setHiddenChatIds(new Set());
+            if (isMounted) { // Ensure isMounted check for synchronous path too
+                setHiddenChatsInitiallyLoaded(true); // ADDED: No user, so "loading" is complete
+            }
             console.log("DepartmentChatPopup: No user email available on mount, initializing empty hidden chats.");
         }
 
@@ -545,46 +555,6 @@ export const DepartmentChatPopup: React.FC<DepartmentChatPopupProps> = ({
 
         return combined;
     }, [allUserChats, otherUsers, currentUser?.cid, unreadChats, chatContext]); // No change needed here
-
-
-    // --- Zustand Notification Update Effect ---
-    useEffect(() => {
-        if (!currentUser?.cid) {
-            setNotifications('department', []);
-            return;
-        }
-
-        const derivedNotifications: UnreadNotification[] = [];
-        unreadChats.forEach(firestoreDocId => {
-            const chatInfo = displayChats.find(dc => dc.id === firestoreDocId);
-            // Ensure the chat is NOT hidden OR we are showing hidden chats before creating a notification
-            // (Notifications should generally only show for non-hidden chats)
-            if (chatInfo && !hiddenChatIds.has(chatInfo.stableId)) { // Keep original logic: only notify for non-hidden
-                const name = chatInfo.type === 'group'
-                    ? (chatInfo.target as ChatGroup).groupName
-                    : formatUserName(chatInfo.target as User);
-                const targetId = chatInfo.type === 'group'
-                    ? chatInfo.id // Group ID
-                    : (chatInfo.target as User).cid; // User CID
-
-                // Ensure targetId is not undefined before pushing
-                if (targetId) {
-                    derivedNotifications.push({
-                        id: firestoreDocId,
-                        name,
-                        targetId,
-                        context: chatContext,
-                        timestamp: chatInfo.lastMessageTimestamp || null, // Add timestamp
-                        targetType: chatInfo.type, // Add targetType
-                        stableId: chatInfo.stableId, // Add stableId
-                    });
-                }
-            }
-        });
-        // Set the filtered notifications
-        setNotifications('department', derivedNotifications);
-        // No change in dependencies needed here, notification logic remains the same
-    }, [unreadChats, setNotifications, displayChats, currentUser?.cid, hiddenChatIds]);
 
 
     // Filtered and Sorted Chats for Display (Main List) - UPDATED

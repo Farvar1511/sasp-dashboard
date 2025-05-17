@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot, orderBy, QuerySnapshot, DocumentD
 import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { User, CertStatus } from '../../types/User';
-import { CaseFile } from '../../utils/ciuUtils';
+import { CaseFile, CaseStatus } from '../../utils/ciuUtils'; // Ensure CaseStatus is imported
 import CIUPersonnelDetailsModal from './CIUPersonnelDetailsModal';
 import { getCertStyle } from '../../data/rosterConfig';
 import { formatTimestampForDisplay, formatDateToMMDDYY } from '../../utils/timeHelpers';
@@ -31,7 +31,7 @@ const safeConvertToDate = (time: string | Timestamp | Date | undefined | null): 
     return null;
 };
 
-type SortKey = keyof User | 'lastSignInTime' | 'caseCount';
+type SortKey = keyof User | 'lastSignInTime' | 'caseCount' | 'closedCaseCount' | 'archivedCaseCount';
 type SortDirection = 'asc' | 'desc';
 
 const CIUPersonnelTab: React.FC = () => {
@@ -87,8 +87,16 @@ const CIUPersonnelTab: React.FC = () => {
         return () => unsubscribe();
     }, [error]);
 
-    const getAssignedCases = useCallback((userId: string): CaseFile[] => {
-        return cases.filter(c => c.assignedToId === userId);
+    const getActiveCasesForUser = useCallback((userId: string): CaseFile[] => {
+        return cases.filter(c => c.assignedToId === userId && (c.status === 'Open - Assigned' || c.status === 'Under Review'));
+    }, [cases]);
+
+    const getClosedCasesForUser = useCallback((userId: string): CaseFile[] => {
+        return cases.filter(c => c.assignedToId === userId && (c.status === 'Closed - Solved' || c.status === 'Closed - Unsolved'));
+    }, [cases]);
+
+    const getArchivedCasesForUser = useCallback((userId: string): CaseFile[] => {
+        return cases.filter(c => c.assignedToId === userId && c.status === 'Archived');
     }, [cases]);
 
     const sortedPersonnel = useMemo(() => {
@@ -99,8 +107,14 @@ const CIUPersonnelTab: React.FC = () => {
                 let bValue: any;
 
                 if (sortConfig.key === 'caseCount') {
-                    aValue = getAssignedCases(a.id ?? '').length;
-                    bValue = getAssignedCases(b.id ?? '').length;
+                    aValue = getActiveCasesForUser(a.id ?? '').length;
+                    bValue = getActiveCasesForUser(b.id ?? '').length;
+                } else if (sortConfig.key === 'closedCaseCount') {
+                    aValue = getClosedCasesForUser(a.id ?? '').length;
+                    bValue = getClosedCasesForUser(b.id ?? '').length;
+                } else if (sortConfig.key === 'archivedCaseCount') {
+                    aValue = getArchivedCasesForUser(a.id ?? '').length;
+                    bValue = getArchivedCasesForUser(b.id ?? '').length;
                 } else if (sortConfig.key === 'lastSignInTime') {
                     const dateA = safeConvertToDate(a.lastSignInTime);
                     const dateB = safeConvertToDate(b.lastSignInTime);
@@ -125,7 +139,7 @@ const CIUPersonnelTab: React.FC = () => {
             });
         }
         return sortableItems;
-    }, [personnel, sortConfig, getAssignedCases]);
+    }, [personnel, sortConfig, getActiveCasesForUser, getClosedCasesForUser, getArchivedCasesForUser]);
 
     const requestSort = (key: SortKey) => {
         let direction: SortDirection = 'asc';
@@ -186,6 +200,12 @@ const CIUPersonnelTab: React.FC = () => {
                                     <TableHead className="px-4 py-2 cursor-pointer hover:bg-muted/50 text-[#f3c700]" onClick={() => requestSort('caseCount')}>
                                         <div className="flex items-center justify-center">Active Cases {renderSortIcon('caseCount')}</div>
                                     </TableHead>
+                                    <TableHead className="px-4 py-2 cursor-pointer hover:bg-muted/50 text-[#f3c700]" onClick={() => requestSort('closedCaseCount')}>
+                                        <div className="flex items-center justify-center">Closed Cases {renderSortIcon('closedCaseCount')}</div>
+                                    </TableHead>
+                                    <TableHead className="px-4 py-2 cursor-pointer hover:bg-muted/50 text-[#f3c700]" onClick={() => requestSort('archivedCaseCount')}>
+                                        <div className="flex items-center justify-center">Archived Cases {renderSortIcon('archivedCaseCount')}</div>
+                                    </TableHead>
                                     {canViewSensitiveData && (
                                         <TableHead className="px-4 py-2 cursor-pointer hover:bg-muted/50 text-[#f3c700]" onClick={() => requestSort('lastSignInTime')}>
                                             <div className="flex items-center">Last Login {renderSortIcon('lastSignInTime')}</div>
@@ -196,13 +216,15 @@ const CIUPersonnelTab: React.FC = () => {
                             <TableBody>
                                 {sortedPersonnel.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={canViewSensitiveData ? 6 : 5} className="text-center text-muted-foreground italic py-4">
+                                        <TableCell colSpan={canViewSensitiveData ? 8 : 7} className="text-center text-muted-foreground italic py-4">
                                             No active CIU personnel found.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     sortedPersonnel.map((p) => {
-                                        const assignedCases = getAssignedCases(p.id ?? '');
+                                        const assignedCases = getActiveCasesForUser(p.id ?? '');
+                                        const closedCases = getClosedCasesForUser(p.id ?? '');
+                                        const archivedCases = getArchivedCasesForUser(p.id ?? '');
                                         const ciuCert = (p.certifications?.CIU || null) as CertStatus | null;
                                         const { bgColor, textColor } = getCertStyle(ciuCert);
                                         const lastLoginDate = safeConvertToDate(p.lastSignInTime);
@@ -226,6 +248,8 @@ const CIUPersonnelTab: React.FC = () => {
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="px-4 py-2 text-center text-foreground">{assignedCases.length}</TableCell>
+                                                <TableCell className="px-4 py-2 text-center text-foreground">{closedCases.length}</TableCell>
+                                                <TableCell className="px-4 py-2 text-center text-foreground">{archivedCases.length}</TableCell>
                                                 {canViewSensitiveData && (
                                                     <TableCell className="px-4 py-2 text-xs text-muted-foreground">
                                                         {lastLoginDate ? formatTimestampForDisplay(lastLoginDate) : <span className="italic">N/A</span>}
@@ -246,7 +270,9 @@ const CIUPersonnelTab: React.FC = () => {
                     isOpen={isModalOpen}
                     onClose={closeModal}
                     personnel={selectedPersonnel}
-                    assignedCases={getAssignedCases(selectedPersonnel.id ?? '')}
+                    assignedCases={getActiveCasesForUser(selectedPersonnel.id ?? '')}
+                    closedCasesCount={getClosedCasesForUser(selectedPersonnel.id ?? '').length}
+                    archivedCasesCount={getArchivedCasesForUser(selectedPersonnel.id ?? '').length}
                     canViewSensitiveData={canViewSensitiveData}
                 />
             )}

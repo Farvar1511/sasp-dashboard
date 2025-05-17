@@ -15,6 +15,8 @@ interface CIUPersonnelDetailsModalProps {
     personnel: User;
     assignedCases: CaseFile[];
     canViewSensitiveData: boolean; // To control visibility of sensitive info like last login
+    closedCasesCount: number;
+    archivedCasesCount: number;
 }
 
 const CIUPersonnelDetailsModal: React.FC<CIUPersonnelDetailsModalProps> = ({
@@ -23,6 +25,8 @@ const CIUPersonnelDetailsModal: React.FC<CIUPersonnelDetailsModalProps> = ({
     personnel,
     assignedCases,
     canViewSensitiveData,
+    closedCasesCount,
+    archivedCasesCount,
 }) => {
     const ciuCert = personnel.certifications?.CIU ?? null;
     const certStyle = getCertStyle(ciuCert);
@@ -50,6 +54,13 @@ const CIUPersonnelDetailsModal: React.FC<CIUPersonnelDetailsModalProps> = ({
                             CIU: {ciuCert || 'None'}
                         </Badge>
                     </div>
+
+                    {/* Case Counts Info */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm px-1">
+                        <p><strong className="text-muted-foreground font-medium">Closed Cases:</strong> {closedCasesCount}</p>
+                        <p><strong className="text-muted-foreground font-medium">Archived Cases:</strong> {archivedCasesCount}</p>
+                    </div>
+
 
                     {/* Sensitive Info */}
                     {canViewSensitiveData && personnel.lastSignInTime && (
