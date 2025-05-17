@@ -19,7 +19,8 @@ import {
 import { DepartmentChatPopup } from "./DepartmentChatPopup";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { useNotificationStore } from "../store/notificationStore";
+// MODIFIED: Import UnreadNotification type as well if needed for direct manipulation, though sum is fine
+import { useNotificationStore, UnreadNotification } from "../store/notificationStore";
 import { User } from "../types/User";
 import SubmitCIUTipModal, { TipDetails } from "./CaseFiles/SubmitCIUTipModal";
 import { toast } from "react-toastify";
@@ -115,7 +116,14 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
     const { user: currentUser, logout } = useAuth();
     const [isDepartmentChatOpen, setIsDepartmentChatOpen] = useState(false);
-    const departmentUnreadCount = useNotificationStore(state => state.getUnreadCount('department')); // Get unread count
+    // MODIFIED: Simplify the selector for departmentNotifications
+    const departmentNotifications = useNotificationStore(
+        state => state.notifications['department'] || []
+    );
+    const totalDepartmentUnreadCount = useMemo(() => {
+        // The existing reduce logic is fine, ensure notif.unreadCount is accessed safely
+        return departmentNotifications.reduce((sum, notif) => sum + (notif.unreadCount || 0), 0);
+    }, [departmentNotifications]);
     const [isCIUTipModalOpen, setIsCIUTipModalOpen] = useState(false); // State for CIU Tip Modal
 
     const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
@@ -226,6 +234,9 @@ Tip Summary: ${tipDetails.summary}`;
     const adminItem = filteredNavItems.find(item => item.href === "/admin");
     const regularNavItems = filteredNavItems.filter(item => item.href !== "/admin");
 
+    function cn(...classes: (string | undefined | null | false)[]): string {
+        return classes.filter(Boolean).join(' ');
+    }
     return (
         <div
             className={`fixed top-0 left-0 h-screen bg-[#0a0a0a] border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out z-30 ${
@@ -314,15 +325,19 @@ Tip Summary: ${tipDetails.summary}`;
                     {!isCollapsed && (
                         <span className="ml-3 whitespace-nowrap">Department Chat</span>
                     )}
-                    {/* Unread Count Badge */}
-                    {departmentUnreadCount > 0 && (
+                    {/* MODIFIED: Unread Count Badge */}
+                    {totalDepartmentUnreadCount > 0 && (
                         <Badge
                             variant="destructive"
-                            className={`absolute top-1.5 right-1.5 h-5 min-w-[1.25rem] flex items-center justify-center p-1 text-xs ${
-                                isCollapsed ? "left-auto right-1.5" : ""
-                            }`}
+                            className={cn(
+                                "absolute h-5 text-xs font-semibold flex items-center justify-center rounded-full",
+                                isCollapsed 
+                                    ? "w-5 top-1 right-1 p-0" // Smaller, circular when collapsed
+                                    : "min-w-[20px] top-1/2 -translate-y-1/2 right-2 px-1.5" // Pill shape when expanded
+                            )}
+                            title={`${totalDepartmentUnreadCount} unread message${totalDepartmentUnreadCount > 1 ? 's' : ''}`}
                         >
-                            {departmentUnreadCount > 9 ? '9+' : departmentUnreadCount}
+                            {totalDepartmentUnreadCount > 99 ? '99+' : totalDepartmentUnreadCount}
                         </Badge>
                     )}
                 </Button>

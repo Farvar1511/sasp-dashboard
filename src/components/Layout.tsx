@@ -83,6 +83,8 @@ const Layout = ({ children }: { children: ReactNode }) => {
   const [departmentForNotifications_UnreadIds, setDepartmentForNotifications_UnreadIds] = useState<Set<string>>(new Set());
   const [departmentForNotifications_HiddenChatIds, setDepartmentForNotifications_HiddenChatIds] = useState<Set<string>>(new Set());
   const [departmentForNotifications_HiddenChatsLoaded, setDepartmentForNotifications_HiddenChatsLoaded] = useState(false);
+  // ADDED: State to store unread message counts for each chat
+  const [unreadMessageCounts, setUnreadMessageCounts] = useState<Map<string, number>>(new Map());
 
 
   // Initialize isCollapsed from localStorage, default to false (expanded)
@@ -166,7 +168,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
     return () => { isMounted = false; };
   }, [currentUser?.email]);
 
-  // Effect to listen to department chats for notifications
+  // Effect to listen to department chats for notifications (determines globally unread chats)
   useEffect(() => {
     if (!currentUser?.cid) {
       setDepartmentForNotifications_ChatDocs([]);
@@ -186,8 +188,6 @@ const Layout = ({ children }: { children: ReactNode }) => {
       let changedHiddenIdsInFirestore = false;
       const hiddenChatsUpdatePayload: { [key: string]: any } = {};
       
-      // Use a local copy of hidden chat IDs for this snapshot processing
-      // to avoid issues with state updates within the loop.
       let currentLocalHiddenChatIds = new Set(departmentForNotifications_HiddenChatIds);
 
       snapshot.docs.forEach(docSnapshot => {
@@ -196,7 +196,8 @@ const Layout = ({ children }: { children: ReactNode }) => {
         newChatDocs.push({ id: firestoreDocId, ...data });
 
         const lastMessageTimestamp = data.lastMessageTimestamp as Timestamp | undefined;
-        const userLastReadTimestamp = currentUser?.cid ? data.lastRead?.[currentUser.cid] as Timestamp | undefined : undefined;
+        // IMPORTANT: Use currentUser.cid directly here as it's confirmed by the effect's guard
+        const userLastReadTimestamp = data.lastRead?.[currentUser.cid!] as Timestamp | undefined;
         let isUnread = false;
 
         if (lastMessageTimestamp) {
@@ -212,11 +213,8 @@ const Layout = ({ children }: { children: ReactNode }) => {
           stableId = firestoreDocId;
         } else if (data.type === 'direct') { 
           const members = data.members as string[] || [];
-          // Due to the useEffect's top-level guard `if (!currentUser?.cid)`,
-          // currentUser is guaranteed to be non-null and currentUser.cid to be a string here.
           const otherMemberCid = members.find(cid => cid !== currentUser!.cid); 
           if (otherMemberCid) { 
-            // Apply type assertion to currentUser.cid
             stableId = getDirectChatId(currentUser!.cid as string, otherMemberCid, chatContext);
           }
         }
@@ -224,7 +222,6 @@ const Layout = ({ children }: { children: ReactNode }) => {
         if (stableId && currentLocalHiddenChatIds.has(stableId) && isUnread) {
           hiddenChatsUpdatePayload[`hiddenChats_${chatContext}`] = arrayRemove(stableId);
           changedHiddenIdsInFirestore = true;
-          // Update the local set for subsequent checks within this snapshot processing
           currentLocalHiddenChatIds.delete(stableId); 
           console.log(`Layout: Queued unhide for chat ${stableId} due to new message for notifications.`);
         }
@@ -233,8 +230,6 @@ const Layout = ({ children }: { children: ReactNode }) => {
       setDepartmentForNotifications_ChatDocs(newChatDocs);
       setDepartmentForNotifications_UnreadIds(newUnreadIds);
       
-      // If hidden IDs were changed by receiving a message, update local state for next render
-      // and update Firestore.
       if (changedHiddenIdsInFirestore) {
         setDepartmentForNotifications_HiddenChatIds(new Set(currentLocalHiddenChatIds)); 
         if (currentUser?.email) {
@@ -247,13 +242,76 @@ const Layout = ({ children }: { children: ReactNode }) => {
           }
         }
       }
-
     }, (error) => {
       console.error(`Layout: Error fetching department chats for notifications:`, error);
     });
 
     return () => unsubscribe();
-  }, [currentUser?.cid, currentUser?.email, departmentForNotifications_HiddenChatIds]); // departmentForNotifications_HiddenChatIds is needed to correctly manage currentLocalHiddenChatIds
+  }, [currentUser?.cid, currentUser?.email, departmentForNotifications_HiddenChatIds]);
+
+  // ADDED: Effect to calculate unread message counts
+  useEffect(() => {
+    if (!currentUser?.cid || departmentForNotifications_UnreadIds.size === 0) {
+      setUnreadMessageCounts(new Map()); // Clear counts if no user or no unread chats
+      return;
+    }
+
+    const fetchCounts = async () => {
+      const newCounts = new Map<string, number>();
+      // Create a stable copy of unread IDs and hidden IDs for this async operation
+      const unreadIdsToProcess = new Set(departmentForNotifications_UnreadIds);
+      const currentHiddenIds = new Set(departmentForNotifications_HiddenChatIds);
+
+      for (const firestoreDocId of unreadIdsToProcess) {
+        const chatDocData = departmentForNotifications_ChatDocs.find(d => d.id === firestoreDocId);
+        if (!chatDocData) continue;
+
+        let stableId = '';
+        if (chatDocData.type === 'group') {
+          stableId = firestoreDocId;
+        } else if (chatDocData.type === 'direct') {
+          const members = chatDocData.members as string[] || [];
+          const otherMemberCid = members.find(cid => cid !== currentUser!.cid);
+          if (otherMemberCid) {
+            stableId = getDirectChatId(currentUser!.cid as string, otherMemberCid, chatContext);
+          }
+        }
+
+        // Only fetch count if chat is not hidden
+        if (stableId && !currentHiddenIds.has(stableId)) {
+          const userLastReadTimestamp = chatDocData.lastRead?.[currentUser.cid!] as Timestamp | undefined;
+          const messagesRef = collection(dbFirestore, 'chats', firestoreDocId, 'messages');
+          let messagesQuery;
+
+          if (userLastReadTimestamp) {
+            messagesQuery = query(messagesRef, where('timestamp', '>', userLastReadTimestamp));
+          } else {
+            // If no lastRead timestamp, all messages in the chat are unread
+            messagesQuery = query(messagesRef);
+          }
+          
+          try {
+            const messagesSnapshot = await getDocs(messagesQuery);
+            newCounts.set(firestoreDocId, messagesSnapshot.size);
+          } catch (error) {
+            console.error(`Layout: Error fetching message count for chat ${firestoreDocId}:`, error);
+            newCounts.set(firestoreDocId, 0); // Default to 0 on error
+          }
+        } else {
+          newCounts.set(firestoreDocId, 0); // Chat is hidden, so 0 unread for notification purposes
+        }
+      }
+      setUnreadMessageCounts(newCounts);
+    };
+
+    fetchCounts();
+  }, [
+    departmentForNotifications_UnreadIds, 
+    departmentForNotifications_ChatDocs, // To get lastRead timestamps
+    departmentForNotifications_HiddenChatIds, 
+    currentUser?.cid, // Ensure currentUser.cid is stable
+  ]);
+
 
   // Effect to update Zustand notification store for department context
   useEffect(() => {
@@ -263,6 +321,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
     }
 
     const derivedNotifications: UnreadNotification[] = [];
+    // Iterate over globally unread chat IDs
     departmentForNotifications_UnreadIds.forEach(firestoreDocId => {
       const chatDoc = departmentForNotifications_ChatDocs.find(d => d.id === firestoreDocId);
       if (!chatDoc) return;
@@ -278,19 +337,20 @@ const Layout = ({ children }: { children: ReactNode }) => {
         targetId = firestoreDocId;
       } else if (chatDoc.type === 'direct') {
         const members = chatDoc.members as string[] || [];
-        // Due to the useEffect's top-level guard `if (!currentUser?.cid)`,
-        // currentUser is guaranteed to be non-null and currentUser.cid to be a string here.
         const otherMemberCid = members.find(cid => cid !== currentUser!.cid);
         if (otherMemberCid) {
-          // Apply type assertion to currentUser.cid
           stableId = getDirectChatId(currentUser!.cid as string, otherMemberCid, chatContext);
           const otherUser = allUsers.find(u => u.cid === otherMemberCid);
           targetName = otherUser ? formatUserName(otherUser) : 'Unknown User';
           targetId = otherUser?.cid || '';
         }
       }
+      
+      // Get the calculated unread count for this chat
+      const currentUnreadCount = unreadMessageCounts.get(firestoreDocId) || 0;
 
-      if (stableId && !departmentForNotifications_HiddenChatIds.has(stableId) && targetId) {
+      // Only add notification if it's not hidden AND has unread messages
+      if (stableId && !departmentForNotifications_HiddenChatIds.has(stableId) && targetId && currentUnreadCount > 0) {
         derivedNotifications.push({
           id: firestoreDocId,
           name: targetName,
@@ -299,6 +359,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
           targetType: targetType,
           targetId: targetId,
           stableId: stableId,
+          unreadCount: currentUnreadCount, // Use the calculated count
         });
       }
     });
@@ -310,6 +371,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
     departmentForNotifications_ChatDocs,
     departmentForNotifications_HiddenChatIds,
     departmentForNotifications_HiddenChatsLoaded,
+    unreadMessageCounts, // ADDED: Depend on message counts
     allUsers,
     currentUser?.cid,
     setNotifications

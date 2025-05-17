@@ -9,47 +9,37 @@ export interface UnreadNotification {
     targetType: 'direct' | 'group'; // Type of the chat target
     targetId: string; // CID for direct, Firestore ID for group
     stableId: string; // Stable ID (direct chat ID or group Firestore ID)
+    unreadCount: number; // Count of unread messages
 }
 
-
-export interface NotificationState {
-    notifications: UnreadNotification[];
-    setNotifications: (type: 'ciu' | 'department', newNotifications: UnreadNotification[]) => void;
-    clearNotifications: (type: 'ciu' | 'department') => void;
-    removeNotification: (stableId: string) => void;
-    getUnreadCount: (type: 'ciu' | 'department') => number; // Add method signature
+export interface NotificationStore {
+    notifications: Record<string, UnreadNotification[]>; // Correctly typed
+    setNotifications: (context: string, notifications: UnreadNotification[]) => void;
+    clearNotifications: (context: string) => void;
+    getUnreadCount: (context: string) => number;
 }
 
-export const useNotificationStore = create<NotificationState>((set, get) => ({
-    notifications: [],
+export const useNotificationStore = create<NotificationStore>((set, get) => ({
+    notifications: {}, // Initial state is an empty object
 
-    setNotifications: (type, newNotifications) => {
-        set(state => {
-            // Filter out existing notifications of the same type
-            const otherNotifications = state.notifications.filter(n => n.context !== type);
-            // Combine with new notifications for the type
-            const updatedNotifications = [...otherNotifications, ...newNotifications];
-            // Sort all notifications by timestamp (newest first)
-            updatedNotifications.sort((a, b) => (b.timestamp?.toMillis() ?? 0) - (a.timestamp?.toMillis() ?? 0));
-            return { notifications: updatedNotifications };
-        });
-    },
-
-    clearNotifications: (type) => {
+    setNotifications: (context, newNotifications) =>
         set(state => ({
-            notifications: state.notifications.filter(n => n.context !== type),
-        }));
-    },
+            notifications: {
+                ...state.notifications,
+                [context]: newNotifications,
+            },
+        })),
 
-    removeNotification: (stableId) => {
+    clearNotifications: (context) =>
         set(state => ({
-            notifications: state.notifications.filter(n => n.stableId !== stableId),
-        }));
-    },
+            notifications: {
+                ...state.notifications,
+                [context]: [],
+            },
+        })),
 
-    // Implement getUnreadCount method
-    getUnreadCount: (type) => {
-        const state = get(); // Get current state
-        return state.notifications.filter(n => n.context === type).length;
+    getUnreadCount: (context) => {
+        const contextNotifications = get().notifications[context] || [];
+        return contextNotifications.reduce((sum, notif) => sum + (notif.unreadCount || 0), 0);
     },
 }));
