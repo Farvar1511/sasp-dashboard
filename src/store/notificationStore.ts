@@ -15,6 +15,7 @@ export interface UnreadNotification {
 export interface NotificationStore {
     notifications: Record<string, UnreadNotification[]>; // Correctly typed
     setNotifications: (context: string, notifications: UnreadNotification[]) => void;
+    removeNotification: (context: string, stableId: string) => void; // Add this line
     clearNotifications: (context: string) => void;
     getUnreadCount: (context: string) => number;
 }
@@ -29,6 +30,20 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
                 [context]: newNotifications,
             },
         })),
+
+    removeNotification: (context, stableIdToRemove) =>
+        set(state => {
+            const contextNotifications = state.notifications[context] || [];
+            const updatedNotifications = contextNotifications.filter(
+                notif => notif.stableId !== stableIdToRemove
+            );
+            return {
+                notifications: {
+                    ...state.notifications,
+                    [context]: updatedNotifications,
+                },
+            };
+        }),
 
     clearNotifications: (context) =>
         set(state => ({

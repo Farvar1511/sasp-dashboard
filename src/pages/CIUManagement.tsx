@@ -33,7 +33,7 @@ export default function CIUManagement() {
   const [initialDataForCreateCase, setInitialDataForCreateCase] = useState<TipConversionData | null>(null); // Renamed for clarity
 
   const ciuUnreadCount = useNotificationStore(state =>
-    state.notifications?.length ?? 0
+      state.notifications?.length ?? 0
   );
 
   useEffect(() => {
@@ -124,12 +124,12 @@ export default function CIUManagement() {
             <TabsTrigger value="personnel" className="bg-transparent text-brand px-2 sm:px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black text-xs sm:text-sm">Personnel</TabsTrigger>
             <TabsTrigger value="chat" className="relative bg-transparent text-brand px-2 sm:px-4 py-2 data-[state=active]:bg-brand data-[state=active]:text-black data-[state=active]:border-transparent hover:bg-brand hover:text-black text-xs sm:text-sm">
               CIU Chat
-              {ciuUnreadCount > 0 && (
+              {ciuUnreadCount.length > 0 && (
                 <Badge
                   variant="destructive"
                   className="absolute top-0.5 right-0.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs rounded-full"
                 >
-                  {ciuUnreadCount > 9 ? '9+' : ciuUnreadCount}
+                  {ciuUnreadCount.length > 9 ? '9+' : ciuUnreadCount.length.toString()}
                 </Badge>
               )}
             </TabsTrigger>

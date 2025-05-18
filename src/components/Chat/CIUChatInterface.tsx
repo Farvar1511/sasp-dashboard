@@ -102,8 +102,7 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
     const setNotifications = useNotificationStore(state => state.setNotifications);
     // Get the removeNotification action
     const removeNotification = useNotificationStore(state => state.removeNotification);
-    const clearNotifications = useNotificationStore(state => state.clearNotifications); // Import clearNotifications
-    const getUnreadCount = useNotificationStore(state => state.getUnreadCount); // Import getUnreadCount
+    const clearNotifications = useNotificationStore(state => state.clearNotifications);    const getUnreadCount = useNotificationStore(state => state.getUnreadCount); // Import getUnreadCount
 
     const scrollToBottom = () => {
         if (messageContainerRef.current) {
@@ -703,53 +702,41 @@ export const CIUChatInterface: React.FC<CIUChatInterfaceProps> = () => {
             typingTimeoutRef.current = null;
         }
 
-        setSelectedChat(chatTarget);
+        // Determine stableChatId to use for selection
+        let stableChatIdToUse: string | undefined;
+
+        if ('groupName' in chatTarget) { // It's a ChatGroup
+            stableChatIdToUse = chatTarget.id; // Firestore document ID for groups
+        } else { // It's a User
+            if (currentUser?.cid) {
+                if (chatTarget.cid) {
+                    stableChatIdToUse = getDirectChatId(currentUser.cid, chatTarget.cid, chatContext);
+                } else {
+                    console.error("chatTarget.cid is undefined");
+                }
+            }
+        }
+
+        if (stableChatIdToUse) {
+            setSelectedChat(chatTarget);
+            currentChatIdRef.current = stableChatIdToUse;
+            updateLastReadTimestamp(stableChatIdToUse); // Pass stable ID
+
+            // Check if this chat was in unread notifications and remove it
+            // The allUserChats array contains Firestore document IDs, not necessarily stable IDs for direct chats.
+            // We need to ensure we're removing based on the stableId.
+            // The notification store itself uses stableId.
+            removeNotification(chatContext, stableChatIdToUse);
+        } else {
+            console.error("CIUChatInterface: Could not determine stableChatId for chat selection.");
+        }
+
         setMessages([]); // Clear messages immediately on selection
         setTypingIndicatorUsers([]); // Clear typing indicators immediately
         setNewMessage(''); // Clear input field
         setShowEmojiPicker(false); // Hide emoji picker
 
-        // Determine chatId for the selected chat (using CID)
-        let chatIdToMarkRead = ''; // This will be the Firestore Doc ID
-        let targetCid: string | undefined = undefined;
-
-        if ('groupName' in chatTarget) {
-            chatIdToMarkRead = chatTarget.id; // Group ID is the Firestore Doc ID
-        } else if (currentUser?.cid) {
-            if (chatTarget.cid !== undefined) {
-                targetCid = chatTarget.cid;
-                // Find the corresponding chat document ID from allUserChats
-                const directChatData = allUserChats.find(chat =>
-                    chat.type === 'direct' &&
-                    chat.members.includes(currentUser.cid) &&
-                    chat.members.includes(targetCid)
-                );
-                chatIdToMarkRead = directChatData?.id || ''; // Get the Firestore Doc ID
-                if (!chatIdToMarkRead) {
-                    // If no existing chat doc, generate the ID (though it might not exist yet)
-                    // This case is less likely if the chat appears in the list, but handle defensively
-                    chatIdToMarkRead = getDirectChatId(currentUser.cid, targetCid, chatContext);
-                    // console.warn(`CIUChat: Could not find existing Firestore doc ID for direct chat with ${targetCid}, using generated ID ${chatIdToMarkRead} for potential read update.`); // Removed
-                }
-            } else {
-                console.error("Selected user is missing CID:", chatTarget);
-                toast.error("Cannot select user without a valid identifier.");
-            }
-        }
-
-        // Mark the selected chat as read in Firestore and remove from local/global state
-        if (chatIdToMarkRead) {
-            updateLastReadTimestamp(chatIdToMarkRead); // Update Firestore lastRead
-            setUnreadChats(prev => { // Update local unread set
-                const newSet = new Set(prev);
-                newSet.delete(chatIdToMarkRead);
-                return newSet;
-            });
-            // Remove notification from Zustand store using Firestore Doc ID
-            removeNotification(chatIdToMarkRead);
-        }
-
-    }, [currentUser?.cid, getChatDocRef, updateLastReadTimestamp, chatContext, allUserChats, removeNotification]); // Added allUserChats and removeNotification to dependencies
+    }, [currentUser?.cid, getChatDocRef, updateLastReadTimestamp, chatContext, allUserChats, removeNotification]);
 
 
     // --- Direct Chat Start Logic (from Modal) ---
