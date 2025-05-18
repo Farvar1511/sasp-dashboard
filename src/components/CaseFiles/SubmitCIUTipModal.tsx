@@ -273,11 +273,25 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({ isOpen, onClose, 
     if (!isOpen) return null;
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); /* resetForm(); */ } }}>
+        <Dialog open={isOpen} onOpenChange={(open) => { 
+            // Only call onClose if the dialog is being explicitly closed by our buttons.
+            // This onOpenChange will still be triggered by Escape/outside click if not prevented below,
+            // but we won't act on it unless 'open' is true (which means it's not a close request).
+            // If 'open' is false, it means an attempt to close was made.
+            // We let the explicit buttons handle calling onClose.
+            if (open === false) {
+                // If we want to allow Radix to control the state for its internal logic
+                // but not propagate our main onClose, we could do nothing here.
+                // However, to be safe and ensure our onClose is the sole trigger from our side:
+                // We will prevent default on DialogContent for escape and outside click.
+            }
+        }}>
             <DialogContent
-  className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] sm:max-w-none max-h-[95vh] overflow-hidden case-details-modal-root mx-auto p-6 sm:p-8 md:p-12 bg-card text-foreground rounded-lg shadow-2xl border-brand border-2 flex flex-col"
->
-                <Button variant="ghost" size="icon" className="absolute top-4 right-4 sm:top-6 sm:right-6 text-muted-foreground hover:text-foreground z-10" onClick={() => { onClose(); }}>
+                onEscapeKeyDown={(e) => e.preventDefault()} // Prevent closing on Escape key
+                onPointerDownOutside={(e) => e.preventDefault()} // Prevent closing on outside click
+                className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] sm:max-w-none max-h-[95vh] overflow-hidden case-details-modal-root mx-auto p-6 sm:p-8 md:p-12 bg-card text-foreground rounded-lg shadow-2xl border-brand border-2 flex flex-col"
+            >
+                <Button variant="ghost" size="icon" className="absolute top-4 right-4 sm:top-6 sm:right-6 text-muted-foreground hover:text-foreground z-10" onClick={() => { onClose(); resetForm(); }}>
                     <LucideTimes className="h-5 w-5" />
                     <span className="sr-only">Close</span>
                 </Button>
