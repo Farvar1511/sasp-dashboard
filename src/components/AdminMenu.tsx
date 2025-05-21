@@ -47,7 +47,29 @@ export const rankCategories = {
   HIGH_COMMAND: "High Command",
 };
 
-// Define the new rankOrder constant here
+// Update availableRanks with new ranks
+const availableRanks = [
+  "Cadet",
+  "Probationary Trooper",
+  "Trooper",
+  "Trooper Second Class",
+  "Trooper First Class",
+  "Senior Trooper",
+  "Master Trooper",
+  "Corporal",
+  "Sergeant",
+  "Gunnery Sergeant",
+  "Master Sergeant",
+  "Lieutenant",
+  "Captain",
+  "Commander",
+  "Assistant Commissioner",
+  "Deputy Commissioner",
+  "Commissioner",
+  "Unknown"
+];
+
+// Update rankOrder with new ranks (ensure order is correct)
 const rankOrder: { [key: string]: number } = {
   Commissioner: 1,
   "Deputy Commissioner": 2,
@@ -128,21 +150,6 @@ const convertToString = (
   }
   return value || "";
 };
-
-const availableRanks = [
-  "Cadet",
-  "Trooper",
-  "Trooper First Class",
-  "Corporal",
-  "Sergeant",
-  "Staff Sergeant",
-  "Lieutenant",
-  "Captain",
-  "Commander",
-  "Assistant Commissioner",
-  "Deputy Commissioner",
-  "Commissioner",
-];
 
 const filterOptions = {
   ALL: "All Ranks",

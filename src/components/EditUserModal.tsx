@@ -59,8 +59,31 @@ const restrictedCertKeys = ["MBU", "HEAT", "ACU"];
 // Define all possible certification keys
 const ALL_CERTIFICATION_KEYS = [
   "MBU", "HEAT", "ACU", // Restricted
-  "K9", "FTO", "SWAT", "CIU" // Add all relevant keys here
+  "K9", "FTO", "SWAT", "CIU",
+  // Add all relevant keys here
 ].sort(); // Sort alphabetically for consistent display order
+
+// Add new ranks here for dropdowns if you use availableRanks for rank selection
+const availableRanks = [
+  "Cadet",
+  "Probationary Trooper",
+  "Trooper",
+  "Trooper Second Class",
+  "Trooper First Class",
+  "Senior Trooper",
+  "Master Trooper",
+  "Corporal",
+  "Sergeant",
+  "Gunnery Sergeant",
+  "Master Sergeant",
+  "Lieutenant",
+  "Captain",
+  "Commander",
+  "Assistant Commissioner",
+  "Deputy Commissioner",
+  "Commissioner",
+  "Unknown"
+];
 
 // Helper function to parse MM/DD/YY input and return YYYY-MM-DD or null
 const parseMMDDYYToYYYYMMDD = (dateString: string | null | undefined): string | null => {
