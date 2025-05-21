@@ -41,7 +41,7 @@ import { format } from "date-fns";
 
 export const rankCategories = {
   CADET: "Cadets",
-  TROOPER: "State Troopers",
+  TROOPER: "Troopers", // Use only "Troopers" for all trooper ranks
   SUPERVISOR: "Supervisors",
   COMMAND: "Command",
   HIGH_COMMAND: "High Command",
@@ -51,7 +51,7 @@ export const rankCategories = {
 const availableRanks = [
   "Cadet",
   "Probationary Trooper",
-  "Trooper",
+  "Trooper", // ADD this line back
   "Trooper Second Class",
   "Trooper First Class",
   "Senior Trooper",
@@ -127,8 +127,8 @@ const eligibleVoterRanks = [
 export const getRankCategory = (rank: string): keyof typeof rankCategories | null => {
   const lowerRank = rank.toLowerCase();
   if (lowerRank === "cadet") return "CADET";
-  if (["trooper", "trooper first class", "corporal"].includes(lowerRank))
-    return "TROOPER";
+  // Updated: TROOPER category includes all ranks containing "trooper" OR "corporal"
+  if (lowerRank.includes("trooper") || lowerRank === "corporal") return "TROOPER";
   if (["sergeant", "staff sergeant"].includes(lowerRank)) return "SUPERVISOR";
   if (["lieutenant", "captain", "commander"].includes(lowerRank)) return "COMMAND";
   if (
@@ -520,14 +520,31 @@ export default function AdminMenu(): JSX.Element {
       if (selectedAssignFilter !== "ALL") {
         if (Object.keys(rankCategories).includes(selectedAssignFilter)) {
           // Filter by category
-          filteredForSelection = filteredForSelection.filter(
-            (user) => getRankCategory(user.rank) === selectedAssignFilter
-          );
+          if (selectedAssignFilter === "TROOPER") {
+            // "Troopers" category selects Cadets and all Trooper-level ranks
+            filteredForSelection = filteredForSelection.filter(user => {
+              const userRankCategory = getRankCategory(user.rank);
+              return userRankCategory === "TROOPER" || userRankCategory === "CADET";
+            });
+          } else {
+            // Filter by other categories (CADET, SUPERVISOR, COMMAND, HIGH_COMMAND)
+            filteredForSelection = filteredForSelection.filter(
+              (user) => getRankCategory(user.rank) === selectedAssignFilter
+            );
+          }
         } else {
           // Filter by specific rank
-          filteredForSelection = filteredForSelection.filter(
-            (user) => user.rank === selectedAssignFilter
-          );
+          if (selectedAssignFilter.toLowerCase() === "trooper") {
+            // If "Trooper" (the specific rank) is selected, filter for any rank containing "Trooper"
+            filteredForSelection = filteredForSelection.filter(
+              (user) => user.rank && user.rank.toLowerCase().includes("trooper")
+            );
+          } else {
+            // Filter by other specific ranks (exact match)
+            filteredForSelection = filteredForSelection.filter(
+              (user) => user.rank === selectedAssignFilter
+            );
+          }
         }
       }
     }
