@@ -5,42 +5,45 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
-import { Checkbox } from "./ui/checkbox"; // Import Checkbox
-import { FaPlus, FaTrash, FaEdit, FaSave, FaTimes, FaCopy } from "react-icons/fa";
+import { Checkbox } from "./ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group"; // Import RadioGroup
+import { FaPlus, FaTrash, FaEdit, FaSave, FaTimes, FaCopy, FaCog } from "react-icons/fa"; // Added FaCog
 import { useAuth } from "../context/AuthContext";
 import Layout from "./Layout";
 import { toast } from "react-toastify";
-import { db } from "../firebase"; // Import Firestore instance
+import { db } from "../firebase";
 import {
   collection,
   doc,
   getDocs,
   setDoc,
+  updateDoc, // Added updateDoc
   writeBatch,
   query,
-  orderBy, // To potentially order divisions if needed
+  orderBy,
 } from "firebase/firestore";
 
 // --- Division/Outfit Data Structure ---
 type OutfitCategory = {
-  id: string; // Unique ID for the category (e.g., timestamp or Firestore generated)
+  id: string;
   name: string;
-  // Gender-specific fields with variations
   maleOutfitVariations?: { type: string; code: string; imageUrl?: string }[];
   maleDescription?: string;
   femaleOutfitVariations?: { type: string; code: string; imageUrl?: string }[];
   femaleDescription?: string;
 };
 
-// Division name will be the Firestore document ID
+type OutfitGroupType = "division" | "auxiliary"; // New type for group category
+
 type DivisionOutfit = {
-  division: string; // This will be the document ID in Firestore
+  division: string; // Document ID, also the name
   categories: OutfitCategory[];
-  order?: number; // Optional: for maintaining a specific display order of divisions
+  order?: number;
+  outfitType: OutfitGroupType; // Added outfitType
 };
 
-// Initial data for seeding if Firestore is empty
-const initialOutfitsSeed: Omit<DivisionOutfit, 'division'>[] = [ // Omit division as it's used as ID
+// Initial data for seeding
+const initialOutfitsSeed: Omit<DivisionOutfit, 'division' | 'outfitType'>[] = [
   {
     order: 1,
     categories: [
@@ -102,12 +105,12 @@ const initialOutfitsSeed: Omit<DivisionOutfit, 'division'>[] = [ // Omit divisio
 ];
 // Map initial seed data to include division names, which will be document IDs
 const initialOutfitsData: DivisionOutfit[] = [
-    { division: "SWAT", ...initialOutfitsSeed[0] },
-    { division: "HEAT", ...initialOutfitsSeed[1] },
-    { division: "MOTO", ...initialOutfitsSeed[2] },
-    { division: "ACU", ...initialOutfitsSeed[3] },
-    { division: "K9", ...initialOutfitsSeed[4] },
-    { division: "CIU", ...initialOutfitsSeed[5] },
+    { division: "SWAT", ...initialOutfitsSeed[0], outfitType: "division" },
+    { division: "HEAT", ...initialOutfitsSeed[1], outfitType: "division" },
+    { division: "MOTO", categories: initialOutfitsSeed.find(s => s.categories[0].id === "moto_std")?.categories || [], order: 3, outfitType: "division" },
+    { division: "ACU", categories: initialOutfitsSeed.find(s => s.categories[0].id === "acu_variants")?.categories || [], order: 4, outfitType: "division" },
+    { division: "K9", categories: initialOutfitsSeed.find(s => s.categories[0].id === "k9_handler")?.categories || [], order: 5, outfitType: "division" },
+    { division: "CIU", categories: initialOutfitsSeed.find(s => s.categories[0].id === "ciu_detective")?.categories || [], order: 6, outfitType: "division" },
 ];
 
 // --- Helper: Check if user is Command or High Command ---
@@ -138,9 +141,14 @@ const Outfits: React.FC = () => {
 
   const [editingDivision, setEditingDivision] = useState<string | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
-  const [addingToDivision, setAddingToDivision] = useState<string | null>(null); // State to control add category to existing division form
-  const [isAddingNewDivision, setIsAddingNewDivision] = useState(false); // State for new division form
-  const [newDivisionNameInput, setNewDivisionNameInput] = useState(""); // Name for the new division
+  const [addingToDivision, setAddingToDivision] = useState<string | null>(null);
+  const [isAddingNewDivision, setIsAddingNewDivision] = useState(false);
+  const [newDivisionNameInput, setNewDivisionNameInput] = useState("");
+  const [newOutfitType, setNewOutfitType] = useState<OutfitGroupType>("division"); // For new group type
+
+  // State for editing an existing outfit group's type
+  const [editingTypeForDivisionId, setEditingTypeForDivisionId] = useState<string | null>(null);
+  const [currentEditOutfitType, setCurrentEditOutfitType] = useState<OutfitGroupType>("division");
   
   const [newCategoryName, setNewCategoryName] = useState("");
   // Update outfit entries to include imageUrl
@@ -170,36 +178,41 @@ const Outfits: React.FC = () => {
     const fetchOutfits = async () => {
       setIsLoading(true);
       setError(null);
-      const outfitsQuery = query(collection(db, OUTFITS_COLLECTION), orderBy("order", "asc")); // Order by the 'order' field
+      const outfitsQuery = query(collection(db, OUTFITS_COLLECTION), orderBy("order", "asc"));
       try {
         const querySnapshot = await getDocs(outfitsQuery);
         if (querySnapshot.empty) {
           // Seed initial data if collection is empty
-          toast.info("No outfits found in database. Seeding initial data...");
+          toast.info("No outfits found. Seeding initial data...");
           const batch = writeBatch(db);
           initialOutfitsData.forEach((divOutfit) => {
             const docRef = doc(db, OUTFITS_COLLECTION, divOutfit.division);
             // Firestore document will store 'categories' and 'order'
-            batch.set(docRef, { categories: divOutfit.categories, order: divOutfit.order });
+            batch.set(docRef, { 
+              categories: divOutfit.categories, 
+              order: divOutfit.order, 
+              outfitType: divOutfit.outfitType // Ensure outfitType is seeded
+            });
           });
           await batch.commit();
           setOutfits(initialOutfitsData.sort((a, b) => (a.order || 0) - (b.order || 0)));
-          toast.success("Initial outfit data seeded successfully.");
+          toast.success("Initial outfit data seeded.");
         } else {
           const fetchedOutfits = querySnapshot.docs.map((docSnapshot) => {
             const data = docSnapshot.data();
             return {
-              division: docSnapshot.id, // The document ID is the division name
+              division: docSnapshot.id,
               categories: data.categories as OutfitCategory[],
               order: data.order as number | undefined,
+              outfitType: (data.outfitType as OutfitGroupType) || "division", // Default to 'division' if not present
             };
           });
           setOutfits(fetchedOutfits.sort((a, b) => (a.order || 0) - (b.order || 0)));
         }
       } catch (err) {
         console.error("Error fetching outfits:", err);
-        setError("Failed to fetch outfits. Please try again later.");
-        toast.error("Failed to load outfits from database.");
+        setError("Failed to fetch outfits.");
+        toast.error("Failed to load outfits.");
       } finally {
         setIsLoading(false);
       }
@@ -212,16 +225,34 @@ const Outfits: React.FC = () => {
     try {
       const divisionToUpdate = outfits.find(o => o.division === divisionName);
       if (!divisionToUpdate) {
-        toast.error(`Division ${divisionName} not found for saving.`);
+        toast.error(`Outfit group ${divisionName} not found.`);
         return;
       }
       const docRef = doc(db, OUTFITS_COLLECTION, divisionName);
       // Save only categories and order to Firestore document
-      await setDoc(docRef, { categories: updatedCategories, order: divisionToUpdate.order }, { merge: true }); 
+      await setDoc(docRef, { 
+        categories: updatedCategories, 
+        order: divisionToUpdate.order,
+        outfitType: divisionToUpdate.outfitType // Preserve outfitType
+      }, { merge: true }); 
     } catch (err) {
       console.error("Error saving to Firestore:", err);
       toast.error(`Failed to save changes for ${divisionName}.`);
-      // Potentially revert local state or re-fetch if save fails critically
+    }
+  };
+  
+  const handleUpdateOutfitGroupType = async (divisionId: string, newType: OutfitGroupType) => {
+    try {
+      const docRef = doc(db, OUTFITS_COLLECTION, divisionId);
+      await updateDoc(docRef, { outfitType: newType });
+      setOutfits(prevOutfits => 
+        prevOutfits.map(o => o.division === divisionId ? { ...o, outfitType: newType } : o)
+      );
+      toast.success(`Outfit group type updated for ${divisionId}.`);
+      setEditingTypeForDivisionId(null);
+    } catch (err) {
+      console.error("Error updating outfit group type:", err);
+      toast.error(`Failed to update type for ${divisionId}.`);
     }
   };
 
@@ -315,15 +346,15 @@ const Outfits: React.FC = () => {
   const handleSaveNewDivision = async () => {
     const divisionName = newDivisionNameInput.trim();
     if (!divisionName) {
-      toast.error("New Division name is required.");
+      toast.error("New Outfit Group name is required.");
       return;
     }
     if (outfits.some(o => o.division.toLowerCase() === divisionName.toLowerCase())) {
-      toast.error(`A division named "${divisionName}" already exists.`);
+      toast.error(`An outfit group named "${divisionName}" already exists.`);
       return;
     }
     if (!newCategoryName.trim()) {
-      toast.error("The first category's name is required for the new division.");
+      toast.error("The first category's name is required for the new group.");
       return;
     }
 
@@ -333,7 +364,7 @@ const Outfits: React.FC = () => {
     const tempFemaleDescription = newFemaleDescription.trim();
 
     if (finalMaleVariations.length === 0 && finalFemaleVariations.length === 0 && !tempMaleDescriptionValue && !tempFemaleDescription) {
-        toast.error("At least one outfit variation (with type, code, or image) or a description for the first category (Male or Female) is required.");
+        toast.error("At least one outfit variation (with type, code, or image) or a description for the first category is required.");
         return;
     }
 
@@ -352,6 +383,7 @@ const Outfits: React.FC = () => {
       division: divisionName,
       categories: [firstCategory],
       order: newOrder,
+      outfitType: newOutfitType, // Save the selected type
     };
 
     // Update local state
@@ -360,17 +392,19 @@ const Outfits: React.FC = () => {
     // Persist to Firestore
     try {
       const docRef = doc(db, OUTFITS_COLLECTION, divisionName);
-      await setDoc(docRef, { categories: newDivision.categories, order: newDivision.order });
-      toast.success(`New division "${divisionName}" with its first category added successfully.`);
+      await setDoc(docRef, { 
+        categories: newDivision.categories, 
+        order: newDivision.order,
+        outfitType: newDivision.outfitType // Save outfitType to Firestore
+      });
+      toast.success(`New ${newDivision.outfitType} group "${divisionName}" added.`);
     } catch (err) {
-      console.error("Error saving new division to Firestore:", err);
-      toast.error(`Failed to save new division "${divisionName}".`);
-      // Revert local state if Firestore save fails
+      console.error("Error saving new group to Firestore:", err);
+      toast.error(`Failed to save new group "${divisionName}".`);
       setOutfits(prevOutfits => prevOutfits.filter(o => o.division !== divisionName));
       return;
     }
 
-    // Reset form states
     setIsAddingNewDivision(false);
     setNewDivisionNameInput("");
     setNewCategoryName("");
@@ -378,6 +412,7 @@ const Outfits: React.FC = () => {
     setNewMaleDescription("");
     setNewFemaleOutfitEntries([{ type: "", code: "", imageUrl: "" }]);
     setNewFemaleDescription("");
+    setNewOutfitType("division"); // Reset type
   };
 
   const handleCancelAddNewDivision = () => {
@@ -388,6 +423,7 @@ const Outfits: React.FC = () => {
     setNewMaleDescription("");
     setNewFemaleOutfitEntries([{ type: "", code: "", imageUrl: "" }]);
     setNewFemaleDescription("");
+    setNewOutfitType("division"); // Reset type
   };
 
   const handleDeleteCategory = async (divisionName: string, categoryId: string) => {
@@ -528,6 +564,11 @@ const Outfits: React.FC = () => {
     setCurrentModalImageUrl(null);
   };
 
+  // Filter outfits by type
+  const divisionTypeOutfits = useMemo(() => outfits.filter(o => o.outfitType === 'division'), [outfits]);
+  const auxiliaryTypeOutfits = useMemo(() => outfits.filter(o => o.outfitType === 'auxiliary'), [outfits]);
+
+
   // --- Render ---
   if (isLoading) {
     return (
@@ -567,10 +608,11 @@ const Outfits: React.FC = () => {
                   setIsAddingNewDivision(true);
                   setAddingToDivision(null);
                   setEditingDivision(null);
+                  setEditingTypeForDivisionId(null); // Close type editing form
                 }}
-                className="bg-[#f3c700] hover:bg-yellow-400 text-black" // Updated style
+                className="bg-[#f3c700] hover:bg-yellow-400 text-black"
               >
-                <FaPlus className="mr-2" /> Create New Division
+                <FaPlus className="mr-2" /> Create New Outfit Group
               </Button>
             )}
           </div>
@@ -604,7 +646,7 @@ const Outfits: React.FC = () => {
         {isAddingNewDivision && canEdit && (
           <Card className="mb-6 bg-card border border-[#f3c700]/50 rounded-xl shadow-xl">
             <CardHeader>
-              <CardTitle className="text-xl text-[#f3c700]">Create New Division</CardTitle>
+              <CardTitle className="text-xl text-[#f3c700]">Create New Outfit Group</CardTitle>
             </CardHeader>
             <CardContent>
               <form
@@ -617,9 +659,28 @@ const Outfits: React.FC = () => {
                 <Input
                   value={newDivisionNameInput}
                   onChange={(e) => setNewDivisionNameInput(e.target.value)}
-                  placeholder="New Division Name (e.g., ASU, MCU)"
+                  placeholder="Outfit Group Name (e.g., SWAT, ASU, Event Uniforms)"
                   className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500"
                 />
+
+                <div>
+                  <Label className="text-sm text-[#f3c700] block mb-2">Outfit Group Type</Label>
+                  <RadioGroup
+                    defaultValue="division"
+                    value={newOutfitType}
+                    onValueChange={(value: string) => setNewOutfitType(value as OutfitGroupType)}
+                    className="flex space-x-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="division" id="type-division" className="border-gray-600 text-[#f3c700] focus:ring-[#f3c700]" />
+                      <Label htmlFor="type-division" className="text-white/90">Division</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="auxiliary" id="type-auxiliary" className="border-gray-600 text-[#f3c700] focus:ring-[#f3c700]" />
+                      <Label htmlFor="type-auxiliary" className="text-white/90">Auxiliary Outfit</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
                 
                 <Label className="text-sm text-[#f3c700] block pt-2 mb-1">First Outfit Category Details</Label>
                 <Input
@@ -740,7 +801,7 @@ const Outfits: React.FC = () => {
                     size="sm"
                     className="bg-[#f3c700] text-black hover:bg-yellow-400"
                   >
-                    <FaSave className="mr-1.5" /> Save Division
+                    <FaSave className="mr-1.5" /> Save Outfit Group
                   </Button>
                   <Button
                     size="sm"
@@ -756,24 +817,77 @@ const Outfits: React.FC = () => {
           </Card>
         )}
 
+        {/* Render Division Outfits */}
+        {divisionTypeOutfits.length > 0 && (
+          <h2 className="text-2xl font-semibold text-[#f3c700]/90 mb-3 mt-6">Divisions</h2>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {outfits.map((division) => (
+          {divisionTypeOutfits.map((division) => (
             <Card
               key={division.division}
-              className="bg-card border border-[#f3c700]/50 rounded-xl shadow-xl flex flex-col overflow-hidden" // Use bg-card
+              className="bg-card border border-[#f3c700]/50 rounded-xl shadow-xl flex flex-col overflow-hidden"
             >
               <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-[#f3c700]/30">
                 <CardTitle className="text-2xl text-[#f3c700]">
                   {division.division}
                 </CardTitle>
-                {canEdit && (
-                  <Badge variant="outline" className="border-[#f3c700] text-[#f3c700] text-xs">
-                    Admin
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  {canEdit && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="text-sky-400 hover:text-sky-300 h-7 w-7"
+                      onClick={() => {
+                        setEditingTypeForDivisionId(division.division);
+                        setCurrentEditOutfitType(division.outfitType);
+                        // Close other forms
+                        setIsAddingNewDivision(false);
+                        setAddingToDivision(null);
+                        setEditingDivision(null);
+                      }}
+                      title="Edit Group Type"
+                    >
+                      <FaCog size={14} />
+                    </Button>
+                  )}
+                  {canEdit && (
+                    <Badge variant="outline" className="border-[#f3c700] text-[#f3c700] text-xs">
+                      Admin
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="flex-1 py-4 px-4 space-y-4">
-                {division.categories.length === 0 && (
+                {/* Edit Outfit Group Type Form */}
+                {editingTypeForDivisionId === division.division && canEdit && (
+                  <div className="p-3 my-2 bg-black/[.5] border border-[#f3c700]/30 rounded-md space-y-3">
+                    <Label className="text-sm text-[#f3c700] block">Change Outfit Group Type</Label>
+                    <RadioGroup
+                      value={currentEditOutfitType}
+                      onValueChange={(value) => setCurrentEditOutfitType(value as OutfitGroupType)}
+                      className="flex space-x-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="division" id={`edit-type-division-${division.division}`} className="border-gray-600 text-[#f3c700] focus:ring-[#f3c700]" />
+                        <Label htmlFor={`edit-type-division-${division.division}`} className="text-white/90 text-xs">Division</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="auxiliary" id={`edit-type-auxiliary-${division.division}`} className="border-gray-600 text-[#f3c700] focus:ring-[#f3c700]" />
+                        <Label htmlFor={`edit-type-auxiliary-${division.division}`} className="text-white/90 text-xs">Auxiliary</Label>
+                      </div>
+                    </RadioGroup>
+                    <div className="flex gap-2 justify-end mt-2">
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs" onClick={() => handleUpdateOutfitGroupType(division.division, currentEditOutfitType)}>
+                        <FaSave className="mr-1" /> Save Type
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-gray-300 border-gray-500 hover:bg-gray-700/30 text-xs" onClick={() => setEditingTypeForDivisionId(null)}>
+                        <FaTimes className="mr-1" /> Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {division.categories.length === 0 && ! (editingTypeForDivisionId === division.division) && (
                   <p className="text-gray-400 italic text-sm">No outfit categories defined yet.</p>
                 )}
                 {division.categories.map((cat) =>
@@ -1050,7 +1164,8 @@ const Outfits: React.FC = () => {
                     </div>
                   )
                 )}
-                {canEdit && editingDivision !== division.division && addingToDivision !== division.division && (
+                {/* Add New Category to Division Button and Form */}
+                {canEdit && editingDivision !== division.division && addingToDivision !== division.division && !(editingTypeForDivisionId === division.division) && (
                   <div className="mt-4 pt-4 border-t border-[#f3c700]/20">
                     <Button
                       onClick={() => {
@@ -1058,6 +1173,7 @@ const Outfits: React.FC = () => {
                         setEditingDivision(null); // Ensure edit mode is off
                         setEditingCategoryId(null);
                         setIsAddingNewDivision(false); // Ensure new division form is hidden
+                        setEditingTypeForDivisionId(null);
                       }}
                       className="w-full bg-[#f3c700] text-black hover:bg-yellow-400"
                       size="sm"
@@ -1216,6 +1332,516 @@ const Outfits: React.FC = () => {
             </Card>
           ))}
         </div>
+
+        {/* Divider and Auxiliary Outfits */}
+        {auxiliaryTypeOutfits.length > 0 && (
+          <>
+            <div className="my-8 border-b-4 border-[#f3c700]"></div>
+            <h2 className="text-2xl font-semibold text-[#f3c700]/90 mb-3">Auxiliary Outfits</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {auxiliaryTypeOutfits.map((division) => (
+                <Card
+                  key={division.division}
+                  className="bg-card border border-[#f3c700]/50 rounded-xl shadow-xl flex flex-col overflow-hidden"
+                >
+                  <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-[#f3c700]/30">
+                    <CardTitle className="text-2xl text-[#f3c700]">
+                      {division.division}
+                    </CardTitle>
+                     <div className="flex items-center gap-2">
+                        {canEdit && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-sky-400 hover:text-sky-300 h-7 w-7"
+                            onClick={() => {
+                              setEditingTypeForDivisionId(division.division);
+                              setCurrentEditOutfitType(division.outfitType);
+                               // Close other forms
+                              setIsAddingNewDivision(false);
+                              setAddingToDivision(null);
+                              setEditingDivision(null);
+                            }}
+                            title="Edit Group Type"
+                          >
+                            <FaCog size={14} />
+                          </Button>
+                        )}
+                        {canEdit && (
+                          <Badge variant="outline" className="border-[#f3c700] text-[#f3c700] text-xs">
+                            Admin
+                          </Badge>
+                        )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 py-4 px-4 space-y-4">
+                    {/* Edit Outfit Group Type Form (for Auxiliary) */}
+                    {editingTypeForDivisionId === division.division && canEdit && (
+                      <div className="p-3 my-2 bg-black/[.5] border border-[#f3c700]/30 rounded-md space-y-3">
+                        <Label className="text-sm text-[#f3c700] block">Change Outfit Group Type</Label>
+                        <RadioGroup
+                          value={currentEditOutfitType}
+                          onValueChange={(value) => setCurrentEditOutfitType(value as OutfitGroupType)}
+                          className="flex space-x-4"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="division" id={`edit-type-division-aux-${division.division}`} className="border-gray-600 text-[#f3c700] focus:ring-[#f3c700]" />
+                            <Label htmlFor={`edit-type-division-aux-${division.division}`} className="text-white/90 text-xs">Division</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="auxiliary" id={`edit-type-auxiliary-aux-${division.division}`} className="border-gray-600 text-[#f3c700] focus:ring-[#f3c700]" />
+                            <Label htmlFor={`edit-type-auxiliary-aux-${division.division}`} className="text-white/90 text-xs">Auxiliary</Label>
+                          </div>
+                        </RadioGroup>
+                        <div className="flex gap-2 justify-end mt-2">
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs" onClick={() => handleUpdateOutfitGroupType(division.division, currentEditOutfitType)}>
+                            <FaSave className="mr-1" /> Save Type
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-gray-300 border-gray-500 hover:bg-gray-700/30 text-xs" onClick={() => setEditingTypeForDivisionId(null)}>
+                            <FaTimes className="mr-1" /> Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {division.categories.length === 0 && !(editingTypeForDivisionId === division.division) && (
+                      <p className="text-gray-400 italic text-sm">No outfit categories defined yet.</p>
+                    )}
+                    {division.categories.map((cat) =>
+                      editingDivision === division.division &&
+                      editingCategoryId === cat.id ? (
+                        // --- EDITING FORM ---
+                        <div key={cat.id} className="p-4 bg-black/[.4] rounded-lg border border-[#f3c700]/30 space-y-3">
+                          <Input
+                            value={editCategoryName}
+                            onChange={(e) => setEditCategoryName(e.target.value)}
+                            placeholder="Category Name"
+                            className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500"
+                          />
+                          {/* Male Fields */}
+                          <Label className="text-xs text-[#f3c700] block pt-2">Male Version Outfit Variations</Label>
+                          {editMaleOutfitEntries.map((entry, index) => (
+                            <div key={`edit-male-var-${index}`} className="space-y-1 p-2 border border-dashed border-gray-600 rounded mb-2">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={entry.type}
+                                  onChange={(e) => handleOutfitEntryChange(editMaleOutfitEntries, setEditMaleOutfitEntries, index, 'type', e.target.value)}
+                                  placeholder="Type (e.g., Light)"
+                                  className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 text-xs"
+                                />
+                                <Input
+                                  value={entry.code}
+                                  onChange={(e) => handleOutfitEntryChange(editMaleOutfitEntries, setEditMaleOutfitEntries, index, 'code', e.target.value)}
+                                  placeholder="Code"
+                                  className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 font-mono text-xs flex-grow"
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => removeOutfitEntry(editMaleOutfitEntries, setEditMaleOutfitEntries, index)}
+                                  className="text-red-400 hover:text-red-300 h-7 w-7"
+                                  title="Remove Variation"
+                                >
+                                  <FaTrash size={12} />
+                                </Button>
+                              </div>
+                              <Input
+                                type="url"
+                                value={entry.imageUrl || ""}
+                                onChange={(e) => handleOutfitEntryChange(editMaleOutfitEntries, setEditMaleOutfitEntries, index, 'imageUrl', e.target.value)}
+                                placeholder="Image URL (optional)"
+                                className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 text-xs mt-1"
+                              />
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => addOutfitEntry(editMaleOutfitEntries, setEditMaleOutfitEntries)}
+                            className="mt-1 text-xs border-[#f3c700]/50 text-[#f3c700]/80 hover:bg-[#f3c700]/10"
+                          >
+                            <FaPlus className="mr-1.5" size={10} /> Add Male Variation
+                          </Button>
+                          <Textarea
+                            value={editMaleDescription}
+                            onChange={(e) => setEditMaleDescription(e.target.value)}
+                            placeholder="Male Description (optional)"
+                            className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500"
+                            rows={2}
+                          />
+                          {/* Female Fields */}
+                          <Label className="text-xs text-[#f3c700] block pt-2">Female Version Outfit Variations</Label>
+                          {editFemaleOutfitEntries.map((entry, index) => (
+                            <div key={`edit-female-var-${index}`} className="space-y-1 p-2 border border-dashed border-gray-600 rounded mb-2">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={entry.type}
+                                  onChange={(e) => handleOutfitEntryChange(editFemaleOutfitEntries, setEditFemaleOutfitEntries, index, 'type', e.target.value)}
+                                  placeholder="Type (e.g., Light)"
+                                  className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 text-xs"
+                                />
+                                <Input
+                                  value={entry.code}
+                                  onChange={(e) => handleOutfitEntryChange(editFemaleOutfitEntries, setEditFemaleOutfitEntries, index, 'code', e.target.value)}
+                                  placeholder="Code"
+                                  className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 font-mono text-xs flex-grow"
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => removeOutfitEntry(editFemaleOutfitEntries, setEditFemaleOutfitEntries, index)}
+                                  className="text-red-400 hover:text-red-300 h-7 w-7"
+                                  title="Remove Variation"
+                                >
+                                  <FaTrash size={12} />
+                                </Button>
+                              </div>
+                              <Input
+                                type="url"
+                                value={entry.imageUrl || ""}
+                                onChange={(e) => handleOutfitEntryChange(editFemaleOutfitEntries, setEditFemaleOutfitEntries, index, 'imageUrl', e.target.value)}
+                                placeholder="Image URL (optional)"
+                                className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 text-xs mt-1"
+                              />
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => addOutfitEntry(editFemaleOutfitEntries, setEditFemaleOutfitEntries)}
+                            className="mt-1 text-xs border-[#f3c700]/50 text-[#f3c700]/80 hover:bg-[#f3c700]/10"
+                          >
+                            <FaPlus className="mr-1.5" size={10} /> Add Female Variation
+                          </Button>
+                          <div className="flex gap-2 mt-2 justify-end">
+                            <Button
+                              size="sm"
+                              onClick={() => handleSaveEditCategory(division.division, cat.id)}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <FaSave className="mr-1.5" /> Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleCancelEdit}
+                              className="border-[#f3c700] text-[#f3c700] hover:bg-[#f3c700]/10"
+                            >
+                              <FaTimes className="mr-1.5" /> Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        // --- DISPLAY CATEGORY ---
+                        <div
+                          key={cat.id}
+                          className="p-3 bg-black/[.3] rounded-lg border border-[#f3c700]/20 relative group space-y-2"
+                        >
+                          <div className="flex items-start justify-between">
+                            <span className="font-semibold text-lg text-[#f3c700]">{cat.name}</span>
+                            {canEdit && (
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="text-blue-400 hover:text-blue-300 h-7 w-7"
+                                  onClick={() => handleStartEditCategory(division.division, cat)}
+                                  title="Edit"
+                                >
+                                  <FaEdit size={14} />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="text-red-400 hover:text-red-300 h-7 w-7"
+                                  onClick={() => handleDeleteCategory(division.division, cat.id)}
+                                  title="Delete"
+                                >
+                                  <FaTrash size={14} />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Apply filters to Male and Female Version display */}
+                          {(() => {
+                            const maleContentExists = !!(cat.maleOutfitVariations && cat.maleOutfitVariations.some(v => v.type || v.code || v.imageUrl)) || !!cat.maleDescription;
+                            const femaleContentExists = !!(cat.femaleOutfitVariations && cat.femaleOutfitVariations.some(v => v.type || v.code || v.imageUrl)) || !!cat.femaleDescription;
+                            
+                            const shouldShowMale = showMaleOutfits && maleContentExists;
+                            const shouldShowFemale = showFemaleOutfits && femaleContentExists;
+
+                            return (
+                              <>
+                                {shouldShowMale && (
+                                  <div className="mt-2 pt-2 border-t border-gray-700/50">
+                                    <h4 className="text-sm font-semibold text-gray-300 mb-1">Male Version</h4>
+                                    {cat.maleOutfitVariations && cat.maleOutfitVariations.map((variation, index) => (
+                                      <div key={`male-var-${cat.id}-${index}`} className="mb-2 p-2 border border-gray-700/30 rounded">
+                                        {variation.imageUrl && (
+                                          <img 
+                                            src={variation.imageUrl} 
+                                            alt={`${cat.name} - Male - ${variation.type || 'Image'}`}
+                                            className="w-full h-auto rounded-md my-1 max-h-32 sm:max-h-40 object-contain border border-gray-700 bg-black/[.2] cursor-pointer hover:opacity-80 transition-opacity" 
+                                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                                            onClick={() => openImageModal(variation.imageUrl!)}
+                                          />
+                                        )}
+                                        {(variation.type || variation.code) && (
+                                          <div className="space-y-0.5 mt-1">
+                                            {variation.type && <Label className="text-xs text-gray-400">{variation.type}</Label>}
+                                            {variation.code && (
+                                              <div className="flex items-center gap-2 p-1.5 bg-black/[.5] rounded font-mono text-xs text-yellow-300 break-all">
+                                                <span className="flex-grow">{variation.code}</span>
+                                                <Button
+                                                  size="icon"
+                                                  variant="ghost"
+                                                  onClick={() => handleCopyCode(variation.code)}
+                                                  title={`Copy ${variation.type || ''} Male Code`}
+                                                  className="text-gray-300 hover:text-yellow-300 h-6 w-6 p-0"
+                                                >
+                                                  <FaCopy size={12} />
+                                                </Button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                        {!variation.imageUrl && !variation.type && !variation.code && <p className="text-xs text-gray-500 italic">Empty variation details.</p>}
+                                      </div>
+                                    ))}
+                                    {cat.maleDescription && (
+                                      <p className="text-xs text-gray-300 pt-1 mt-1 border-t border-gray-700/20">{cat.maleDescription}</p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {shouldShowFemale && (
+                                  <div className="mt-2 pt-2 border-t border-gray-700/50">
+                                    <h4 className="text-sm font-semibold text-gray-300 mb-1">Female Version</h4>
+                                    {cat.femaleOutfitVariations && cat.femaleOutfitVariations.map((variation, index) => (
+                                      <div key={`female-var-${cat.id}-${index}`} className="mb-2 p-2 border border-gray-700/30 rounded">
+                                        {variation.imageUrl && (
+                                          <img 
+                                            src={variation.imageUrl} 
+                                            alt={`${cat.name} - Female - ${variation.type || 'Image'}`}
+                                            className="w-full h-auto rounded-md my-1 max-h-32 sm:max-h-40 object-contain border border-gray-700 bg-black/[.2] cursor-pointer hover:opacity-80 transition-opacity" 
+                                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                                            onClick={() => openImageModal(variation.imageUrl!)}
+                                          />
+                                        )}
+                                        {(variation.type || variation.code) && (
+                                          <div className="space-y-0.5 mt-1">
+                                            {variation.type && <Label className="text-xs text-gray-400">{variation.type}</Label>}
+                                            {variation.code && (
+                                              <div className="flex items-center gap-2 p-1.5 bg-black/[.5] rounded font-mono text-xs text-pink-300 break-all">
+                                                <span className="flex-grow">{variation.code}</span>
+                                                <Button
+                                                  size="icon"
+                                                  variant="ghost"
+                                                  onClick={() => handleCopyCode(variation.code)}
+                                                  title={`Copy ${variation.type || ''} Female Code`}
+                                                  className="text-gray-300 hover:text-pink-300 h-6 w-6 p-0"
+                                                >
+                                                  <FaCopy size={12} />
+                                                </Button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                        {!variation.imageUrl && !variation.type && !variation.code && <p className="text-xs text-gray-500 italic">Empty variation details.</p>}
+                                      </div>
+                                    ))}
+                                    {cat.femaleDescription && (
+                                      <p className="text-xs text-gray-300 pt-1 mt-1 border-t border-gray-700/20">{cat.femaleDescription}</p>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {!shouldShowMale && !shouldShowFemale && (
+                                  maleContentExists || femaleContentExists ? (
+                                    <p className="text-xs text-gray-500 italic pt-2">Outfit details for this category are hidden by active filters.</p>
+                                  ) : (
+                                    <p className="text-xs text-gray-500 italic pt-2">No specific outfit details provided for this category.</p>
+                                  )
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )
+                    )}
+                    {/* Add New Category to Auxiliary Group Button and Form (similar to divisions) */}
+                    {canEdit && editingDivision !== division.division && addingToDivision !== division.division && !(editingTypeForDivisionId === division.division) && (
+                      <div className="mt-4 pt-4 border-t border-[#f3c700]/20">
+                        <Button
+                          onClick={() => {
+                            setAddingToDivision(division.division);
+                            setEditingDivision(null); 
+                            setEditingCategoryId(null);
+                            setIsAddingNewDivision(false);
+                            setEditingTypeForDivisionId(null);
+                          }}
+                          className="w-full bg-[#f3c700] text-black hover:bg-yellow-400"
+                          size="sm"
+                        >
+                          <FaPlus className="mr-1.5" /> Add New Category to {division.division}
+                        </Button>
+                      </div>
+                    )}
+                    {canEdit && addingToDivision === division.division && (
+                      // --- ADD NEW CATEGORY FORM (same as for divisions) ---
+                      <form
+                        className="mt-4 pt-4 border-t border-[#f3c700]/20 space-y-3"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleAddCategory(division.division);
+                        }}
+                      >
+                        <Label className="text-sm text-[#f3c700] block mb-1">Add New Outfit Category</Label>
+                        <Input
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          placeholder="Category Name"
+                          className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500"
+                        />
+                        {/* Male Fields */}
+                        <Label className="text-xs text-[#f3c700]/80 block pt-2">Male Version Details - Outfit Variations</Label>
+                        {newMaleOutfitEntries.map((entry, index) => (
+                          <div key={`add-male-var-${index}`} className="space-y-1 p-2 border border-dashed border-gray-600 rounded mb-2">
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={entry.type}
+                                onChange={(e) => handleOutfitEntryChange(newMaleOutfitEntries, setNewMaleOutfitEntries, index, 'type', e.target.value)}
+                                placeholder="Type (e.g., Light)"
+                                className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 text-xs"
+                              />
+                              <Input
+                                value={entry.code}
+                                onChange={(e) => handleOutfitEntryChange(newMaleOutfitEntries, setNewMaleOutfitEntries, index, 'code', e.target.value)}
+                                placeholder="Code"
+                                className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 font-mono text-xs flex-grow"
+                              />
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => removeOutfitEntry(newMaleOutfitEntries, setNewMaleOutfitEntries, index)}
+                                className="text-red-400 hover:text-red-300 h-7 w-7"
+                                title="Remove Variation"
+                              >
+                                <FaTrash size={12} />
+                              </Button>
+                            </div>
+                            <Input
+                                type="url"
+                                value={entry.imageUrl || ""}
+                                onChange={(e) => handleOutfitEntryChange(newMaleOutfitEntries, setNewMaleOutfitEntries, index, 'imageUrl', e.target.value)}
+                                placeholder="Image URL (optional)"
+                                className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 text-xs mt-1"
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => addOutfitEntry(newMaleOutfitEntries, setNewMaleOutfitEntries)}
+                          className="mt-1 text-xs border-[#f3c700]/50 text-[#f3c700]/80 hover:bg-[#f3c700]/10"
+                        >
+                          <FaPlus className="mr-1.5" size={10} /> Add Male Variation
+                        </Button>
+                        <Textarea
+                          value={newMaleDescription}
+                          onChange={(e) => setNewMaleDescription(e.target.value)}
+                          placeholder="Male Description (optional)"
+                          className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500"
+                          rows={2}
+                        />
+                        {/* Female Fields */}
+                        <Label className="text-xs text-[#f3c700]/80 block pt-2">Female Version Details - Outfit Variations</Label>
+                         {newFemaleOutfitEntries.map((entry, index) => (
+                          <div key={`add-female-var-${index}`} className="space-y-1 p-2 border border-dashed border-gray-600 rounded mb-2">
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={entry.type}
+                                onChange={(e) => handleOutfitEntryChange(newFemaleOutfitEntries, setNewFemaleOutfitEntries, index, 'type', e.target.value)}
+                                placeholder="Type (e.g., Light)"
+                                className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 text-xs"
+                              />
+                              <Input
+                                value={entry.code}
+                                onChange={(e) => handleOutfitEntryChange(newFemaleOutfitEntries, setNewFemaleOutfitEntries, index, 'code', e.target.value)}
+                                placeholder="Code"
+                                className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 font-mono text-xs flex-grow"
+                              />
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => removeOutfitEntry(newFemaleOutfitEntries, setNewFemaleOutfitEntries, index)}
+                                className="text-red-400 hover:text-red-300 h-7 w-7"
+                                title="Remove Variation"
+                              >
+                                <FaTrash size={12} />
+                              </Button>
+                            </div>
+                            <Input
+                                type="url"
+                                value={entry.imageUrl || ""}
+                                onChange={(e) => handleOutfitEntryChange(newFemaleOutfitEntries, setNewFemaleOutfitEntries, index, 'imageUrl', e.target.value)}
+                                placeholder="Image URL (optional)"
+                                className="bg-input border-[#f3c700]/40 text-white placeholder:text-gray-500 text-xs mt-1"
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => addOutfitEntry(newFemaleOutfitEntries, setNewFemaleOutfitEntries)}
+                          className="mt-1 text-xs border-[#f3c700]/50 text-[#f3c700]/80 hover:bg-[#f3c700]/10"
+                        >
+                          <FaPlus className="mr-1.5" size={10} /> Add Female Variation
+                        </Button>
+                        <div className="flex gap-2 mt-2 justify-end">
+                            <Button
+                              type="submit"
+                              size="sm"
+                              className="bg-[#f3c700] text-black hover:bg-yellow-400"
+                            >
+                              <FaPlus className="mr-1.5" /> Add Category
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCancelAdd}
+                                className="border-gray-500 text-gray-300 hover:bg-gray-700/30"
+                            >
+                                <FaTimes className="mr-1.5" /> Cancel
+                            </Button>
+                        </div>
+                      </form>
+                    )}
+                  </CardContent>
+                  <CardFooter className="py-2 px-4 border-t border-[#f3c700]/20">
+                    <span className="text-xs text-gray-500">
+                      {division.categories.length} {division.categories.length === 1 ? "category" : "categories"}
+                    </span>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
+        
+        {divisionTypeOutfits.length === 0 && auxiliaryTypeOutfits.length === 0 && !isAddingNewDivision && (
+             <p className="text-center text-gray-400 mt-10">No outfit groups defined yet. Click "Create New Outfit Group" to add one.</p>
+        )}
+
         {canEdit && (
           <div className="mt-10 text-center text-xs text-gray-500">
             <span>
