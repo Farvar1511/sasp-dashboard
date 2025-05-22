@@ -47,7 +47,7 @@
   --radius: 0.625rem;
   --background: oklch(0. 0 220.59);
   --foreground: oklch(0.985 0 0); /* White */
-  --card: oklch(0.05 0 0 / 92.77%); /* Updated card background */
+  --card: oklch(0 0 0 / 0.95); /* Updated card background to be more opaque */
   --card-foreground: oklch(0.985 0 0); /* White */
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0); /* White */
@@ -84,7 +84,7 @@
   --border: oklch(1 0 0 / 10%);
   --background: oklch(0.18 0 0);
   --foreground: oklch(0.985 0 0); /* White */
-  --card: oklch(0.05 0 0 / 92.77%); /* Updated card background */
+  --card: oklch(0 0 0 / 0.95); /* Updated card background to be more opaque */
   --card-foreground: oklch(0.985 0 0); /* White */
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0); /* White */

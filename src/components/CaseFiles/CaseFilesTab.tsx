@@ -326,11 +326,13 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
             className="bg-transparent text-muted-foreground px-3 sm:px-4 py-2.5 text-sm sm:text-base font-medium data-[state=active]:bg-[#f3c700] data-[state=active]:text-black rounded-t-md transition hover:bg-muted/20">
             My Active Cases
           </TabsTrigger>
-          <TabsTrigger 
-            value="unassigned" 
-            className="bg-transparent text-muted-foreground px-3 sm:px-4 py-2.5 text-sm sm:text-base font-medium data-[state=active]:bg-[#f3c700] data-[state=active]:text-black rounded-t-md transition hover:bg-muted/20">
-            Unassigned Cases
-          </TabsTrigger>
+          {isLeadOrSuper && (
+            <TabsTrigger 
+              value="unassigned" 
+              className="bg-transparent text-muted-foreground px-3 sm:px-4 py-2.5 text-sm sm:text-base font-medium data-[state=active]:bg-[#f3c700] data-[state=active]:text-black rounded-t-md transition hover:bg-muted/20">
+              Unassigned Cases
+            </TabsTrigger>
+          )}
           <TabsTrigger 
             value="allActive" 
             className="bg-transparent text-muted-foreground px-3 sm:px-4 py-2.5 text-sm sm:text-base font-medium data-[state=active]:bg-[#f3c700] data-[state=active]:text-black rounded-t-md transition hover:bg-muted/20">
@@ -351,9 +353,11 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
         <TabsContent value="myCases" className="bg-card p-4 md:p-6 rounded-b-lg border border-t-0 border-border mt-[-1px]">
           {renderCaseList(myCases, "My Active Cases", true)}
         </TabsContent>
-        <TabsContent value="unassigned" className="bg-card p-4 md:p-6 rounded-b-lg border border-t-0 border-border mt-[-1px]">
-          {renderCaseList(unassignedCases, "Open Unassigned Cases")}
-        </TabsContent>
+        {isLeadOrSuper && (
+          <TabsContent value="unassigned" className="bg-card p-4 md:p-6 rounded-b-lg border border-t-0 border-border mt-[-1px]">
+            {renderCaseList(unassignedCases, "Open Unassigned Cases")}
+          </TabsContent>
+        )}
         <TabsContent value="allActive" className="bg-card p-4 md:p-6 rounded-b-lg border border-t-0 border-border mt-[-1px]">
           {renderCaseList(allActiveCases, "All Active Cases")}
         </TabsContent>

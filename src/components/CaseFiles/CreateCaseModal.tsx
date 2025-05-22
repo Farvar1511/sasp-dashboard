@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Save,
     X,
@@ -423,6 +423,12 @@ ${videoNotes || 'N/A'}
         toast.info("PDF export is available after the case is created (via Edit).");
     };
 
+    const isLeadOrSuper = useMemo(() => {
+        if (!currentUser || !currentUser.certifications || !currentUser.certifications['CIU']) return false;
+        const ciuLevel = currentUser.certifications['CIU'];
+        return ['LEAD', 'SUPER'].includes(ciuLevel);
+    }, [currentUser]);
+
     return (
         <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] sm:max-w-none max-h-[95vh] overflow-hidden bg-card text-foreground rounded-lg shadow-2xl border-brand border-2 flex flex-col p-6 sm:p-8 md:p-12">
             <Button variant="ghost" size="icon" className="absolute top-4 right-4 sm:top-6 sm:right-6 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
@@ -460,6 +466,7 @@ ${videoNotes || 'N/A'}
                             </Select>
                         </div>
                     </div>
+                    {isLeadOrSuper && (
                     <div className="space-y-2">
                         <Label htmlFor="assignDetectiveCreate">Assign Detective</Label>
                         <Select value={selectedAssigneeId || "unassigned"} onValueChange={handleAssigneeChange}>
@@ -478,6 +485,7 @@ ${videoNotes || 'N/A'}
                             </SelectContent>
                         </Select>
                     </div>
+                    )}
                 </CardContent>
             </Card>
             <Tabs defaultValue="details" className="w-full flex-grow flex flex-col overflow-hidden">

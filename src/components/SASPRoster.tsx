@@ -168,7 +168,7 @@ const SASPRoster: React.FC = () => {
           ? Object.entries(data.certifications).reduce((acc, [key, value]) => {
               const upperValue =
                 typeof value === "string" ? value.toUpperCase() : null;
-              const validStatus = ["TRAIN", "LEAD", "SUPER", "CERT"].includes(
+              const validStatus = ["TRAIN", "LEAD", "SUPER", "CERT", "ASSIST"].includes(
                 upperValue || ""
               )
                 ? (upperValue as CertStatus)
@@ -466,7 +466,8 @@ const SASPRoster: React.FC = () => {
     if (restrictedKeys.includes(key.toUpperCase())) {
       return [NONE_VALUE, "CERT"];
     }
-    return [NONE_VALUE, "LEAD", "SUPER", "CERT", "TRAIN"];
+    // Add "ASSIST" to selectable options
+    return [NONE_VALUE, "LEAD", "SUPER", "CERT", "TRAIN", "ASSIST"];
   };
 
   const handleContextMenu = useCallback(

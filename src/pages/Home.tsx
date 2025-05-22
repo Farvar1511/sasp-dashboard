@@ -31,6 +31,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardFooter, // Import CardFooter
 } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -42,6 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
+import { Link } from "react-router-dom";
 
 const rankOrder: { [key: string]: number } = {
   Commissioner: 1,
@@ -560,7 +562,7 @@ const MyDashboard: React.FC = () => {
 
         {/* === TOP ROW: TROOPER INFO + BULLETINS (equal height) === */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 auto-rows-fr">
-          <Card className="border border-[#f3c700] shadow-lg w-full text-white h-full flex flex-col">
+          <Card className="border border-[#f3c700] shadow-lg w-full text-white h-full flex flex-col bg-card"> {/* Use bg-card */}
             <CardHeader className="pb-2 pt-4">
               <CardTitle className="text-xl sm:text-2xl font-extrabold text-[#f3c700] border-b border-white pb-2">
                 Trooper Information
@@ -568,7 +570,7 @@ const MyDashboard: React.FC = () => {
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-4 flex-grow">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
+                <div className="p-3 bg-black/[.95] border border-[#f3c700] rounded-lg"> {/* Adjusted opacity */}
                   <span className="text-base font-bold text-[#f3c700]">
                     Name:
                   </span>
@@ -576,7 +578,7 @@ const MyDashboard: React.FC = () => {
                     {userData.name}
                   </span>
                 </div>
-                <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
+                <div className="p-3 bg-black/[.95] border border-[#f3c700] rounded-lg"> {/* Adjusted opacity */}
                   <span className="text-base font-bold text-[#f3c700]">
                     Callsign:
                   </span>
@@ -584,7 +586,7 @@ const MyDashboard: React.FC = () => {
                     {userData.callsign || "N/A"}
                   </span>
                 </div>
-                <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
+                <div className="p-3 bg-black/[.95] border border-[#f3c700] rounded-lg"> {/* Adjusted opacity */}
                   <span className="text-base font-bold text-[#f3c700]">
                     Badge:
                   </span>
@@ -592,7 +594,7 @@ const MyDashboard: React.FC = () => {
                     {userData.badge || "N/A"}
                   </span>
                 </div>
-                <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
+                <div className="p-3 bg-black/[.95] border border-[#f3c700] rounded-lg"> {/* Adjusted opacity */}
                   <span className="text-base font-bold text-[#f3c700]">
                     Status:
                   </span>
@@ -607,7 +609,7 @@ const MyDashboard: React.FC = () => {
                     {userData.isActive ? "Active" : "Inactive / LOA"}
                   </Badge>
                 </div>
-                <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
+                <div className="p-3 bg-black/[.95] border border-[#f3c700] rounded-lg"> {/* Adjusted opacity */}
                   <span className="text-base font-bold text-[#f3c700]">
                     Join Date:
                   </span>
@@ -617,7 +619,7 @@ const MyDashboard: React.FC = () => {
                       : "N/A"}
                   </span>
                 </div>
-                <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
+                <div className="p-3 bg-black/[.95] border border-[#f3c700] rounded-lg"> {/* Adjusted opacity */}
                   <span className="text-base font-bold text-[#f3c700]">
                     Last Promotion:
                   </span>
@@ -631,7 +633,7 @@ const MyDashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-[#f3c700] rounded-xl shadow-lg w-full text-white h-full flex flex-col">
+          <Card className="border border-[#f3c700] rounded-xl shadow-lg w-full text-white h-full flex flex-col bg-card"> {/* Use bg-card */}
             <CardHeader className="pb-2 pt-4">
               <CardTitle className="text-xl sm:text-2xl font-extrabold text-[#f3c700] border-b border-white pb-2">
                 Recent Bulletins
@@ -649,7 +651,7 @@ const MyDashboard: React.FC = () => {
                       <div
                         key={b.id}
                         onClick={() => setSelectedBulletin(b)}
-                        className="cursor-pointer border border-[#f3c700] rounded-lg p-3 bg-black/90 hover:bg-yellow-600/10 transition"
+                        className="cursor-pointer border border-[#f3c700] rounded-lg p-3 bg-black/[.95] hover:bg-yellow-600/10 transition" // Adjusted opacity
                       >
                         <h3 className="text-sm font-bold text-[#f3c700] mb-1">
                           {b.title}
@@ -681,7 +683,7 @@ const MyDashboard: React.FC = () => {
 
         {/* === SECOND ROW: SPECIALIZATIONS & ASSIGNED TASKS (equal height) === */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 auto-rows-fr">
-          <Card className="border border-[#f3c700] shadow-lg w-full text-white h-full flex flex-col">
+          <Card className="border border-[#f3c700] shadow-lg w-full text-white h-full flex flex-col bg-card"> {/* Use bg-card */}
             <CardHeader className="pb-2 pt-4">
               <CardTitle className="text-xl sm:text-2xl font-extrabold text-[#f3c700] border-b border-white pb-2">
                 Certifications and Divisions
@@ -689,7 +691,7 @@ const MyDashboard: React.FC = () => {
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-4 flex flex-col flex-grow space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
-                <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
+                <div className="p-3 bg-black/[.95] border border-[#f3c700] rounded-lg"> {/* Adjusted opacity */}
                   <h3 className="text-lg font-semibold text-white mb-2 border-b border-white pb-2">
                     Certifications
                   </h3>
@@ -719,7 +721,7 @@ const MyDashboard: React.FC = () => {
                   )}
                 </div>
 
-                <div className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg">
+                <div className="p-3 bg-black/[.95] border border-[#f3c700] rounded-lg"> {/* Adjusted opacity */}
                   <h3 className="text-lg font-semibold text-white mb-2 border-b border-white pb-2">
                     Divisions
                   </h3>
@@ -750,6 +752,21 @@ const MyDashboard: React.FC = () => {
                 </div>
               </div>
 
+              {/* Division Outfits Button - MOVED HERE */}
+              <div className="pt-4 border-t border-white/20 flex justify-center">
+                <Link to="/outfits">
+                  <Button
+                    variant="default"
+                    className="bg-[#f3c700] hover:bg-[#ffe066] text-black font-bold py-2 px-6 rounded-lg shadow transition-all duration-150 text-base flex items-center gap-2"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                    </svg>
+                    Division Outfits & Codes
+                  </Button>
+                </Link>
+              </div>
+
               <div className="pt-4 border-t border-white flex flex-col flex-grow">
                 <h3 className="text-lg font-semibold text-[#f3c700] mb-2 border-b border-white pb-2 flex-shrink-0">
                   Discipline
@@ -761,7 +778,7 @@ const MyDashboard: React.FC = () => {
                       return (
                         <div
                           key={entry.id}
-                          className="text-xs text-white bg-black bg-opacity-90 border border-[#f3c700] px-3 py-2 rounded text-left"
+                          className="text-xs text-white bg-black/[.95] border border-[#f3c700] px-3 py-2 rounded text-left" // Adjusted opacity
                         >
                           <Badge
                             variant="outline"
@@ -787,9 +804,10 @@ const MyDashboard: React.FC = () => {
                 </div>
               </div>
             </CardContent>
+            {/* Division Outfits Button - REMOVED FROM CardFooter */}
           </Card>
 
-          <Card className="border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center text-white h-full flex flex-col">
+          <Card className="border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center text-white h-full bg-card"> {/* Use bg-card */}
             <CardHeader className="w-full pb-2 pt-4">
               <CardTitle className="section-header text-xl font-bold text-[#f3c700] border-b-2 border-white pb-2">
                 Assigned Tasks
@@ -801,7 +819,7 @@ const MyDashboard: React.FC = () => {
                   {tasks.map((task) => (
                     <div
                       key={task.id}
-                      className="p-3 bg-black bg-opacity-90 border border-[#f3c700] rounded-lg shadow-sm text-left"
+                      className="p-3 bg-black/[.95] border border-[#f3c700] rounded-lg shadow-sm text-left" // Adjusted opacity
                     >
                       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                         <div className="flex-grow">
@@ -897,7 +915,7 @@ const MyDashboard: React.FC = () => {
         </div>
 
         <div className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
-          <Card className="border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center text-white">
+          <Card className="border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center text-white bg-card"> {/* Use bg-card */}
             <CardHeader className="w-full pb-2 pt-4">
               <CardTitle className="section-header text-2xl font-bold text-[#f3c700] border-b-2 border-white pb-2">
                 Assigned Vehicle
@@ -914,7 +932,7 @@ const MyDashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center text-white">
+          <Card className="border border-[#f3c700] rounded-lg shadow-lg flex flex-col items-center text-center text-white bg-card"> {/* Use bg-card */}
             <CardHeader className="w-full pb-2 pt-4">
               <CardTitle className="section-header text-2xl font-bold text-[#f3c700] border-b-2 border-white pb-2">
                 Allowed Vehicles

@@ -80,6 +80,11 @@ interface EditCaseModalProps {
 const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, caseData, eligibleAssignees }) => {
     const { user: currentUser } = useAuth();
     const isAdmin = useMemo(() => computeIsAdmin(currentUser), [currentUser]);
+    const isLeadOrSuper = useMemo(() => {
+        if (!currentUser || !currentUser.certifications || !currentUser.certifications['CIU']) return false;
+        const ciuLevel = currentUser.certifications['CIU'];
+        return ['LEAD', 'SUPER'].includes(ciuLevel);
+    }, [currentUser]);
 
     const [title, setTitle] = useState(caseData.title);
     const [incidentReport, setIncidentReport] = useState('');
@@ -984,6 +989,7 @@ ${videoNotes || 'N/A'}
                             </Select>
                         </div>
                     </div>
+                    {isLeadOrSuper && (
                     <div className="space-y-2">
                         <Label>Assign Detective</Label>
                         <Select value={assignedToId || "unassigned"} onValueChange={handleAssigneeChange} disabled={isSaving}>
@@ -1002,6 +1008,7 @@ ${videoNotes || 'N/A'}
                             </SelectContent>
                         </Select>
                     </div>
+                    )}
                 </CardContent>
             </Card>
 

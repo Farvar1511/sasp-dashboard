@@ -16,6 +16,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./index.css"; // Ensure global styles are imported
 import { LinksProvider } from "./context/LinksContext"; // Import LinksProvider
+import Outfits from "./components/Outfits"; // Import Outfits component
 
 function App() {
   return (
@@ -96,6 +97,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="isAdmin">
                   <Bulletins />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/outfits"
+              element={
+                <ProtectedRoute>
+                  <Outfits />
                 </ProtectedRoute>
               }
             />

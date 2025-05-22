@@ -15,6 +15,7 @@ import {
     UserCog, // Replaces FaUserSecret for CIU Portal
     MessageSquare, // Replaces FaComments
     Lightbulb, // Replaces FaLightbulb
+    Shirt, // Add Shirt icon for Outfits
 } from "lucide-react";
 import { DepartmentChatPopup } from "./DepartmentChatPopup";
 import { Button } from "./ui/button";
@@ -27,6 +28,7 @@ import { toast } from "react-toastify";
 import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db as dbFirestore } from "../firebase";
 import { CaseFile, CaseStatus } from "../utils/ciuUtils";
+import Outfits from "./Outfits"; 
 
 const saspLogo = "/SASPLOGO2.png";
 
@@ -136,6 +138,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     // Filter nav items based on conditions
     const filteredNavItems = useMemo(() => {
         return navItems.filter(item => {
+            // Ensure "Outfit Codes" is always shown if present in navItems
+            if (item.href === '/outfits') {
+                return true;
+            }
             switch (item.showCondition) {
                 case 'isAdmin': return isAdmin;
                 case 'isFTOQualified': return isFTOQualified;
@@ -162,6 +168,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                 // it might have been filtered out by showCondition already.
                 // If it's meant to show with a default, handle that here or adjust showCondition.
                 // For now, assume it's correctly filtered if neither condition is met.
+            }
+            // Handle Outfits item
+            if (item.href === '/outfits') {
+                return { 
+                    ...item, 
+                    name: item.name || 'Outfit Codes', 
+                    icon: Shirt, 
+                    title: item.title || 'View Outfit Codes' 
+                };
             }
             return item;
         });
