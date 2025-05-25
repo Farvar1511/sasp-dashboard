@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import Layout from "./Layout";
-import localLinksData from "../data/links"; // Renamed to avoid conflict
+import localLinksDataFromFile from "../data/links"; // Renamed to avoid conflict
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card, CardContent } from "./ui/card";
@@ -14,32 +14,51 @@ import {
 } from "./ui/dialog";
 import { Label } from "./ui/label";
 import ConfirmationModal from "./ConfirmationModal";
-import { ChevronUp, ChevronDown, Pencil } from "lucide-react"; // Import Pencil icon
-import { useAuth } from "../context/AuthContext"; // Import useAuth
+import { ChevronUp, ChevronDown, Pencil } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { db } from "../firebase"; // Import db
+import { 
+  collection, 
+  getDocs, 
+  addDoc, 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  orderBy, 
+  where, 
+  writeBatch,
+  QuerySnapshot,
+  DocumentData
+} from "firebase/firestore";
 
 interface LinkItem {
-  id?: string;
+  id: string; // Firestore document ID - now mandatory
   Label: string;
   Url: string;
   Category: string;
-  orderInCategory: number; // Added for ordering
+  orderInCategory: number;
 }
 
-// Helper to ensure links have orderInCategory
-const ensureOrderInCategory = (links: Omit<LinkItem, 'orderInCategory' | 'id'>[]): LinkItem[] => {
+// Type for data to be added to Firestore (ID is auto-generated)
+type NewLinkData = Omit<LinkItem, 'id'>;
+
+// Helper to prepare localLinksData for initial Firestore seeding
+const prepareInitialDataForFirestore = (links: Omit<LinkItem, 'id' | 'orderInCategory'>[]): NewLinkData[] => {
   const categorized = links.reduce((acc, link) => {
     const cat = link.Category || "Uncategorized";
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(link);
     return acc;
-  }, {} as Record<string, Omit<LinkItem, 'orderInCategory' | 'id'>[]>);
+  }, {} as Record<string, Omit<LinkItem, 'id' | 'orderInCategory'>[]>);
 
-  const processedLinks: LinkItem[] = [];
+  const processedLinks: NewLinkData[] = [];
   Object.values(categorized).forEach(categoryLinks => {
     categoryLinks.forEach((link, index) => {
       processedLinks.push({
-        ...link,
-        id: `local-init-${Math.random().toString(36).substr(2, 9)}`, // ensure id
+        Label: link.Label,
+        Url: link.Url,
+        Category: link.Category,
         orderInCategory: index + 1,
       });
     });
@@ -47,111 +66,7 @@ const ensureOrderInCategory = (links: Omit<LinkItem, 'orderInCategory' | 'id'>[]
   return processedLinks;
 };
 
-
-// Mock Firebase functions - replace with actual Firebase SDK calls
-const mockFirebase = {
-  fetchLinks: async (): Promise<LinkItem[]> => {
-    console.log("Mock Firebase: Fetching links...");
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const storedLinks = localStorage.getItem("firebaseLinks");
-    if (storedLinks) {
-      // Ensure orderInCategory exists when fetching
-      const parsedLinks = JSON.parse(storedLinks) as Partial<LinkItem>[];
-      const linksWithOrder = parsedLinks.map((link, index) => ({
-        ...link,
-        id: link.id || `fb-load-${index}`,
-        Label: link.Label || "Untitled",
-        Url: link.Url || "#",
-        Category: link.Category || "Uncategorized",
-        orderInCategory: typeof link.orderInCategory === 'number' ? link.orderInCategory : index + 1, // Default if missing
-      })) as LinkItem[];
-      
-      // Ensure order is sequential per category if loading from potentially inconsistent data
-      const linksByCategory: Record<string, LinkItem[]> = {};
-      linksWithOrder.forEach(link => {
-        if (!linksByCategory[link.Category]) linksByCategory[link.Category] = [];
-        linksByCategory[link.Category].push(link);
-      });
-
-      const finalLinks: LinkItem[] = [];
-      Object.values(linksByCategory).forEach(catLinks => {
-        catLinks.sort((a, b) => (a.orderInCategory || 0) - (b.orderInCategory || 0));
-        catLinks.forEach((link, idx) => {
-          finalLinks.push({ ...link, orderInCategory: idx + 1 });
-        });
-      });
-      return finalLinks;
-    }
-    console.log("Mock Firebase: No links found, will use local data as base.");
-    return []; // Will be populated by localLinksData if empty on first load
-  },
-  addLink: async (link: Omit<LinkItem, 'id' | 'orderInCategory'>, allLinks: LinkItem[]): Promise<LinkItem> => {
-    console.log("Mock Firebase: Adding link...", link);
-    const linksInSameCategory = allLinks.filter(l => l.Category === link.Category);
-    const newLink: LinkItem = {
-      ...link,
-      id: Date.now().toString(),
-      orderInCategory: linksInSameCategory.length + 1,
-    };
-    const updatedLinks = [...allLinks, newLink];
-    localStorage.setItem("firebaseLinks", JSON.stringify(updatedLinks));
-    return newLink;
-  },
-  updateLink: async (linkId: string, linkData: Partial<LinkItem>, allLinks: LinkItem[]): Promise<LinkItem> => {
-    console.log("Mock Firebase: Updating link...", linkId, linkData);
-    let updatedLink: LinkItem | undefined;
-    const updatedLinks = allLinks.map(l => {
-      if (l.id === linkId) {
-        updatedLink = { ...l, ...linkData };
-        return updatedLink;
-      }
-      return l;
-    });
-    if (!updatedLink) throw new Error("Link not found for update");
-    localStorage.setItem("firebaseLinks", JSON.stringify(updatedLinks));
-    return updatedLink;
-  },
-  deleteLink: async (linkId: string, allLinks: LinkItem[]): Promise<LinkItem[]> => {
-    console.log("Mock Firebase: Deleting link...", linkId);
-    let remainingLinks = allLinks.filter(l => l.id !== linkId);
-    
-    // Re-order links in the affected category
-    const deletedLink = allLinks.find(l => l.id === linkId);
-    if (deletedLink) {
-        const linksInSameCategory = remainingLinks
-            .filter(l => l.Category === deletedLink.Category)
-            .sort((a, b) => a.orderInCategory - b.orderInCategory);
-
-        linksInSameCategory.forEach((l, index) => {
-            l.orderInCategory = index + 1;
-        });
-        
-        remainingLinks = remainingLinks.map(rl => {
-            const updatedLinkInCategory = linksInSameCategory.find(u => u.id === rl.id);
-            return updatedLinkInCategory || rl;
-        });
-    }
-    localStorage.setItem("firebaseLinks", JSON.stringify(remainingLinks));
-    return remainingLinks;
-  },
-  updateCategoryName: async (oldCategoryName: string, newCategoryName: string, allLinks: LinkItem[]): Promise<LinkItem[]> => {
-    console.log(`Mock Firebase: Updating category name from "${oldCategoryName}" to "${newCategoryName}"`);
-    const updatedLinks = allLinks.map(link => {
-      if (link.Category === oldCategoryName) {
-        return { ...link, Category: newCategoryName };
-      }
-      return link;
-    });
-    localStorage.setItem("firebaseLinks", JSON.stringify(updatedLinks));
-    return updatedLinks;
-  },
-  saveAllLinks: async (links: LinkItem[]): Promise<void> => {
-    console.log("Mock Firebase: Saving all links...");
-    localStorage.setItem("firebaseLinks", JSON.stringify(links));
-  }
-};
-
-// Remove local rankHierarchy and useUserPermissions, as AuthContext will provide this.
+const linksCollectionRef = collection(db, "sasp-links");
 
 const Documents: React.FC = () => {
   const [modalLink, setModalLink] = useState<string | null>(null);
@@ -164,6 +79,7 @@ const Documents: React.FC = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  // currentLinkData for the form, ID and orderInCategory are handled separately
   const [currentLinkData, setCurrentLinkData] = useState<Omit<LinkItem, 'id' | 'orderInCategory'>>({ Label: "", Url: "", Category: "" });
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
 
@@ -171,48 +87,70 @@ const Documents: React.FC = () => {
   const [editingCategoryName, setEditingCategoryName] = useState<string>("");
   const [newCategoryNameInput, setNewCategoryNameInput] = useState<string>("");
 
-  // State for delete confirmation modal
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [linkIdToDelete, setLinkIdToDelete] = useState<string | null>(null);
 
-  const { user, isAdmin } = useAuth(); // Use isAdmin from AuthContext
-
-  // canEditContent will now correctly reflect the isAdmin logic from AuthContext.
+  const { user, isAdmin } = useAuth();
   const canEditContent = isAdmin;
 
+  const fetchLinksFromFirestore = async (): Promise<LinkItem[]> => {
+    const q = query(linksCollectionRef, orderBy("Category"), orderBy("orderInCategory"));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LinkItem));
+  };
+  
+  const reorderLinksInCategory = async (category: string, excludedLinkId?: string) => {
+    const batch = writeBatch(db);
+    const q = query(linksCollectionRef, where("Category", "==", category), orderBy("orderInCategory"));
+    const snapshot = await getDocs(q);
+    let order = 1;
+    snapshot.docs.forEach(doc => {
+      if (doc.id !== excludedLinkId) {
+        batch.update(doc.ref, { orderInCategory: order++ });
+      }
+    });
+    await batch.commit();
+  };
 
   const loadLinks = useCallback(async () => {
     setIsLoading(true);
     try {
-      let links = await mockFirebase.fetchLinks();
-      if (links.length === 0 && localLinksData.length > 0) {
-        console.log("Firebase empty, initializing with local data and ensuring order.");
-        // Ensure localLinksData has orderInCategory and id before saving
-        const initialLinks = ensureOrderInCategory(localLinksData);
-        await mockFirebase.saveAllLinks(initialLinks); // Save to mock Firebase
-        links = initialLinks;
-      } else if (links.length === 0 && JSON.parse(localStorage.getItem("firebaseLinks") || "[]").length === 0 && localLinksData.length > 0) {
-        // This case handles if localStorage was explicitly emptied but we still have local data
-        const initialLinks = ensureOrderInCategory(localLinksData);
-        await mockFirebase.saveAllLinks(initialLinks);
-        links = initialLinks;
+      console.log("Attempting to fetch links from Firestore...");
+      let links = await fetchLinksFromFirestore();
+      console.log(`Fetched ${links.length} links from Firestore.`);
+      
+      // Log status of localLinksDataFromFile for debugging seeding condition
+      if (localLinksDataFromFile) {
+        console.log(`localLinksDataFromFile imported. Length: ${localLinksDataFromFile.length}`);
+      } else {
+        console.log("localLinksDataFromFile is undefined or null. Seeding from local file will not occur.");
+      }
+
+      if (links.length === 0 && localLinksDataFromFile && localLinksDataFromFile.length > 0) {
+        console.log("Firestore 'sasp-links' is empty and local data is available. Seeding Firestore...");
+        const initialData = prepareInitialDataForFirestore(localLinksDataFromFile);
+        const batch = writeBatch(db);
+        initialData.forEach(link => {
+          const newLinkRef = doc(linksCollectionRef); // Auto-generate ID
+          batch.set(newLinkRef, link);
+        });
+        await batch.commit();
+        console.log("Firestore seeding complete. Re-fetching links from Firestore...");
+        links = await fetchLinksFromFirestore(); // Re-fetch after seeding to get Firestore-generated IDs
+        console.log(`Fetched ${links.length} links after seeding.`);
       }
       setFirebaseLinks(links);
     } catch (err) {
-      console.error("Failed to load links:", err);
-      if (firebaseLinks.length === 0) { // Fallback if everything fails
-        setFirebaseLinks(ensureOrderInCategory(localLinksData));
-      }
+      console.error("Failed to load or seed links:", err);
+      // Consider setting an error state here to display a message in the UI
     } finally {
       setIsLoading(false);
     }
-  }, [firebaseLinks.length]);
-
+  }, []);
 
   useEffect(() => {
     loadLinks();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadLinks]);
 
   const grouped = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -258,15 +196,15 @@ const Documents: React.FC = () => {
   };
 
   const handleOpenEditModal = (link: LinkItem) => {
-    if (!canEditContent) return; // Guard clause
+    if (!canEditContent) return;
     setModalMode("edit");
-    setCurrentLinkData({ Label: link.Label, Url: link.Url, Category: link.Category }); // orderInCategory not edited here directly
-    setEditingLinkId(link.id!);
+    setCurrentLinkData({ Label: link.Label, Url: link.Url, Category: link.Category });
+    setEditingLinkId(link.id);
     setIsModalOpen(true);
   };
 
   const handleSaveLink = async () => {
-    if (!canEditContent) return; // Guard clause
+    if (!canEditContent) return;
     if (!currentLinkData.Label || !currentLinkData.Url || !currentLinkData.Category) {
       alert("Please fill in all fields.");
       return;
@@ -274,17 +212,34 @@ const Documents: React.FC = () => {
     setIsLoading(true);
     try {
       if (modalMode === "add") {
-        await mockFirebase.addLink(currentLinkData, firebaseLinks);
+        const q = query(linksCollectionRef, where("Category", "==", currentLinkData.Category));
+        const snapshot = await getDocs(q);
+        const newOrderInCategory = snapshot.size + 1;
+        
+        const newLink: NewLinkData = {
+          ...currentLinkData,
+          orderInCategory: newOrderInCategory,
+        };
+        await addDoc(linksCollectionRef, newLink);
       } else if (editingLinkId) {
-        // Fetch the original link to preserve its orderInCategory if category doesn't change
         const originalLink = firebaseLinks.find(l => l.id === editingLinkId);
-        let orderUpdate = {};
-        if (originalLink && originalLink.Category !== currentLinkData.Category) {
-            // Category changed, assign new order in new category
-            const linksInNewCategory = firebaseLinks.filter(l => l.Category === currentLinkData.Category && l.id !== editingLinkId);
-            orderUpdate = { orderInCategory: linksInNewCategory.length + 1 };
+        if (!originalLink) throw new Error("Original link not found for editing.");
+
+        const linkRef = doc(db, "sasp-links", editingLinkId);
+        const updatedFields: Partial<LinkItem> = { ...currentLinkData };
+
+        if (originalLink.Category !== currentLinkData.Category) {
+          // Category changed
+          const qNewCat = query(linksCollectionRef, where("Category", "==", currentLinkData.Category));
+          const snapshotNewCat = await getDocs(qNewCat);
+          updatedFields.orderInCategory = snapshotNewCat.size + 1;
+          
+          await updateDoc(linkRef, updatedFields);
+          await reorderLinksInCategory(originalLink.Category, editingLinkId); // Reorder old category
+        } else {
+          // Category did not change, only update Label/Url (orderInCategory is handled by handleLinkOrderChange)
+          await updateDoc(linkRef, { Label: currentLinkData.Label, Url: currentLinkData.Url, Category: currentLinkData.Category });
         }
-        await mockFirebase.updateLink(editingLinkId, {...currentLinkData, ...orderUpdate}, firebaseLinks);
       }
       await loadLinks(); 
       setIsModalOpen(false);
@@ -302,13 +257,19 @@ const Documents: React.FC = () => {
   };
 
   const executeDeleteLink = async () => {
-    if (!canEditContent || !linkIdToDelete) return; // Guard clause
+    if (!canEditContent || !linkIdToDelete) return;
     setIsLoading(true);
     try {
-      const updatedLinks = await mockFirebase.deleteLink(linkIdToDelete, firebaseLinks);
-      setFirebaseLinks(updatedLinks); // Directly set state to avoid re-fetch if mockFirebase returns the new list
-                                     // Or call loadLinks() if mockFirebase doesn't return the list
-      // await loadLinks(); // Use this if deleteLink doesn't return the updated list
+      const linkToDelete = firebaseLinks.find(l => l.id === linkIdToDelete);
+      if (!linkToDelete) throw new Error("Link to delete not found in state.");
+
+      const linkRef = doc(db, "sasp-links", linkIdToDelete);
+      await deleteDoc(linkRef);
+      
+      // Reorder links in the affected category
+      await reorderLinksInCategory(linkToDelete.Category);
+      
+      await loadLinks(); // Refresh the list
     } catch (err) {
       console.error("Failed to delete link:", err);
     } finally {
@@ -318,7 +279,6 @@ const Documents: React.FC = () => {
     }
   };
 
-
   const handleOpenEditCategoryModal = (categoryName: string) => {
     if (!canEditContent) return; // Guard clause
     setEditingCategoryName(categoryName);
@@ -327,15 +287,21 @@ const Documents: React.FC = () => {
   };
 
   const handleSaveCategoryName = async () => {
-    if (!canEditContent) return; // Guard clause
+    if (!canEditContent) return;
     if (!newCategoryNameInput.trim() || newCategoryNameInput.trim() === editingCategoryName) {
       alert("New category name cannot be empty or the same as the old name.");
       return;
     }
     setIsLoading(true);
     try {
-      const updatedLinks = await mockFirebase.updateCategoryName(editingCategoryName, newCategoryNameInput.trim(), firebaseLinks);
-      setFirebaseLinks(updatedLinks); // Directly set state
+      const batch = writeBatch(db);
+      const q = query(linksCollectionRef, where("Category", "==", editingCategoryName));
+      const snapshot = await getDocs(q);
+      snapshot.docs.forEach(document => {
+        batch.update(doc(db, "sasp-links", document.id), { Category: newCategoryNameInput.trim() });
+      });
+      await batch.commit();
+      
       // Update expanded state
       if (expanded[editingCategoryName] !== undefined) {
         setExpanded(prev => {
@@ -345,6 +311,7 @@ const Documents: React.FC = () => {
           return newExpandedState;
         });
       }
+      await loadLinks();
       setIsEditCategoryModalOpen(false);
     } catch (err) {
       console.error("Failed to save category name:", err);
@@ -357,51 +324,40 @@ const Documents: React.FC = () => {
     if (!canEditContent) return; // Guard clause
     setIsLoading(true);
     try {
-      let linksInCategory = firebaseLinks
+      const linksInSameCategory = firebaseLinks
         .filter(l => l.Category === linkToMove.Category)
         .sort((a, b) => a.orderInCategory - b.orderInCategory);
 
-      const currentIndex = linksInCategory.findIndex(l => l.id === linkToMove.id);
+      const currentIndex = linksInSameCategory.findIndex(l => l.id === linkToMove.id);
+      let targetIndex = -1;
 
       if (direction === 'up' && currentIndex > 0) {
-        // Swap with the item above
-        const temp = linksInCategory[currentIndex];
-        linksInCategory[currentIndex] = linksInCategory[currentIndex - 1];
-        linksInCategory[currentIndex - 1] = temp;
-      } else if (direction === 'down' && currentIndex < linksInCategory.length - 1) {
-        // Swap with the item below
-        const temp = linksInCategory[currentIndex];
-        linksInCategory[currentIndex] = linksInCategory[currentIndex + 1];
-        linksInCategory[currentIndex + 1] = temp;
-      } else {
-        // No change possible or invalid direction for current position
-        setIsLoading(false);
-        return;
+        targetIndex = currentIndex - 1;
+      } else if (direction === 'down' && currentIndex < linksInSameCategory.length - 1) {
+        targetIndex = currentIndex + 1;
       }
 
-      // Re-assign sequential orderInCategory values
-      linksInCategory.forEach((link, index) => {
-        link.orderInCategory = index + 1;
-      });
+      if (targetIndex !== -1) {
+        const batch = writeBatch(db);
+        const linkToSwapWith = linksInSameCategory[targetIndex];
 
-      // Create the new full list of links
-      const otherLinks = firebaseLinks.filter(l => l.Category !== linkToMove.Category);
-      const updatedFirebaseLinks = [...otherLinks, ...linksInCategory].sort((a,b) => {
-        // Optional: maintain overall sort if needed, though category grouping handles display
-        if (a.Category < b.Category) return -1;
-        if (a.Category > b.Category) return 1;
-        return a.orderInCategory - b.orderInCategory;
-      });
-      
-      await mockFirebase.saveAllLinks(updatedFirebaseLinks);
-      setFirebaseLinks(updatedFirebaseLinks);
+        // Update moved link
+        const movedLinkRef = doc(db, "sasp-links", linkToMove.id);
+        batch.update(movedLinkRef, { orderInCategory: linkToSwapWith.orderInCategory });
+
+        // Update swapped link
+        const swappedLinkRef = doc(db, "sasp-links", linkToSwapWith.id);
+        batch.update(swappedLinkRef, { orderInCategory: linkToMove.orderInCategory });
+        
+        await batch.commit();
+        await loadLinks(); // Refresh list
+      }
     } catch (error) {
       console.error("Failed to reorder link:", error);
     } finally {
       setIsLoading(false);
     }
   };
-
 
   if (isLoading && firebaseLinks.length === 0 && !user) { // Show loading only on initial fetch or if user is not yet loaded
     return (
