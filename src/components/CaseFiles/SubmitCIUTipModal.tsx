@@ -102,7 +102,7 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({
     detectiveWorkedWith,
     setDetectiveWorkedWith
 }) => {
-    const { user: currentUser } = useAuth(); // Get current user
+    const { user: currentUser } = useAuth();
     const [title, setTitle] = useState('');
     const [summary, setSummary] = useState('');
     const [incidentReport, setIncidentReport] = useState('');
@@ -260,7 +260,7 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({
             toast.error("Summary is required to submit a tip.");
             return;
         }
-        // Allow submission if public (hideDetectiveAssignment), even if not logged in
+        // Allow submission for public tips even without authentication
         if (!currentUser && !hideDetectiveAssignment) {
             toast.error("Authentication error. Please log in again.");
             return;
@@ -285,10 +285,8 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({
         onSubmit({
             tipDetails,
             assignee: selectedAssignee,
-            detectiveWorkedWith: detectiveWorkedWith // Pass up if present
+            detectiveWorkedWith: detectiveWorkedWith
         }); 
-        // resetForm(); // Sidebar will close the modal, which can trigger reset if needed
-        // onClose(); // Let Sidebar control closing
     };
 
     if (!isOpen) return null;
@@ -328,7 +326,10 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({
                         <FaLightbulb className="mr-3 text-brand" /> Submit CIU Tip
                     </h2>
                     <p className="text-muted-foreground mt-2">
-                        This information will be used to create a new case file. Your name ({currentUser?.name || 'Current User'}) will be recorded as the submitter.
+                        {hideDetectiveAssignment 
+                            ? "This information will be submitted anonymously and reviewed by CIU detectives."
+                            : `This information will be used to create a new case file. Your name (${currentUser?.name || 'Current User'}) will be recorded as the submitter.`
+                        }
                     </p>
                 </div>
                 <div className="flex-grow space-y-8 pb-4 overflow-y-auto custom-scrollbar pr-4 pl-1">

@@ -109,7 +109,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="/public/submit-ciu-tip" element={<PublicSubmitCIUTip />} />
+            <Route path="/submit-ciu-tip" element={<PublicSubmitCIUTip />} />
             {/* Add other routes as needed */}
           </Routes>
           <ToastContainer
