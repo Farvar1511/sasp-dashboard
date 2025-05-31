@@ -214,6 +214,7 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
 
     const addEvidenceRow = () => setEvidence([...evidence, { id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }]);
     
+    // Complete the updateEvidence switch cases to match CreateCaseModal
     const updateEvidence = (index: number, field: string, value: any) => {
         const updated = [...evidence];
         const currentItem = updated[index];
@@ -228,23 +229,23 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
 
             switch (newType) {
                 case 'Blood':
-                    updated[index] = { ...baseProperties, type: 'Blood', name: '', dnaCode: '' };
+                    updated[index] = { ...baseProperties, type: 'Blood', name: (currentItem as EvidenceBlood).name || '', dnaCode: (currentItem as EvidenceBlood).dnaCode || '' };
                     break;
                 case 'Vehicle':
-                    updated[index] = { ...baseProperties, type: 'Vehicle', owner: '', plate: '', model: '' };
+                    updated[index] = { ...baseProperties, type: 'Vehicle', owner: (currentItem as EvidenceVehicle).owner || '', plate: (currentItem as EvidenceVehicle).plate || '', model: (currentItem as EvidenceVehicle).model || '' };
                     break;
                 case 'Fingerprint':
-                    updated[index] = { ...baseProperties, type: 'Fingerprint', name: '', fingerprintId: '' };
+                    updated[index] = { ...baseProperties, type: 'Fingerprint', name: (currentItem as EvidenceFingerprint).name || '', fingerprintId: (currentItem as EvidenceFingerprint).fingerprintId || '' };
                     break;
                 case 'Casing':
-                    updated[index] = { ...baseProperties, type: 'Casing', casingDetails: '', registeredTo: '' };
+                    updated[index] = { ...baseProperties, type: 'Casing', casingDetails: (currentItem as EvidenceCasing).casingDetails || '', registeredTo: (currentItem as EvidenceCasing).registeredTo || '' };
                     break;
                 case 'Weapon':
-                    updated[index] = { ...baseProperties, type: 'Weapon', weaponDetails: '', registeredTo: '', sourceOfCollection: '' };
+                    updated[index] = { ...baseProperties, type: 'Weapon', weaponDetails: (currentItem as EvidenceWeapon).weaponDetails || '', registeredTo: (currentItem as EvidenceWeapon).registeredTo || '', sourceOfCollection: (currentItem as EvidenceWeapon).sourceOfCollection || '' };
                     break;
                 case 'Other':
                 default:
-                    updated[index] = { ...baseProperties, type: 'Other', description: '' };
+                    updated[index] = { ...baseProperties, type: 'Other', description: (currentItem as EvidenceOther).description || '' };
                     break;
             }
         } else {
@@ -406,6 +407,7 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
 
         const assignedUser = eligibleAssignees.find(u => u.id === assignedToId);
 
+        // Use the same structure as CreateCaseModal
         const updatedDetailsObject = {
             incidentReport,
             evidence: evidence.filter(isEvidenceItemPopulated),
@@ -424,7 +426,7 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
             status,
             assignedToId: assignedToId,
             assignedToName: assignedUser?.name || null,
-            imageLinks: updatedDetailsObject.photos,
+            imageLinks: updatedDetailsObject.photos, // Save photos to imageLinks as well
             details: JSON.stringify(updatedDetailsObject),
             updatedAt: Timestamp.now()
         };
@@ -674,6 +676,106 @@ ${videoNotes || 'N/A'}
             hour: 'numeric', minute: '2-digit', hour12: true
         });
     }
+
+    // Add this useEffect after the existing useEffects
+    useEffect(() => {
+        console.log('🔄 Loading existing case details...');
+        console.log('📋 caseData:', caseData);
+        
+        // Load existing details from the case
+        if (caseData.details) {
+            try {
+                console.log('📄 Parsing details JSON:', caseData.details);
+                const detailsObject = JSON.parse(caseData.details);
+                console.log('✅ Parsed details object:', detailsObject);
+                
+                // Load all the existing data
+                setIncidentReport(detailsObject.incidentReport || '');
+                setLocation(detailsObject.location || '');
+                setPhotoSectionDescription(detailsObject.photoSectionDescription || '');
+                setGangInfo(detailsObject.gangInfo || '');
+                setVideoNotes(detailsObject.videoNotes || '');
+                
+                // Load names of interest - ensure they have proper structure
+                if (detailsObject.namesOfInterest && detailsObject.namesOfInterest.length > 0) {
+                    console.log('👥 Loading names of interest:', detailsObject.namesOfInterest);
+                    const mappedNames = detailsObject.namesOfInterest.map((noi: any) => ({
+                        id: noi.id || Date.now() + Math.random(),
+                        name: noi.name || '',
+                        role: noi.role || '',
+                        affiliation: noi.affiliation || '',
+                        cid: noi.cid || '',
+                        phoneNumber: noi.phoneNumber || ''
+                    }));
+                    setNamesOfInterest(mappedNames);
+                } else {
+                    setNamesOfInterest([{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]);
+                }
+                
+                // Load evidence - ensure they have proper structure and types
+                if (detailsObject.evidence && detailsObject.evidence.length > 0) {
+                    console.log('🔍 Loading evidence:', detailsObject.evidence);
+                    const mappedEvidence = detailsObject.evidence.map((ev: any) => ({
+                        id: ev.id || Date.now() + Math.random(),
+                        type: ev.type || 'Other',
+                        location: ev.location || '',
+                        photoLink: ev.photoLink || '',
+                        // Type-specific fields
+                        ...(ev.type === 'Blood' && { name: ev.name || '', dnaCode: ev.dnaCode || '' }),
+                        ...(ev.type === 'Vehicle' && { owner: ev.owner || '', plate: ev.plate || '', model: ev.model || '' }),
+                        ...(ev.type === 'Fingerprint' && { name: ev.name || '', fingerprintId: ev.fingerprintId || '' }),
+                        ...(ev.type === 'Casing' && { casingDetails: ev.casingDetails || '', registeredTo: ev.registeredTo || '' }),
+                        ...(ev.type === 'Weapon' && { weaponDetails: ev.weaponDetails || '', registeredTo: ev.registeredTo || '', sourceOfCollection: ev.sourceOfCollection || '' }),
+                        ...(ev.type === 'Other' && { description: ev.description || '' })
+                    }));
+                    setEvidence(mappedEvidence);
+                } else {
+                    setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }]);
+                }
+                
+                // Load charges - ensure they have proper structure
+                if (detailsObject.charges && detailsObject.charges.length > 0) {
+                    console.log('⚖️ Loading charges:', detailsObject.charges);
+                    setSelectedCharges(detailsObject.charges);
+                } else {
+                    setSelectedCharges([]);
+                }
+                
+                // Load photos - filter out empty strings
+                if (detailsObject.photos && detailsObject.photos.length > 0) {
+                    console.log('📸 Loading photos:', detailsObject.photos);
+                    const filteredPhotos = detailsObject.photos.filter((p: string) => p.trim());
+                    setPhotos(filteredPhotos.length > 0 ? filteredPhotos : ['']);
+                } else {
+                    // Use imageLinks from caseData if no photos in details
+                    const imageLinks = caseData.imageLinks || [];
+                    setPhotos(imageLinks.length > 0 ? imageLinks : ['']);
+                }
+                
+            } catch (err) {
+                console.error('❌ Error parsing case details:', err);
+                console.log('📄 Raw details string:', caseData.details);
+                // Initialize with empty defaults if parsing fails
+                setNamesOfInterest([{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]);
+                setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }]);
+                setPhotos(Array.isArray(caseData.imageLinks) && caseData.imageLinks.length > 0 ? caseData.imageLinks : ['']);
+                setSelectedCharges([]);
+            }
+        } else {
+            console.log('📄 No details found, using defaults and imageLinks');
+            // Initialize with empty defaults and use imageLinks if available
+            setNamesOfInterest([{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]);
+            setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }]);
+            setPhotos(Array.isArray(caseData.imageLinks) && caseData.imageLinks.length > 0 ? caseData.imageLinks : ['']);
+            setSelectedCharges([]);
+            setIncidentReport('');
+            setLocation('');
+            setPhotoSectionDescription('');
+            setGangInfo('');
+            setVideoNotes('');
+        }
+    }, [caseData.details, caseData.id, caseData.imageLinks]); // Add imageLinks dependency
+
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
             <DialogContent
