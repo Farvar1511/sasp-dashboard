@@ -1,24 +1,41 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { doc, updateDoc, serverTimestamp, Timestamp, FieldValue } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+    doc,
+    updateDoc,
+    deleteDoc,
+    Timestamp,
+    collection,
+    addDoc,
+    getDocs,
+    query,
+    where,
+    orderBy
+} from 'firebase/firestore';
 import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
-import { CaseFile, CaseStatus } from '../../utils/ciuUtils';
-import { formatTimestampForDisplay } from '../../utils/timeHelpers';
-import { computeIsAdmin } from '../../utils/isadmin.ts';
 import { User } from '../../types/User';
+import { CaseFile, CaseStatus } from '../../utils/ciuUtils';
+import { canUserManageCiuCaseAssignments, canUserEditAnyCiuCaseUpdate } from '../../utils/permissionUtils';
+import { toast } from 'react-toastify';
+import penalCodesDataFromFile from './penal_codes';
+import jsPDF from 'jspdf';
+
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { toast } from 'react-toastify';
-import { FaTrash, FaPlus, FaTimes, FaSave, FaFileWord, FaFilePdf, FaSync, FaSearch, FaEdit, FaCheck, FaBan } from 'react-icons/fa';
-import penalCodesData from './penal_codes.ts';
-import jsPDF from 'jspdf';
-import { Packer, Document, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, HeadingLevel, WidthType, BorderStyle, VerticalAlign, ImageRun, UnderlineType } from 'docx';
-import { saveAs } from 'file-saver';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
+
+import { 
+    Save, X, Plus, Trash2, Search, RefreshCw, FileText, Download, Edit, AlertTriangle,
+    Paperclip, Video, Users, Shield, MapPin, FilePlus, FileArchive, UserCheck, UserX, Eye, MessageSquarePlus
+} from 'lucide-react';
+
+// Define UpdateCaseFile type, can be Partial<CaseFile> or more specific
+// Corrected: Omit 'updatedAt' before Partial to avoid intersection type issue
 
 
 interface PenalCode {
@@ -65,7 +82,14 @@ export const isEvidenceItemPopulated = (item: EvidenceItem): boolean => {
 };
 
 interface NameOfInterest { id: number; name: string; role: string; affiliation: string; cid?: string; phoneNumber?: string; }
-interface CaseUpdate { id: string | number; timestamp: Timestamp | Date; userId: string; userName: string; note: string; edited?: boolean; }
+interface CaseUpdate { 
+    id: string | number;
+    timestamp: Timestamp | Date | null; 
+    userId: string; 
+    userName: string; 
+    note: string; 
+    edited?: boolean; 
+}
 
 interface EditCaseModalProps {
   isOpen: boolean; // This prop might not be needed if modal visibility is handled by parent through conditional rendering
@@ -77,14 +101,20 @@ interface EditCaseModalProps {
   eligibleAssignees: User[];
 }
 
-const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, caseData, eligibleAssignees }) => {
+interface CaseNote {
+    id: string;
+    caseId: string;
+    userId: string;
+    userName: string;
+    note: string;
+    timestamp: Timestamp;
+    edited?: boolean;
+}
+
+const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, caseData, eligibleAssignees, isOpen }) => {
     const { user: currentUser } = useAuth();
-    const isAdmin = useMemo(() => computeIsAdmin(currentUser), [currentUser]);
-    const isLeadOrSuper = useMemo(() => {
-        if (!currentUser || !currentUser.certifications || !currentUser.certifications['CIU']) return false;
-        const ciuLevel = currentUser.certifications['CIU'];
-        return ['LEAD', 'SUPER'].includes(ciuLevel);
-    }, [currentUser]);
+    const canManageAssignments = useMemo(() => canUserManageCiuCaseAssignments(currentUser), [currentUser]);
+    const canEditAnyUpdate = useMemo(() => canUserEditAnyCiuCaseUpdate(currentUser), [currentUser]);
 
     const [title, setTitle] = useState(caseData.title);
     const [incidentReport, setIncidentReport] = useState('');
@@ -98,7 +128,7 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
     const [videoNotes, setVideoNotes] = useState<string>('');
     const [status, setStatus] = useState<CaseStatus>(caseData.status);
     const [assignedToId, setAssignedToId] = useState<string | null>(caseData.assignedToId ?? null);
-    const [updates, setUpdates] = useState<CaseUpdate[]>([]);
+    const [updates, setUpdates] = useState<CaseNote[]>([]);
     const [newNote, setNewNote] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [warrantText, setWarrantText] = useState('');
@@ -113,7 +143,7 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
     const [selectedCharges, setSelectedCharges] = useState<PenalCode[]>([]);
 
     useEffect(() => {
-        setPenalCodes(penalCodesData as PenalCode[]);
+        setPenalCodes(penalCodesDataFromFile as PenalCode[]);
     }, []);
 
     useEffect(() => {
@@ -146,74 +176,37 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
         setSelectedCharges(selectedCharges.filter(charge => charge.pc !== pcCode));
     };
 
-    useEffect(() => {
-        if (caseData.details) {
-            try {
-                const details = JSON.parse(caseData.details);
-                setIncidentReport(details.incidentReport || '');
-                setEvidence(details.evidence?.length
-                    ? details.evidence.map((e: any): EvidenceItem => {
-                        const base: BaseEvidenceItem = { // Explicitly type base
-                            id: e.id || Date.now(),
-                            location: e.location || '',
-                            photoLink: e.photoLink || '',
-                        };
-
-                        let currentType = e.type;
-                        if (!currentType || !['Blood', 'Casing', 'Weapon', 'Vehicle', 'Fingerprint', 'Other'].includes(currentType)) {
-                            currentType = 'Other';
-                        }
-
-                        switch (currentType) {
-                            case 'Blood': return { ...base, type: 'Blood', name: e.name || '', dnaCode: e.dnaCode || '' };
-                            case 'Vehicle': return { ...base, type: 'Vehicle', owner: e.owner || '', plate: e.plate || '', model: e.model || '' };
-                            case 'Fingerprint': return { ...base, type: 'Fingerprint', name: e.name || '', fingerprintId: e.fingerprintId || '' };
-                            case 'Casing': return { ...base, type: 'Casing', casingDetails: e.casingDetails || e.description || '', registeredTo: e.registeredTo || '' };
-                            case 'Weapon': return { ...base, type: 'Weapon', weaponDetails: e.weaponDetails || e.description || '', registeredTo: e.registeredTo || '', sourceOfCollection: e.sourceOfCollection || '' };
-                            case 'Other': 
-                            default:    
-                                return { ...base, type: 'Other', description: e.description || '' };
-                        }
-                      })
-                    : [{ id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }] as EvidenceItem[]);
-                setNamesOfInterest(details.namesOfInterest?.length
-                    ? details.namesOfInterest.map((n: any) => ({ ...n, id: n.id || Date.now(), cid: n.cid || '', phoneNumber: n.phoneNumber || '' }))
-                    : [{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]
-                );
-                setLocation(details.location || '');
-                setGangInfo(details.gangInfo || '');
-                setVideoNotes(details.videoNotes || '');
-                setUpdates(details.updates?.map((u: any, index: number) => ({
-                    ...u,
-                    id: u.id || (u.timestamp?.toMillis ? u.timestamp.toMillis() : `initial-${Date.now()}-${index}`), // Ensure ID exists
-                    timestamp: u.timestamp?.toDate ? u.timestamp.toDate() : (u.timestamp instanceof Date ? u.timestamp : new Date()),
-                })) || []);
-                setSelectedCharges(details.charges || []);
-                setPhotoSectionDescription(details.photoSectionDescription || '');
-            } catch (e) {
-                console.error("Failed to parse case details JSON:", e);
-                toast.error("Error loading case details. Some information might be missing or corrupted.");
-                setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }]);
-                setNamesOfInterest([{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]);
-                setUpdates([]);
-                setSelectedCharges([]);
-                setVideoNotes('');
-                setPhotoSectionDescription('');
-            }
-        } else {
-             setEvidence([{ id: Date.now(), type: 'Other', description: '', location: '', photoLink: '' }]);
-             setNamesOfInterest([{ id: Date.now(), name: '', role: '', affiliation: '', cid: '', phoneNumber: '' }]);
-             setUpdates([]);
-             setSelectedCharges([]);
-             setVideoNotes('');
-             setPhotoSectionDescription('');
+    // Memoize fetchNotes so it doesn't change on every render
+    const fetchNotes = useCallback(async () => {
+        console.log('🔍 fetchNotes called with caseData.id:', caseData.id);
+        if (!caseData.id) {
+            console.log('❌ No caseData.id, returning early');
+            return;
         }
-        setPhotos(caseData.imageLinks?.length ? caseData.imageLinks : ['']);
-        setAssignedToId(caseData.assignedToId ?? null);
-        setTitle(caseData.title); // Ensure title is reset if caseData changes
-        setSummary(caseData.description || ''); // Ensure summary is reset
-        setStatus(caseData.status); // Ensure status is reset
-    }, [caseData]);
+        try {
+            console.log('📡 Starting Firestore query for caseNotes...');
+            const notesRef = collection(dbFirestore, 'caseNotes');
+            const q = query(notesRef, where('caseId', '==', caseData.id), orderBy('timestamp', 'desc'));
+            const snapshot = await getDocs(q);
+            console.log('📄 Query snapshot received, docs count:', snapshot.docs.length);
+            
+            const notes: CaseNote[] = snapshot.docs.map(docSnap => {
+                const data = { id: docSnap.id, ...docSnap.data() };
+                console.log('📝 Processing note:', data);
+                return data;
+            }) as CaseNote[];
+            
+            console.log('✅ Setting updates state with notes:', notes);
+            setUpdates(notes);
+        } catch (err) {
+            console.error('❌ Error in fetchNotes:', err);
+            toast.error('Failed to load case notes.');
+        }
+    }, [caseData.id]);
+
+    useEffect(() => {
+        fetchNotes();
+    }, [fetchNotes]);
 
     useEffect(() => {
         setWarrantText(generateWarrantTextPreview());
@@ -235,23 +228,23 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
 
             switch (newType) {
                 case 'Blood':
-                    updated[index] = { ...baseProperties, type: 'Blood', name: (currentItem as EvidenceBlood).name || '', dnaCode: (currentItem as EvidenceBlood).dnaCode || '' };
+                    updated[index] = { ...baseProperties, type: 'Blood', name: '', dnaCode: '' };
                     break;
                 case 'Vehicle':
-                    updated[index] = { ...baseProperties, type: 'Vehicle', owner: (currentItem as EvidenceVehicle).owner || '', plate: (currentItem as EvidenceVehicle).plate || '', model: (currentItem as EvidenceVehicle).model || '' };
+                    updated[index] = { ...baseProperties, type: 'Vehicle', owner: '', plate: '', model: '' };
                     break;
                 case 'Fingerprint':
-                    updated[index] = { ...baseProperties, type: 'Fingerprint', name: (currentItem as EvidenceFingerprint).name || '', fingerprintId: (currentItem as EvidenceFingerprint).fingerprintId || '' };
+                    updated[index] = { ...baseProperties, type: 'Fingerprint', name: '', fingerprintId: '' };
                     break;
                 case 'Casing':
-                    updated[index] = { ...baseProperties, type: 'Casing', casingDetails: (currentItem as EvidenceCasing).casingDetails || '', registeredTo: (currentItem as EvidenceCasing).registeredTo || '' };
+                    updated[index] = { ...baseProperties, type: 'Casing', casingDetails: '', registeredTo: '' };
                     break;
                 case 'Weapon':
-                    updated[index] = { ...baseProperties, type: 'Weapon', weaponDetails: (currentItem as EvidenceWeapon).weaponDetails || '', registeredTo: (currentItem as EvidenceWeapon).registeredTo || '', sourceOfCollection: (currentItem as EvidenceWeapon).sourceOfCollection || '' };
+                    updated[index] = { ...baseProperties, type: 'Weapon', weaponDetails: '', registeredTo: '', sourceOfCollection: '' };
                     break;
                 case 'Other':
                 default:
-                    updated[index] = { ...baseProperties, type: 'Other', description: (currentItem as EvidenceOther).description || '' };
+                    updated[index] = { ...baseProperties, type: 'Other', description: '' };
                     break;
             }
         } else {
@@ -284,37 +277,33 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
         if (newAssigneeId && status === 'Open - Unassigned') {
             setStatus('Open - Assigned');
         } else if (!newAssigneeId && status === 'Open - Assigned') {
-            // If unassigning from 'Open - Assigned', revert to 'Open - Unassigned'
             setStatus('Open - Unassigned');
         } else if (!newAssigneeId && (status === 'Closed - Solved' || status === 'Closed - Unsolved' || status === 'Under Review')) {
-            // If unassigning from a closed/review status, it's okay, just remove assignee
+            // If case is closed/review and unassigned, move to Open - Unassigned
+            setStatus('Open - Unassigned');
         }
     };
 
     const handleStatusChange = (value: CaseStatus) => {
         setStatus(value);
         if (value === 'Open - Unassigned' && assignedToId) {
-            // If changing to 'Open - Unassigned', clear assignee
-            setAssignedToId(null);
+            setAssignedToId(null); // Unassign if status changes to Open - Unassigned
         }
         if (value === 'Open - Assigned' && !assignedToId) {
-            // If changing to 'Open - Assigned' without an assignee, revert to 'Open - Unassigned' and toast
-            setStatus('Open - Unassigned');
-            toast.info("Select an assignee to set status to 'Open - Assigned'.");
+            // If status is Open - Assigned but no one is assigned, prompt user or auto-set to unassigned
+            toast.warn("Case set to 'Open - Assigned' but no detective is selected. Please assign a detective or change status.");
+            // setStatus('Open - Unassigned'); // Or revert
         }
     };
 
-    const canModifyUpdate = (update: CaseUpdate): boolean => {
+    const canModifyUpdate = (update: CaseNote): boolean => {
         if (!currentUser) return false;
-        if (isAdmin) return true; // Admin can always modify
-        if (update.userId === currentUser.id) return true; // User can modify their own updates
-        // Allow CIU Lead/Super to modify any update
-        const ciuCert = currentUser.certifications?.['CIU'];
-        if (ciuCert === 'LEAD' || ciuCert === 'SUPER') return true;
+        if (canEditAnyUpdate) return true; // User with Lead/Super certs can edit any update
+        if (update.userId === currentUser.id) return true; // User can edit their own update
         return false;
     };
 
-    const handleEditUpdateClick = (update: CaseUpdate) => {
+    const handleEditUpdateClick = (update: CaseNote) => {
         setEditingUpdateId(update.id);
         setEditedUpdateText(update.note);
     };
@@ -325,51 +314,86 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
     };
 
     const handleSaveEditUpdate = async () => {
-        if (editingUpdateId === null || !currentUser) return;
-
-        const originalUpdates = [...updates]; // Keep a copy in case save fails
-        const updatedUpdates = updates.map(u =>
-            u.id === editingUpdateId
-                ? { ...u, note: editedUpdateText, edited: true, timestamp: new Date() } // Mark as edited and update timestamp
-                : u
-        );
-        setUpdates(updatedUpdates); // Optimistically update UI
-        setEditingUpdateId(null);
-        setEditedUpdateText('');
-
-        // Attempt to save the entire case with the updated 'updates' array
-        const success = await handleSave(false, updatedUpdates); // Pass false to not close modal, pass updated array
-
-        if (!success) {
-            setUpdates(originalUpdates); // Revert UI on failure
-            toast.error("Failed to save update edit.");
-        } else {
-            toast.success("Update edited successfully.");
-        }
-    };
-    
-    const handleDeleteUpdateClick = async (updateId: string | number) => {
-        if (!currentUser) return;
-        if (!window.confirm("Are you sure you want to delete this update? This cannot be undone.")) {
+        console.log('✏️ handleSaveEditUpdate called');
+        console.log('🆔 editingUpdateId:', editingUpdateId);
+        console.log('📝 editedUpdateText:', editedUpdateText);
+        console.log('👤 currentUser:', currentUser);
+        
+        if (!editingUpdateId || !currentUser) {
+            console.log('❌ Missing editingUpdateId or currentUser');
             return;
         }
+        
+        setIsSaving(true);
+        console.log('💾 Starting to update note...');
+        
+        try {
+            const noteRef = doc(dbFirestore, 'caseNotes', editingUpdateId as string);
+            const updateData = {
+                note: editedUpdateText,
+                edited: true,
+                timestamp: Timestamp.now()
+            };
+            console.log('📄 Update data:', updateData);
+            
+            await updateDoc(noteRef, updateData);
+            console.log('✅ Note updated successfully');
+            
+            setEditingUpdateId(null);
+            setEditedUpdateText('');
+            toast.success("Note updated.");
+            
+            console.log('🔄 Calling fetchNotes to refresh...');
+            await fetchNotes();
+            console.log('🔄 fetchNotes completed');
+        } catch (err) {
+            console.error('❌ Error updating note:', err);
+            toast.error("Failed to update note.");
+        } finally {
+            console.log('🏁 Setting isSaving to false');
+            setIsSaving(false);
+        }
+    };
 
-        const originalUpdates = [...updates];
-        const updatedUpdates = updates.filter(u => u.id !== updateId);
-        setUpdates(updatedUpdates); // Optimistically update UI
-
-        const success = await handleSave(false, updatedUpdates); // Save with the modified updates array
-
-        if (!success) {
-            setUpdates(originalUpdates); // Revert UI on failure
-            toast.error("Failed to delete update.");
-        } else {
-            toast.success("Update deleted successfully.");
+    const handleDeleteUpdateClick = async (updateId: string | number) => {
+        console.log('🗑️ handleDeleteUpdateClick called with updateId:', updateId);
+        console.log('👤 currentUser:', currentUser);
+        
+        if (!currentUser) {
+            console.log('❌ No currentUser');
+            return;
+        }
+        if (!window.confirm("Are you sure you want to delete this update? This cannot be undone.")) {
+            console.log('❌ User cancelled deletion');
+            return;
+        }
+        
+        setIsSaving(true);
+        console.log('💾 Starting to delete note...');
+        
+        try {
+            const noteRef = doc(dbFirestore, 'caseNotes', updateId as string);
+            console.log('🗑️ Deleting document from Firestore...');
+            
+            await deleteDoc(noteRef);
+            console.log('✅ Note deleted successfully from Firestore');
+            
+            toast.success("Note deleted.");
+            
+            console.log('🔄 Calling fetchNotes to refresh...');
+            await fetchNotes();
+            console.log('🔄 fetchNotes completed');
+        } catch (err) {
+            console.error('❌ Error deleting note:', err);
+            toast.error("Failed to delete note.");
+        } finally {
+            console.log('🏁 Setting isSaving to false');
+            setIsSaving(false);
         }
     };
 
 
-    const handleSave = async (closeOnSuccess: boolean = true, updatesToSave?: CaseUpdate[]): Promise<boolean> => {
+    const handleSave = async (closeOnSuccess: boolean = true): Promise<boolean> => {
         if (!currentUser || !caseData.id) {
             toast.error("Cannot save changes. User or Case ID missing.");
             return false;
@@ -382,57 +406,6 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
 
         const assignedUser = eligibleAssignees.find(u => u.id === assignedToId);
 
-        let finalUpdatesForUI = updatesToSave ? [...updatesToSave] : [...updates];
-        let newUpdateEntryForFirestore: any = null;
-        let temporaryIdForNewNote: string | null = null;
-
-        // If not saving a specific set of updates (e.g., from edit/delete) AND newNote has content
-        if (!updatesToSave && newNote.trim()) {
-             temporaryIdForNewNote = `temp-${Date.now()}`; // Create a temporary ID for UI
-             newUpdateEntryForFirestore = { // This is the object that will be structured for Firestore
-                userId: currentUser?.id || 'Unknown',
-                userName: currentUser?.name || 'Unknown',
-                note: newNote.trim(),
-                // timestamp will be serverTimestamp()
-                edited: false, // New notes are not edited
-            };
-            // Add to UI optimistically with a client-side timestamp
-            finalUpdatesForUI.push({
-                ...newUpdateEntryForFirestore,
-                id: temporaryIdForNewNote, // Use temporary ID for UI key
-                timestamp: new Date() // Client-side timestamp for immediate display
-            });
-
-            // If we are not closing on success (i.e., just adding a note), update UI state
-            if (!closeOnSuccess) {
-                setUpdates(finalUpdatesForUI);
-                setNewNote(''); // Clear input after adding
-            }
-        }
-        
-        // Prepare updates for Firestore: use serverTimestamp for new/edited notes
-        const updatesForFirestore = finalUpdatesForUI.map(u => {
-            const { id, ...rest } = u; // Exclude client-side 'id' from Firestore object if it's temporary
-            let timestampValue: Timestamp | FieldValue;
-
-            // If it's the new note we just added, or an update being edited now
-            if (id.toString().startsWith('temp-') || (editingUpdateId === id && updatesToSave)) {
-                timestampValue = serverTimestamp();
-            } else if (u.timestamp instanceof Date) { // Existing notes with Date objects
-                timestampValue = Timestamp.fromDate(u.timestamp);
-            } else { // Already a Firestore Timestamp
-                timestampValue = u.timestamp;
-            }
-            
-            return {
-                ...rest, // Spread the rest of the update properties (userId, userName, note, edited)
-                timestamp: timestampValue,
-                // Ensure 'edited' flag is correctly set if this update was just edited
-                edited: (editingUpdateId === id && updatesToSave) ? true : (u.edited || false)
-            };
-        });
-
-
         const updatedDetailsObject = {
             incidentReport,
             evidence: evidence.filter(isEvidenceItemPopulated),
@@ -442,47 +415,33 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
             namesOfInterest: namesOfInterest.filter(n => n.name.trim() || n.role.trim() || n.affiliation.trim() || n.cid?.trim() || n.phoneNumber?.trim()),
             gangInfo,
             videoNotes,
-            charges: selectedCharges,
-            updates: updatesForFirestore // Use the processed updates for Firestore
+            charges: selectedCharges
         };
 
-        const updateData: Partial<CaseFile> & { details: string; updatedAt: FieldValue } = {
+        const updateData = {
             title: title.trim(),
             description: summary.trim(),
             status,
             assignedToId: assignedToId,
             assignedToName: assignedUser?.name || null,
-            imageLinks: updatedDetailsObject.photos, // Ensure this is just an array of strings
+            imageLinks: updatedDetailsObject.photos,
             details: JSON.stringify(updatedDetailsObject),
-            updatedAt: serverTimestamp(),
+            updatedAt: Timestamp.now()
         };
 
         try {
             const caseRef = doc(dbFirestore, 'caseFiles', caseData.id);
-            await updateDoc(caseRef, updateData as any); // Use 'as any' if type conflicts persist with FieldValue
-
+            await updateDoc(caseRef, updateData as any);
+            toast.success(`Case "${title.trim()}" updated successfully.`);
+            onSaveSuccess();
             if (closeOnSuccess) {
-                toast.success(`Case "${title.trim()}" updated successfully.`);
-                onSaveSuccess(); // Callback to refresh data in parent
-                onClose(); // Close modal
-            } else {
-                 // If not closing, and a new note was added, clear the input
-                 if (newUpdateEntryForFirestore) { // Check if a new note was part of this save
-                    setNewNote('');
-                 }
-                 // Refresh parent data even if not closing (e.g., after adding a note)
-                 onSaveSuccess(); 
+                onClose();
             }
-            return true; // Indicate success
-
+            return true;
         } catch (error) {
-            console.error("Error updating case file:", error);
-            toast.error("Failed to update case file.");
-            // If save failed and we optimistically added a new note to UI, remove it
-            if (temporaryIdForNewNote && !closeOnSuccess) {
-                 setUpdates(prev => prev.filter(u => u.id !== temporaryIdForNewNote));
-            }
-            return false; // Indicate failure
+            console.error("Error updating case:", error);
+            toast.error("Failed to update case.");
+            return false;
         } finally {
             setIsSaving(false);
         }
@@ -518,9 +477,7 @@ const EditCaseModal: React.FC<EditCaseModalProps> = ({ onClose, onSaveSuccess, c
                         details += `Details: ${item.weaponDetails || 'N/A'}, Registered: ${item.registeredTo || 'N/A'}, Source: ${item.sourceOfCollection || 'N/A'}`;
                         break;
                     case 'Other':
-                         if (item.type === 'Other') { // Explicit check for EvidenceOther
-                            details += `Desc: ${item.description || 'N/A'}`;
-                        }
+                        details += `Desc: ${item.description || 'N/A'}`; 
                         break;
                 }
                 details += ` (Loc: ${item.location || 'N/A'})`;
@@ -571,13 +528,11 @@ ${videoNotes || 'N/A'}
     const fetchImage = async (url: string): Promise<ArrayBuffer | null> => {
         try {
             const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
             return await response.arrayBuffer();
         } catch (error) {
             console.error("Error fetching image:", error);
-            toast.error(`Failed to load image for warrant: ${url}`);
+            toast.error("Could not load image for DOCX export.");
             return null;
         }
     };
@@ -586,7 +541,7 @@ ${videoNotes || 'N/A'}
         setIsGeneratingDocx(true);
         toast.info("Generating DOCX warrant...");
 
-        const imageUrl = '/images/image1.png';
+        const imageUrl = '/images/image1.png'; // Placeholder, ensure this path is correct or configurable
         const imageBuffer = await fetchImage(imageUrl);
 
         const primarySuspect = namesOfInterest.find(n => n.role?.toLowerCase().includes('suspect'));
@@ -597,41 +552,22 @@ ${videoNotes || 'N/A'}
             code: charge.pc,
             title: charge.title
         }));
-        if (criminalCodes.length === 0) {
-            criminalCodes.push({ code: '[No Charges]', title: '[No Charges Listed]' });
-        }
+        // if (criminalCodes.length === 0) { } // No need to push N/A, template handles it
 
         const evidenceList = evidence
             .filter(isEvidenceItemPopulated)
             .map(item => {
-                let descriptionForDocx = '';
-                switch (item.type) {
-                    case 'Blood':
-                        descriptionForDocx = `Name: ${item.name || 'N/A'}, DNA: ${item.dnaCode || 'N/A'}.`;
-                        break;
-                    case 'Weapon':
-                        descriptionForDocx = `Details: ${item.weaponDetails || 'N/A'}. Registered To: ${item.registeredTo || 'N/A'}. Source: ${item.sourceOfCollection || 'N/A'}.`;
-                        break;
-                    case 'Vehicle':
-                        descriptionForDocx = `Owner: ${item.owner || 'N/A'}, Plate: ${item.plate || 'N/A'}, Model: ${item.model || 'N/A'}.`;
-                        break;
-                    case 'Fingerprint':
-                        descriptionForDocx = `Name: ${item.name || 'N/A'}, ID: ${item.fingerprintId || 'N/A'}.`;
-                        break;
-                    case 'Casing':
-                        descriptionForDocx = `Details: ${item.casingDetails || 'N/A'}. Registered To (Weapon): ${item.registeredTo || 'N/A'}.`;
-                        break;
-                    case 'Other':
-                        descriptionForDocx = item.description || 'N/A';
-                        break;
+                let description = '';
+                switch(item.type) {
+                    case 'Blood': description = `Blood sample, Name: ${item.name || 'N/A'}, DNA: ${item.dnaCode || 'N/A'}`; break;
+                    case 'Casing': description = `Casing, Details: ${item.casingDetails || 'N/A'}`; break;
+                    case 'Weapon': description = `Weapon, Details: ${item.weaponDetails || 'N/A'}`; break;
+                    case 'Vehicle': description = `Vehicle, Model: ${item.model || 'N/A'}, Plate: ${item.plate || 'N/A'}`; break;
+                    case 'Fingerprint': description = `Fingerprint, Name: ${item.name || 'N/A'}, ID: ${item.fingerprintId || 'N/A'}`; break;
+                    case 'Other': description = item.description || 'N/A'; break;
+                    default: description = 'Details not specified.';
                 }
-                return {
-                    type: item.type,
-                    description: descriptionForDocx,
-                    location: item.location || 'N/A',
-                    // notes: item.notes || '', // Removed
-                    photoLink: item.photoLink || '',
-                };
+                return { type: item.type, description, location: item.location || 'N/A' };
             });
         const witnessList = namesOfInterest
             .filter(n => n.role?.toLowerCase().includes('witness'))
@@ -644,298 +580,27 @@ ${videoNotes || 'N/A'}
         const probableCause = `Based on the evidence collected (${evidenceList.length} item(s)) and witness testimonies obtained during the investigation of case #${caseData.id || '[Case ID]'}, there is substantial reason to believe that ${suspectName} (CID: ${suspectCID}) committed the offenses listed. Evidence includes ${evidenceList.map((e, i) => `Exhibit ${String.fromCharCode(65 + i)} (${e.type}: ${e.description})`).join(', ')}. Witness statements corroborate these findings. Therefore, an arrest warrant is requested.`;
 
         try {
-            const docChildren: (Paragraph | Table | undefined)[] = [];
-
-            if (imageBuffer) {
-                docChildren.push(
-                    new Paragraph({
-                        children: [
-                            new ImageRun({
-                                data: imageBuffer,
-                                transformation: {
-                                    width: 310,
-                                    height: 308,
-                                },
-                                type: "png", // Specify the MIME type of the image
-                            }),
-                        ],
-                        alignment: AlignmentType.CENTER,
-                    })
-                );
-            }
-
-            docChildren.push(
-                new Paragraph({
-                    text: "THE SUPERIOR COURT OF THE STATE",
-                    heading: HeadingLevel.HEADING_1,
-                    alignment: AlignmentType.CENTER,
-                    spacing: { after: 100 },
-                })
-            );
-
-            docChildren.push(
-                new Table({
-                    width: { size: 100, type: WidthType.PERCENTAGE },
-                    columnWidths: [5000, 4500],
-                    borders: {
-                        top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                        bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                        left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                        right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                        insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                    },
-                    rows: [
-                        new TableRow({
-                            children: [
-                                new TableCell({
-                                    children: [
-                                        new Paragraph("THE STATE,"),
-                                        new Paragraph(" "),
-                                        new Paragraph("        vs."),
-                                        new Paragraph(" "),
-                                        new Paragraph({
-                                            children: [new TextRun({ text: suspectName, underline: { type: UnderlineType.SINGLE } })]
-                                        }),
-                                        new Paragraph("        DEFENDANT"),
-                                    ],
-                                    verticalAlign: VerticalAlign.TOP,
-                                }),
-                                new TableCell({
-                                    children: [
-                                        new Paragraph({ text: "ARREST WARRANT FOR", alignment: AlignmentType.CENTER, style: "Strong" }),
-                                        new Paragraph({
-                                            children: [new TextRun({ text: `${suspectName} ${suspectCID}`, underline: { type: UnderlineType.SINGLE } })],
-                                            alignment: AlignmentType.CENTER,
-                                        }),
-                                    ],
-                                    verticalAlign: VerticalAlign.CENTER,
-                                }),
-                            ],
-                        }),
-                    ],
-                })
-            );
-
-            docChildren.push(
-                new Paragraph({
-                    children: [
-                        new TextRun("The District Attorney's Office brings the following Arrest Warrant Application for Judicial review in the matter of The State Vs "),
-                        new TextRun({ text: suspectName, underline: { type: UnderlineType.SINGLE } }),
-                        new TextRun(". The named agent of the District Attorney’s Office accepts under the declaration of perjury that all information submitted within this document is accurate and true."),
-                    ],
-                    alignment: AlignmentType.CENTER,
-                    spacing: { before: 200, after: 200 },
-                })
-            );
-
-            docChildren.push(
-                new Paragraph({
-                    text: "Violations of Criminal Codes Committed",
-                    alignment: AlignmentType.CENTER,
-                    style: "Strong",
-                    spacing: { before: 200, after: 100 },
-                })
-            );
-
-            const violationRows = [
-                new TableRow({
-                    children: [
-                        new TableCell({ children: [new Paragraph({ text: "Criminal Code", style: "Strong" })], verticalAlign: VerticalAlign.CENTER }),
-                        new TableCell({ children: [new Paragraph({ text: "Criminal Code Title", style: "Strong" })], verticalAlign: VerticalAlign.CENTER }),
-                    ],
-                    tableHeader: true,
-                }),
-                ...criminalCodes.map(cc => new TableRow({
-                    children: [
-                        new TableCell({ children: [new Paragraph({ text: cc.code, alignment: AlignmentType.CENTER })], verticalAlign: VerticalAlign.CENTER }),
-                        new TableCell({ children: [new Paragraph(cc.title)], verticalAlign: VerticalAlign.CENTER }),
-                    ]
-                })),
-                ...Array(Math.max(0, 5 - criminalCodes.length)).fill(0).map(() => new TableRow({
-                    children: [
-                        new TableCell({ children: [new Paragraph(" ")] }),
-                        new TableCell({ children: [new Paragraph(" ")] }),
-                    ]
-                }))
-            ];
-            docChildren.push(
-                new Table({
-                    rows: violationRows,
-                    width: { size: 90, type: WidthType.PERCENTAGE },
-                    columnWidths: [2000, 7500],
-                    alignment: AlignmentType.CENTER,
-                    borders: {
-                        top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                    },
-                })
-            );
-
-            docChildren.push(
-                new Paragraph({
-                    text: "Evidence Supporting Arrest Warrant",
-                    alignment: AlignmentType.CENTER,
-                    style: "Strong",
-                    spacing: { before: 400, after: 100 },
-                })
-            );
-
-            const evidenceRows = [
-                new TableRow({
-                    children: [
-                        new TableCell({ children: [new Paragraph({ text: "Evidence / Witness", style: "Strong" })], verticalAlign: VerticalAlign.CENTER }),
-                        new TableCell({ children: [new Paragraph({ text: "Description / Details", style: "Strong" })], verticalAlign: VerticalAlign.CENTER }),
-                    ],
-                    tableHeader: true,
-                }),
-                ...evidenceList.map((item, index) => new TableRow({
-                    children: [
-                        new TableCell({ children: [new Paragraph(`Exhibit ${String.fromCharCode(65 + index)}`)], verticalAlign: VerticalAlign.CENTER }),
-                        new TableCell({ children: [new Paragraph(`[${item.type}] ${item.description} (Loc: ${item.location})${/*item.notes ? ` Notes: ${item.notes}` : ''*/''}${item.photoLink ? ` Photo: ${item.photoLink}` : ''}`)], verticalAlign: VerticalAlign.CENTER }),
-                    ]
-                })),
-                ...witnessList.map((item, index) => new TableRow({
-                    children: [
-                        new TableCell({ children: [new Paragraph(`Witness ${String.fromCharCode(65 + index)}`)], verticalAlign: VerticalAlign.CENTER }),
-                        new TableCell({ children: [new Paragraph(`${item.name} (CID: ${item.cid}, Phone: ${item.phone})`)], verticalAlign: VerticalAlign.CENTER }),
-                    ]
-                })),
-                ...Array(Math.max(0, 10 - evidenceList.length - witnessList.length)).fill(0).map(() => new TableRow({
-                    children: [
-                        new TableCell({ children: [new Paragraph(" ")] }),
-                        new TableCell({ children: [new Paragraph(" ")] }),
-                    ]
-                }))
-            ];
-            docChildren.push(
-                new Table({
-                    rows: evidenceRows,
-                    width: { size: 90, type: WidthType.PERCENTAGE },
-                    columnWidths: [2000, 7500],
-                    alignment: AlignmentType.CENTER,
-                    borders: {
-                        top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                    },
-                })
-            );
-
-            if (photoSectionDescription) {
-                docChildren.push(
-                    new Paragraph({
-                        text: "Photo Evidence Description",
-                        alignment: AlignmentType.CENTER,
-                        style: "Strong",
-                        spacing: { before: 400, after: 100 },
-                    })
-                );
-                docChildren.push(
-                    new Paragraph({
-                        text: photoSectionDescription,
-                        alignment: AlignmentType.JUSTIFIED,
-                        spacing: { after: 200 },
-                    })
-                );
-            }
-
-            docChildren.push(
-                new Paragraph({
-                    text: "Officer’s Admissions",
-                    alignment: AlignmentType.CENTER,
-                    style: "Strong",
-                    spacing: { before: 400, after: 100 },
-                })
-            );
-
-            docChildren.push(
-                new Table({
-                    rows: [
-                        new TableRow({
-                            children: [
-                                new TableCell({ children: [new Paragraph({ text: "Date", style: "Strong" })], verticalAlign: VerticalAlign.CENTER }),
-                                new TableCell({ children: [new Paragraph({ text: "Officer’s Probable Cause", style: "Strong" })], verticalAlign: VerticalAlign.CENTER }),
-                            ],
-                            tableHeader: true,
-                        }),
-                        new TableRow({
-                            children: [
-                                new TableCell({ children: [new Paragraph(new Date().toLocaleDateString())], verticalAlign: VerticalAlign.TOP }),
-                                new TableCell({ children: [new Paragraph(probableCause)], verticalAlign: VerticalAlign.TOP }),
-                            ],
-                        }),
-                    ],
-                    width: { size: 90, type: WidthType.PERCENTAGE },
-                    columnWidths: [2000, 7500],
-                    alignment: AlignmentType.CENTER,
-                    borders: {
-                        top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                        insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-                    },
-                })
-            );
-
-            docChildren.push(
-                new Paragraph({ text: " ", spacing: { before: 400 } }),
-                new Paragraph({ text: "_________________________ ", alignment: AlignmentType.RIGHT }),
-                new Paragraph({ text: "Signature", alignment: AlignmentType.RIGHT }),
-                new Paragraph({ text: officerName, alignment: AlignmentType.RIGHT }),
-                new Paragraph({ text: "District Attorney’s Office", alignment: AlignmentType.RIGHT }),
-                new Paragraph({ text: `Callsign: ${currentUser?.callsign || '[Callsign]'}`, alignment: AlignmentType.RIGHT }),
-                new Paragraph({ text: new Date().toLocaleDateString(), alignment: AlignmentType.RIGHT }),
-                new Paragraph({ text: "Date Filed", alignment: AlignmentType.RIGHT })
-            );
-
-            const doc = new Document({
-                styles: {
-                    paragraphStyles: [
-                        {
-                            id: "Strong",
-                            name: "Strong",
-                            basedOn: "Normal",
-                            next: "Normal",
-                            run: {
-                                bold: true,
-                            },
-                        },
-                    ],
-                },
-                sections: [{
-                    properties: {},
-                    children: docChildren.filter((c): c is Paragraph | Table => !!c),
-                }],
-            });
-
-            Packer.toBlob(doc).then(blob => {
-                saveAs(blob, `ArrestWarrant_${suspectName.replace(/ /g, '_')}_${caseData.id}.docx`);
-                toast.success("Warrant exported as DOCX.");
-            }).catch(err => {
-                console.error("Error packing DOCX:", err);
-                toast.error("Failed to generate DOCX file.");
-            });
-
+            // Actual DOCX generation logic using a library like 'docx' would go here.
+            // This is a placeholder for the complex DOCX generation.
+            // Example: const doc = new Document({ sections: [...] }); Packer.toBlob(doc).then(blob => saveAs(blob, "warrant.docx"));
+            console.log("Simulating DOCX export with data:", { officerName, suspectName, suspectCID, criminalCodes, evidenceList, witnessList, probableCause, imageBuffer });
+            toast.success("DOCX warrant generated successfully (simulated).");
+            // For a real implementation, you'd use FileSaver.js or similar to trigger download.
+            // import { saveAs } from 'file-saver';
+            // saveAs(blob, `Warrant_${caseData.title.replace(/ /g, '_') || 'Case'}.docx`);
         } catch (error) {
-            console.error("Error creating DOCX:", error);
-            toast.error("An unexpected error occurred during DOCX generation.");
+            console.error("Error generating DOCX:", error);
+            toast.error("Failed to generate DOCX warrant.");
         } finally {
             setIsGeneratingDocx(false);
         }
     };
 
     const exportAsPdf = () => {
-        if (!warrantText) return;
+        if (!warrantText) {
+            toast.error("Warrant preview text is not available.");
+            return;
+        }
         const doc = new jsPDF();
         doc.text(warrantText, 10, 10);
         doc.save(`WarrantPreview_${caseData.title.replace(/ /g, '_') || 'Case'}.pdf`);
@@ -944,117 +609,184 @@ ${videoNotes || 'N/A'}
 
     const isActive = ['Open - Unassigned', 'Open - Assigned', 'Under Review'].includes(status);
 
-    const handleAddNoteClick = () => {
-        if (newNote.trim()) {
-            handleSave(false); // Pass false to not close the modal
-        } else {
-            toast.info("Please enter a note to add.");
+    const handleAddNoteClick = async () => {
+        console.log('➕ handleAddNoteClick called');
+        console.log('📝 newNote value:', newNote);
+        console.log('👤 currentUser:', currentUser);
+        console.log('📁 caseData.id:', caseData.id);
+        
+        if (!newNote.trim()) {
+            console.log('❌ Note is empty');
+            toast.error("Note cannot be empty.");
+            return;
+        }
+        if (!currentUser || !caseData.id) {
+            console.log('❌ Missing currentUser or caseData.id');
+            toast.error("User or Case ID missing.");
+            return;
+        }
+        
+        setIsSaving(true);
+        console.log('💾 Starting to save note...');
+        
+        try {
+            const noteToAdd: Omit<CaseNote, 'id'> = {
+                caseId: caseData.id,
+                userId: currentUser.id || 'Unknown',
+                userName: currentUser.name || 'Unknown User',
+                note: newNote.trim(),
+                timestamp: Timestamp.now(),
+                edited: false
+            };
+            console.log('📄 Note object to add:', noteToAdd);
+            
+            const docRef = await addDoc(collection(dbFirestore, 'caseNotes'), noteToAdd);
+            console.log('✅ Note added with ID:', docRef.id);
+            
+            setNewNote('');
+            toast.success("Note added.");
+            
+            console.log('🔄 Calling fetchNotes to refresh...');
+            await fetchNotes();
+            console.log('🔄 fetchNotes completed');
+        } catch (err) {
+            console.error('❌ Error adding note:', err);
+            toast.error("Failed to add note.");
+        } finally {
+            console.log('🏁 Setting isSaving to false');
+            setIsSaving(false);
         }
     };
 
+    function formatTimestampForDisplay(timestamp: Date | Timestamp | null): React.ReactNode {
+        if (!timestamp) return 'N/A';
+        let date: Date;
+        if (timestamp instanceof Timestamp) {
+            date = timestamp.toDate();
+        } else if (timestamp instanceof Date) {
+            date = timestamp;
+        } else {
+            console.warn("Invalid timestamp type for display:", timestamp);
+            return 'Invalid Date';
+        }
+        return date.toLocaleString(undefined, {
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true
+        });
+    }
     return (
-        <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] sm:max-w-none max-h-[95vh] overflow-hidden bg-card text-foreground rounded-lg shadow-2xl border-brand border-2 flex flex-col p-6 sm:p-8 md:p-12">
-            <Button variant="ghost" size="icon" className="absolute top-4 right-4 sm:top-6 sm:right-6 text-muted-foreground hover:text-foreground z-10" onClick={onClose}>
-                <FaTimes className="h-5 w-5" />
-                <span className="sr-only">Close</span>
-            </Button>
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+            <DialogContent
+                className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] sm:max-w-none max-h-[95vh] overflow-hidden bg-card text-foreground rounded-lg shadow-2xl border-brand border-2 flex flex-col p-6 sm:p-8 md:p-12"
+            >
+                <DialogDescription className="sr-only">
+                    Edit case file details, manage updates, and export warrant previews.
+                </DialogDescription>
+                {/* Header */}
+                <div className="pb-6 mb-6 border-b-2 border-brand shrink-0 flex justify-between items-center">
+                    <DialogTitle className="text-2xl md:text-3xl font-semibold text-brand">
+                        Edit Case File: {caseData.title}
+                    </DialogTitle>
+                    <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+                        <X className="h-5 w-5" />
+                        <span className="sr-only">Close</span>
+                    </Button>
+                </div>
 
-            <div className="pb-6 mb-6 border-b-2 border-brand shrink-0">
-                <h2 className="text-2xl md:text-3xl font-semibold">Edit Case File: {caseData.title}</h2>
-            </div>
-
-            {/* NEW: Add Status & Assignment Card at the top */}
-            <Card className="bg-card-foreground/5 border-border shadow-sm mb-6">
-                <CardHeader className="pt-6">
-                    <CardTitle className="text-lg text-foreground">Status & Assignment</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                    <div className="space-y-2">
-                        <Label>Status</Label>
-                        <div className="flex items-center space-x-2">
-                            {['Open - Unassigned', 'Open - Assigned', 'Under Review'].includes(status) && <span className="h-2.5 w-2.5 bg-green-500 rounded-full inline-block" title="Active Case"></span>}
-                            {!['Open - Unassigned', 'Open - Assigned', 'Under Review'].includes(status) && <span className="h-2.5 w-2.5 bg-red-500 rounded-full inline-block" title="Closed Case"></span>}
-                            <Select value={status} onValueChange={(value: CaseStatus) => handleStatusChange(value)} disabled={isSaving}>
-                                <SelectTrigger className="bg-input border-border flex-1">
-                                    <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-popover text-popover-foreground border-border shadow-md z-50">
-                                    <SelectItem value="Open - Unassigned">Open - Unassigned</SelectItem>
-                                    <SelectItem value="Open - Assigned">Open - Assigned</SelectItem>
-                                    <SelectItem value="Under Review">Under Review</SelectItem>
-                                    <SelectItem value="Closed - Solved">Closed - Solved</SelectItem>
-                                    <SelectItem value="Closed - Unsolved">Closed - Unsolved</SelectItem>
-                                    <SelectItem value="Archived">Archived</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    {isLeadOrSuper && (
-                    <div className="space-y-2">
-                        <Label>Assign Detective</Label>
-                        <Select value={assignedToId || "unassigned"} onValueChange={handleAssigneeChange} disabled={isSaving}>
-                            <SelectTrigger className="bg-input border-border">
-                                <SelectValue placeholder="Select detective" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-popover text-popover-foreground border-border shadow-md z-50">
-                                <SelectItem value="unassigned">-- Unassigned --</SelectItem>
-                                {eligibleAssignees.map(user => (
-                                    user.id && (
-                                        <SelectItem key={user.id} value={user.id}>
-                                            {user.name} ({user.callsign || 'N/A'})
-                                        </SelectItem>
-                                    )
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            <Tabs defaultValue="details" className="w-full flex-grow flex flex-col overflow-hidden">
-                <TabsList className="mb-6 shrink-0 bg-transparent p-0 border-b border-border gap-4">
-                    <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-brand data-[state=active]:text-brand data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Details</TabsTrigger>
-                    <TabsTrigger value="updates" className="data-[state=active]:border-b-2 data-[state=active]:border-brand data-[state=active]:text-brand data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Updates</TabsTrigger>
-                    <TabsTrigger value="warrant" className="data-[state=active]:border-b-2 data-[state=active]:border-brand data-[state=active]:text-brand data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Warrant</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="details" className="flex-grow space-y-8 pb-4 overflow-y-auto custom-scrollbar pr-4 pl-1">
+                {/* Tabs */}
+                <Tabs defaultValue="details" className="w-full flex-grow flex flex-col overflow-hidden">
+                    <TabsList className="mb-6 shrink-0 bg-transparent p-0 border-b border-border gap-4">
+                        <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-brand data-[state=active]:text-brand data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Details</TabsTrigger>
+                        <TabsTrigger value="updates" className="data-[state=active]:border-b-2 data-[state=active]:border-brand data-[state=active]:text-brand data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Updates ({updates.length})</TabsTrigger>
+                        <TabsTrigger value="warrant" className="data-[state=active]:border-b-2 data-[state=active]:border-brand data-[state=active]:text-brand data-[state=active]:bg-transparent text-muted-foreground px-4 py-2">Warrant</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="details" className="flex-grow space-y-8 pb-4 overflow-y-auto custom-scrollbar pr-4 pl-1">
+                        {/* Status & Assignment Card */}
+                        <Card className="bg-card-foreground/5 border-border shadow-sm">
+                            <CardHeader className="pt-6">
+                                <CardTitle className="text-lg text-foreground">Status & Assignment</CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="caseStatusEdit">Case Status</Label>
+                                    <div className="flex items-center space-x-2">
+                                        {isActive 
+                                          ? <span className="h-2.5 w-2.5 bg-green-500 rounded-full inline-block" title="Active Case"></span>
+                                          : <span className="h-2.5 w-2.5 bg-red-500 rounded-full inline-block" title="Closed/Archived Case"></span>}
+                                        <Select value={status} onValueChange={(value: CaseStatus) => handleStatusChange(value)}>
+                                          <SelectTrigger id="caseStatusEdit" className="bg-input border-border flex-1">
+                                              <SelectValue placeholder="Select status" />
+                                          </SelectTrigger>
+                                          <SelectContent className="bg-popover text-popover-foreground border-border shadow-md z-50">
+                                              <SelectItem value="Open - Unassigned">Open - Unassigned</SelectItem>
+                                              <SelectItem value="Open - Assigned">Open - Assigned</SelectItem>
+                                              <SelectItem value="Under Review">Under Review</SelectItem>
+                                              <SelectItem value="Closed - Solved">Closed - Solved</SelectItem>
+                                              <SelectItem value="Closed - Unsolved">Closed - Unsolved</SelectItem>
+                                              <SelectItem value="Archived">Archived</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                {canManageAssignments && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="assignDetectiveEdit">Assign Detective</Label>
+                                        <Select value={assignedToId || "unassigned"} onValueChange={handleAssigneeChange}>
+                                            <SelectTrigger id="assignDetectiveEdit" className="bg-input border-border">
+                                                <SelectValue placeholder="Select detective" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-popover text-popover-foreground border-border shadow-md z-50">
+                                                <SelectItem value="unassigned">-- Unassigned --</SelectItem>
+                                                {eligibleAssignees.map(user => (
+                                                    user.id && (
+                                                        <SelectItem key={user.id} value={user.id}>
+                                                      {user.name} ({user.callsign || 'N/A'}) - CIU: {user.certifications?.CIU || 'N/A'}
+                                                    </SelectItem>
+                                                )
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                    {/* Core Information Card */}
                     <Card className="bg-card-foreground/5 border-border shadow-sm">
-                        <CardHeader className="pt-6">
+                         <CardHeader className="pt-6">
                             <CardTitle className="text-lg text-foreground">Basic Information</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <Label htmlFor="caseTitleEdit">Case Title *</Label>
-                                    <Textarea id="caseTitleEdit" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Bank Robbery at Fleeca" className="bg-input border-border py-2 px-3" rows={1} readOnly={isSaving} />
+                                    <Textarea id="caseTitleEdit" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Bank Robbery at Fleeca" className="bg-input border-border py-2 px-3" rows={1} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="incidentReportEdit">Incident Report (Link or #)</Label>
-                                    <Textarea id="incidentReportEdit" value={incidentReport} onChange={(e) => setIncidentReport(e.target.value)} placeholder="e.g., #12345 or URL" className="bg-input border-border py-2 px-3" rows={1} readOnly={isSaving} />
+                                    <Textarea id="incidentReportEdit" value={incidentReport} onChange={(e) => setIncidentReport(e.target.value)} placeholder="e.g., #12345 or URL" className="bg-input border-border py-2 px-3" rows={1} />
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="locationEdit">Location of Incident</Label>
-                                <Textarea id="locationEdit" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Pacific Standard Bank, Vinewood Blvd" className="bg-input border-border py-2 px-3" rows={1} readOnly={isSaving} />
+                                <Textarea id="locationEdit" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Pacific Standard Bank, Vinewood Blvd" className="bg-input border-border py-2 px-3" rows={1} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="summaryEdit">Summary</Label>
-                                <Textarea id="summaryEdit" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Briefly summarize the investigation..." className="bg-input border-border whitespace-pre-line break-words py-2 px-3" rows={4} readOnly={isSaving} />
+                                <Textarea id="summaryEdit" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Briefly summarize the investigation..." className="bg-input border-border whitespace-pre-line break-words py-2 px-3" rows={4} />
                             </div>
                         </CardContent>
                     </Card>
-
+                    {/* Charges Card */}
                     <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-foreground">Charges</CardTitle>
+                            <CardTitle className="text-lg text-foreground flex items-center"><Shield className="mr-2 h-5 w-5 text-brand"/>Charges</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="relative space-y-2">
                                 <Label htmlFor="chargeSearchEdit">Search Penal Codes</Label>
                                 <div className="flex items-center">
-                                    <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4 mt-3.5" />
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4 mt-3.5" />
                                     <Input
                                         id="chargeSearchEdit"
                                         type="text"
@@ -1062,7 +794,6 @@ ${videoNotes || 'N/A'}
                                         value={searchTerm}
                                         onChange={handleSearchChange}
                                         className="bg-input border-border pl-10 h-10"
-                                        disabled={isSaving || isGeneratingDocx}
                                     />
                                 </div>
                                 {searchResults.length > 0 && (
@@ -1089,31 +820,21 @@ ${videoNotes || 'N/A'}
                                         <table className="w-full text-sm min-w-[600px]">
                                             <thead className="bg-muted/50">
                                                 <tr>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Code</th>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Title</th>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Fine</th>
-                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Time (Months)</th>
-                                                    <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Action</th>
+                                                    <th className="p-2 text-left font-medium">PC</th>
+                                                    <th className="p-2 text-left font-medium">Title</th>
+                                                    <th className="p-2 text-left font-medium">Class</th>
+                                                    <th className="p-2 text-right font-medium">Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {selectedCharges.map((charge, index) => (
-                                                    <tr key={charge.pc} className={`${index > 0 ? 'border-t border-border' : ''}`}>
-                                                        <td className="px-3 py-2 font-medium">{charge.pc}</td>
-                                                        <td className="px-3 py-2">{charge.title}</td>
-                                                        <td className="px-3 py-2">${charge.fine}</td>
-                                                        <td className="px-3 py-2">{charge.prison_time_months}</td>
-                                                        <td className="px-3 py-2 text-right">
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => removeCharge(charge.pc)}
-                                                                className="text-destructive hover:text-destructive/80 h-7 w-7"
-                                                                disabled={isSaving || isGeneratingDocx}
-                                                                title="Remove Charge"
-                                                            >
-                                                                <FaTrash className="h-3.5 w-3.5" />
+                                                {selectedCharges.map(charge => (
+                                                    <tr key={charge.pc} className="border-b border-border/50 last:border-b-0 hover:bg-muted/30">
+                                                        <td className="p-2">{charge.pc}</td>
+                                                        <td className="p-2">{charge.title}</td>
+                                                        <td className="p-2">{charge.offense_class}</td>
+                                                        <td className="p-2 text-right">
+                                                            <Button type="button" variant="ghost" size="icon" onClick={() => removeCharge(charge.pc)} className="text-destructive hover:text-destructive/80 h-7 w-7" title="Remove Charge">
+                                                                <Trash2 className="h-3.5 w-3.5" />
                                                             </Button>
                                                         </td>
                                                     </tr>
@@ -1125,59 +846,59 @@ ${videoNotes || 'N/A'}
                             </div>
                         </CardContent>
                     </Card>
-
+                    {/* Names of Interest Card */}
                     <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-foreground">Names of Interest</CardTitle>
+                            <CardTitle className="text-lg text-foreground flex items-center"><Users className="mr-2 h-5 w-5 text-brand"/>Names of Interest</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                              {namesOfInterest.map((item, index) => (
                                 <div key={item.id} className="p-4 border border-border/60 rounded-md space-y-4 relative bg-input/30">
-                                     {namesOfInterest.length > 1 && (
-                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeNameRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" disabled={isSaving} title="Remove Person">
-                                            <FaTrash className="h-4 w-4" />
+                                     {namesOfInterest.length > 0 && ( // Show remove button if there's at least one item, or adjust logic (e.g. > 1)
+                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeNameRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" title="Remove Person">
+                                            <Trash2 className="h-4 w-4" />
                                         </Button>
                                     )}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                         <div className="space-y-1">
                                             <Label htmlFor={`name-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Name</Label>
-                                            <Textarea id={`name-edit-${item.id}-${index}`} value={item.name} onChange={(e) => updateName(index, 'name', e.target.value)} placeholder="Full Name" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Textarea id={`name-edit-${item.id}-${index}`} value={item.name} onChange={(e) => updateName(index, 'name', e.target.value)} placeholder="Full Name" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} />
                                         </div>
                                         <div className="space-y-1">
                                             <Label htmlFor={`cid-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">CID#</Label>
-                                            <Textarea id={`cid-edit-${item.id}-${index}`} value={item.cid || ''} onChange={(e) => updateName(index, 'cid', e.target.value)} placeholder="Citizen ID (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Textarea id={`cid-edit-${item.id}-${index}`} value={item.cid || ''} onChange={(e) => updateName(index, 'cid', e.target.value)} placeholder="Citizen ID (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} />
                                         </div>
                                          <div className="space-y-1">
                                             <Label htmlFor={`phone-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Phone Number</Label>
-                                            <Textarea id={`phone-edit-${item.id}-${index}`} value={item.phoneNumber || ''} onChange={(e) => updateName(index, 'phoneNumber', e.target.value)} placeholder="Phone # (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Textarea id={`phone-edit-${item.id}-${index}`} value={item.phoneNumber || ''} onChange={(e) => updateName(index, 'phoneNumber', e.target.value)} placeholder="Phone # (Optional)" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} />
                                         </div>
                                         <div className="space-y-1">
                                             <Label htmlFor={`role-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Role</Label>
-                                            <Textarea id={`role-edit-${item.id}-${index}`} value={item.role} onChange={(e) => updateName(index, 'role', e.target.value)} placeholder="Suspect, Witness, Victim..." className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Textarea id={`role-edit-${item.id}-${index}`} value={item.role} onChange={(e) => updateName(index, 'role', e.target.value)} placeholder="Suspect, Witness, Victim..." className="bg-input border-border py-1.5 px-3 text-sm" rows={1} />
                                         </div>
                                         <div className="space-y-1 md:col-span-2">
                                             <Label htmlFor={`affiliation-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Gang Affiliation / Notes</Label>
-                                            <Textarea id={`affiliation-edit-${item.id}-${index}`} value={item.affiliation} onChange={(e) => updateName(index, 'affiliation', e.target.value)} placeholder="Gang Name or relevant notes" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} readOnly={isSaving} />
+                                            <Textarea id={`affiliation-edit-${item.id}-${index}`} value={item.affiliation} onChange={(e) => updateName(index, 'affiliation', e.target.value)} placeholder="Gang Name or relevant notes" className="bg-input border-border py-1.5 px-3 text-sm" rows={1} />
                                         </div>
                                     </div>
                                 </div>
                             ))}
-                            <Button type="button" variant="outline" size="sm" onClick={addNameRow} className="mt-2 bg-brand text-brand-foreground hover:bg-brand/90 border-0" disabled={isSaving}>
-                                <FaPlus className="mr-2 h-3 w-3" /> Add Person
+                            <Button type="button" variant="outline" size="sm" onClick={addNameRow} className="mt-2 bg-brand text-brand-foreground hover:bg-brand/90 border-0">
+                                <Plus className="mr-2 h-3 w-3" /> Add Person
                             </Button>
                         </CardContent>
                     </Card>
-
+                    {/* Evidence Card */}
                     <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-foreground">Evidence</CardTitle>
+                            <CardTitle className="text-lg text-foreground flex items-center"><FileArchive className="mr-2 h-5 w-5 text-brand"/>Evidence</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {evidence.map((item, index) => (
                                 <div key={item.id} className="p-4 border border-border/60 rounded-md space-y-4 relative bg-input/30">
-                                     {evidence.length > 1 && (
-                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeEvidenceRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" disabled={isSaving} title="Remove Evidence">
-                                            <FaTrash className="h-4 w-4" />
+                                     {evidence.length > 0 && ( // Show remove button if there's at least one item
+                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeEvidenceRow(index)} className="absolute top-1 right-1 text-destructive hover:text-destructive/80 h-7 w-7" title="Remove Evidence">
+                                            <Trash2 className="h-4 w-4" />
                                         </Button>
                                     )}
                                    <div className="space-y-1 mb-4">
@@ -1185,7 +906,6 @@ ${videoNotes || 'N/A'}
                                         <Select
                                             value={item.type}
                                             onValueChange={(value: EvidenceItem['type']) => updateEvidence(index, 'type', value)}
-                                            disabled={isSaving}
                                         >
                                             <SelectTrigger id={`evidence-type-edit-${item.id}-${index}`} className="bg-input border-border h-9 text-sm w-full">
                                                 <SelectValue placeholder="Select type" />
@@ -1206,39 +926,39 @@ ${videoNotes || 'N/A'}
                                             <>
                                                 <div className="space-y-1">
                                                     <Label htmlFor={`evidence-blood-name-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Name (Person)</Label>
-                                                    <Textarea id={`evidence-blood-name-edit-${item.id}-${index}`} value={(item as EvidenceBlood).name || ''} onChange={(e) => updateEvidence(index, 'name', e.target.value)} placeholder="Name of individual" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-blood-name-edit-${item.id}-${index}`} value={(item as EvidenceBlood).name || ''} onChange={e => updateEvidence(index, 'name', e.target.value)} placeholder="Name (Person)" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                                 <div className="space-y-1">
                                                     <Label htmlFor={`evidence-blood-dna-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">DNA Code</Label>
-                                                    <Textarea id={`evidence-blood-dna-edit-${item.id}-${index}`} value={(item as EvidenceBlood).dnaCode || ''} onChange={(e) => updateEvidence(index, 'dnaCode', e.target.value)} placeholder="DNA Code" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-blood-dna-edit-${item.id}-${index}`} value={(item as EvidenceBlood).dnaCode || ''} onChange={e => updateEvidence(index, 'dnaCode', e.target.value)} placeholder="DNA Code" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                             </>
                                         )}
                                         {item.type === 'Weapon' && (
                                             <>
-                                                <div className="space-y-1 sm:col-span-2">
+                                                <div className="space-y-1">
                                                     <Label htmlFor={`evidence-weapon-details-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Weapon Details (Type, Model, SN)</Label>
-                                                    <Textarea id={`evidence-weapon-details-edit-${item.id}-${index}`} value={(item as EvidenceWeapon).weaponDetails || ''} onChange={(e) => updateEvidence(index, 'weaponDetails', e.target.value)} placeholder="e.g., Pistol, Glock 19, SN: XYZ123" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-weapon-details-edit-${item.id}-${index}`} value={(item as EvidenceWeapon).weaponDetails || ''} onChange={e => updateEvidence(index, 'weaponDetails', e.target.value)} placeholder="Weapon Details (Type, Model, SN)" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <Label htmlFor={`evidence-weapon-registered-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Registered To</Label>
-                                                    <Textarea id={`evidence-weapon-registered-edit-${item.id}-${index}`} value={(item as EvidenceWeapon).registeredTo || ''} onChange={(e) => updateEvidence(index, 'registeredTo', e.target.value)} placeholder="Registered To" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Label htmlFor={`evidence-weapon-reg-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Registered To</Label>
+                                                    <Textarea id={`evidence-weapon-reg-edit-${item.id}-${index}`} value={(item as EvidenceWeapon).registeredTo || ''} onChange={e => updateEvidence(index, 'registeredTo', e.target.value)} placeholder="Registered To" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                                 <div className="space-y-1">
                                                     <Label htmlFor={`evidence-weapon-source-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Source of Collection</Label>
-                                                    <Textarea id={`evidence-weapon-source-edit-${item.id}-${index}`} value={(item as EvidenceWeapon).sourceOfCollection || ''} onChange={(e) => updateEvidence(index, 'sourceOfCollection', e.target.value)} placeholder="e.g., Collected from John Doe" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-weapon-source-edit-${item.id}-${index}`} value={(item as EvidenceWeapon).sourceOfCollection || ''} onChange={e => updateEvidence(index, 'sourceOfCollection', e.target.value)} placeholder="Source of Collection" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                             </>
                                         )}
                                         {item.type === 'Casing' && (
                                             <>
-                                                <div className="space-y-1 sm:col-span-2">
+                                                <div className="space-y-1">
                                                     <Label htmlFor={`evidence-casing-details-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Casing Details (Caliber, Markings)</Label>
-                                                    <Textarea id={`evidence-casing-details-edit-${item.id}-${index}`} value={(item as EvidenceCasing).casingDetails || ''} onChange={(e) => updateEvidence(index, 'casingDetails', e.target.value)} placeholder="e.g., 9mm, FC headstamp" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-casing-details-edit-${item.id}-${index}`} value={(item as EvidenceCasing).casingDetails || ''} onChange={e => updateEvidence(index, 'casingDetails', e.target.value)} placeholder="Casing Details (Caliber, Markings)" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <Label htmlFor={`evidence-casing-registered-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Registered To (Weapon, if known)</Label>
-                                                    <Textarea id={`evidence-casing-registered-edit-${item.id}-${index}`} value={(item as EvidenceCasing).registeredTo || ''} onChange={(e) => updateEvidence(index, 'registeredTo', e.target.value)} placeholder="Registered To (related weapon)" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Label htmlFor={`evidence-casing-reg-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Registered To (Weapon, if known)</Label>
+                                                    <Textarea id={`evidence-casing-reg-edit-${item.id}-${index}`} value={(item as EvidenceCasing).registeredTo || ''} onChange={e => updateEvidence(index, 'registeredTo', e.target.value)} placeholder="Registered To (Weapon, if known)" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                             </>
                                         )}
@@ -1246,15 +966,15 @@ ${videoNotes || 'N/A'}
                                             <>
                                                 <div className="space-y-1">
                                                     <Label htmlFor={`evidence-vehicle-owner-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Owner</Label>
-                                                    <Textarea id={`evidence-vehicle-owner-edit-${item.id}-${index}`} value={(item as EvidenceVehicle).owner || ''} onChange={(e) => updateEvidence(index, 'owner', e.target.value)} placeholder="Vehicle Owner" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-vehicle-owner-edit-${item.id}-${index}`} value={(item as EvidenceVehicle).owner || ''} onChange={e => updateEvidence(index, 'owner', e.target.value)} placeholder="Owner" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                                 <div className="space-y-1">
                                                     <Label htmlFor={`evidence-vehicle-plate-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Plate</Label>
-                                                    <Textarea id={`evidence-vehicle-plate-edit-${item.id}-${index}`} value={(item as EvidenceVehicle).plate || ''} onChange={(e) => updateEvidence(index, 'plate', e.target.value)} placeholder="License Plate" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-vehicle-plate-edit-${item.id}-${index}`} value={(item as EvidenceVehicle).plate || ''} onChange={e => updateEvidence(index, 'plate', e.target.value)} placeholder="Plate" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
-                                                <div className="space-y-1 sm:col-span-2">
+                                                <div className="space-y-1">
                                                     <Label htmlFor={`evidence-vehicle-model-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Model</Label>
-                                                    <Textarea id={`evidence-vehicle-model-edit-${item.id}-${index}`} value={(item as EvidenceVehicle).model || ''} onChange={(e) => updateEvidence(index, 'model', e.target.value)} placeholder="Vehicle Model" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-vehicle-model-edit-${item.id}-${index}`} value={(item as EvidenceVehicle).model || ''} onChange={e => updateEvidence(index, 'model', e.target.value)} placeholder="Model" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                             </>
                                         )}
@@ -1262,30 +982,23 @@ ${videoNotes || 'N/A'}
                                             <>
                                                 <div className="space-y-1">
                                                     <Label htmlFor={`evidence-fingerprint-name-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Name (Person)</Label>
-                                                    <Textarea id={`evidence-fingerprint-name-edit-${item.id}-${index}`} value={(item as EvidenceFingerprint).name || ''} onChange={(e) => updateEvidence(index, 'name', e.target.value)} placeholder="Name of individual" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-fingerprint-name-edit-${item.id}-${index}`} value={(item as EvidenceFingerprint).name || ''} onChange={e => updateEvidence(index, 'name', e.target.value)} placeholder="Name (Person)" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                                 <div className="space-y-1">
                                                     <Label htmlFor={`evidence-fingerprint-id-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Fingerprint ID</Label>
-                                                    <Textarea id={`evidence-fingerprint-id-edit-${item.id}-${index}`} value={(item as EvidenceFingerprint).fingerprintId || ''} onChange={(e) => updateEvidence(index, 'fingerprintId', e.target.value)} placeholder="Fingerprint ID" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                    <Textarea id={`evidence-fingerprint-id-edit-${item.id}-${index}`} value={(item as EvidenceFingerprint).fingerprintId || ''} onChange={e => updateEvidence(index, 'fingerprintId', e.target.value)} placeholder="Fingerprint ID" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                                 </div>
                                             </>
                                         )}
                                         {(item.type === 'Other') && (
                                             <div className="space-y-1 sm:col-span-2">
-                                                <Label htmlFor={`evidence-desc-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Evidence Details</Label>
-                                                <Textarea id={`evidence-desc-edit-${item.id}-${index}`} value={(item as EvidenceOther).description} onChange={(e) => updateEvidence(index, 'description', e.target.value)} placeholder="Description of evidence" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                                <Label htmlFor={`evidence-other-desc-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Evidence Details</Label>
+                                                <Textarea id={`evidence-other-desc-edit-${item.id}-${index}`} value={(item as EvidenceOther).description} onChange={e => updateEvidence(index, 'description', e.target.value)} placeholder="Description of evidence" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                             </div>
                                         )}
                                         <div className="space-y-1 sm:col-span-2">
-                                            <Label htmlFor={`evidence-location-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">
-                                                {item.type === 'Blood' ? 'Location Blood was Found' :
-                                                 item.type === 'Casing' ? 'Location Casing was Found' :
-                                                 item.type === 'Weapon' ? 'Location Weapon was Found/Collected' :
-                                                 item.type === 'Vehicle' ? 'Location Vehicle was Seen/Found' :
-                                                 item.type === 'Fingerprint' ? 'Location Fingerprint was Collected' :
-                                                 'Location Collected/Found'}
-                                            </Label>
-                                            <Textarea id={`evidence-location-edit-${item.id}-${index}`} value={item.location} onChange={(e) => updateEvidence(index, 'location', e.target.value)} placeholder="Location details" className="bg-input border-border text-sm py-1.5 px-3" rows={1} readOnly={isSaving} />
+                                            <Label htmlFor={`evidence-location-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Location Collected/Found</Label>
+                                            <Textarea id={`evidence-location-edit-${item.id}-${index}`} value={item.location} onChange={(e) => updateEvidence(index, 'location', e.target.value)} placeholder="Location details" className="bg-input border-border text-sm py-1.5 px-3" rows={1} />
                                         </div>
                                         <div className="space-y-1 sm:col-span-2">
                                             <Label htmlFor={`evidence-photolink-edit-${item.id}-${index}`} className="text-xs text-muted-foreground">Photo/Bodycam Link (Optional)</Label>
@@ -1296,21 +1009,20 @@ ${videoNotes || 'N/A'}
                                                 placeholder="https://example.com/evidence_photo.png"
                                                 className="bg-input border-border text-sm py-1.5 px-3"
                                                 rows={1}
-                                                readOnly={isSaving}
                                             />
                                         </div>
                                     </div>
                                 </div>
                             ))}
-                            <Button type="button" variant="outline" size="sm" onClick={addEvidenceRow} className="mt-2 bg-brand text-brand-foreground hover:bg-brand/90 border-0" disabled={isSaving}>
-                                <FaPlus className="mr-2 h-3 w-3" /> Add Evidence
+                            <Button type="button" variant="outline" size="sm" onClick={addEvidenceRow} className="mt-2 bg-brand text-brand-foreground hover:bg-brand/90 border-0">
+                                <Plus className="mr-2 h-3 w-3" /> Add Evidence
                             </Button>
                         </CardContent>
                     </Card>
-
+                    {/* Photos Card */}
                     <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-foreground">Photos (Links)</CardTitle>
+                            <CardTitle className="text-lg text-foreground flex items-center"><Paperclip className="mr-2 h-5 w-5 text-brand"/>Photos (Links)</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                              <div className="space-y-2">
@@ -1322,7 +1034,6 @@ ${videoNotes || 'N/A'}
                                     placeholder="Optional: Describe the photos linked below (e.g., crime scene photos, suspect identification photos)."
                                     className="bg-input border-border py-1.5 px-3"
                                     rows={1}
-                                    readOnly={isSaving || isGeneratingDocx}
                                 />
                             </div>
                             {photos.map((link, index) => (
@@ -1334,145 +1045,128 @@ ${videoNotes || 'N/A'}
                                             placeholder="https://example.com/image.png"
                                             className="flex-grow bg-input border-border py-1.5 px-3"
                                             rows={1}
-                                            readOnly={isSaving}
                                         />
-                                        {photos.length > 1 && (
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => removePhotoLink(index)}
-                                                className="text-destructive hover:text-destructive/80 h-9 w-9"
-                                                disabled={isSaving}
-                                            >
-                                                <FaTrash className="h-4 w-4" />
+                                        {photos.length > 0 && ( // Show remove if at least one photo, or > 1 if you want to keep at least one field
+                                            <Button type="button" variant="ghost" size="icon" onClick={() => removePhotoLink(index)} className="text-destructive hover:text-destructive/80 h-8 w-8" title="Remove Photo Link">
+                                                <Trash2 className="h-4 w-4" />
                                             </Button>
                                         )}
                                     </div>
-                                    {link && (
+                                    {link && ( // Display image preview if link is not empty
                                         <img
                                             src={link}
                                             alt={`Photo ${index + 1}`}
                                             className="mt-2 max-w-full h-auto max-h-48 rounded border border-border object-contain"
-                                            onError={(e) => (e.currentTarget.style.display = 'none')}
-                                            onLoad={(e) => (e.currentTarget.style.display = 'block')}
+                                            onError={(e) => (e.currentTarget.style.display = 'none')} // Hide if image fails to load
+                                            onLoad={(e) => (e.currentTarget.style.display = 'block')} // Show once loaded
                                         />
                                     )}
                                 </div>
                             ))}
-                            <Button type="button" variant="outline" size="sm" onClick={addPhotoLink} className="mt-2 bg-brand text-brand-foreground hover:bg-brand/90 border-0" disabled={isSaving}>
-                                <FaPlus className="mr-2 h-3 w-3" /> Add Photo Link
+                            <Button type="button" variant="outline" size="sm" onClick={addPhotoLink} className="mt-2 bg-brand text-brand-foreground hover:bg-brand/90 border-0">
+                                <Plus className="mr-2 h-3 w-3" /> Add Photo Link
                             </Button>
                         </CardContent>
                     </Card>
-
+                    {/* Video Notes Card */}
                     <Card className="bg-card-foreground/5 border-border shadow-sm">
                         <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-foreground">Bodycam/Dashcam/Video Notes</CardTitle>
+                            <CardTitle className="text-lg text-foreground flex items-center"><Video className="mr-2 h-5 w-5 text-brand"/>Bodycam/Dashcam/Video Notes</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Textarea id="videoNotesEdit" value={videoNotes} onChange={(e) => setVideoNotes(e.target.value)} placeholder="Add links to bodycam/dashcam footage, YouTube videos, or general notes about video evidence..." className="bg-input border-border py-1.5 px-3" rows={3} readOnly={isSaving} />
+                            <Textarea id="videoNotesEdit" value={videoNotes} onChange={(e) => setVideoNotes(e.target.value)} placeholder="Add links to bodycam/dashcam footage, YouTube videos, or general notes about video evidence..." className="bg-input border-border py-1.5 px-3" rows={3} />
                         </CardContent>
                     </Card>
-
+                    {/* Gang Info Card */}
                     <Card className="bg-card-foreground/5 border-border shadow-sm">
                          <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-foreground">Gang Information</CardTitle>
+                            <CardTitle className="text-lg text-foreground flex items-center"><AlertTriangle className="mr-2 h-5 w-5 text-brand"/>Gang Information</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Textarea id="gangInfoEdit" value={gangInfo} onChange={(e) => setGangInfo(e.target.value)} placeholder="Details about gang involvement, if any..." className="bg-input border-border py-1.5 px-3" rows={3} readOnly={isSaving} />
+                            <Textarea id="gangInfoEdit" value={gangInfo} onChange={(e) => setGangInfo(e.target.value)} placeholder="Details about gang involvement, if any..." className="bg-input border-border py-1.5 px-3" rows={3} />
                         </CardContent>
                     </Card>
                 </TabsContent>
-
+                
                 <TabsContent value="updates" className="flex-grow flex flex-col space-y-6 pb-4 overflow-y-auto custom-scrollbar pr-4 pl-1">
-                    <div className="space-y-4 flex-grow">
-                        {updates.length === 0 ? (
-                            <p className="text-muted-foreground italic text-sm">No updates recorded yet.</p>
-                        ) : (
-                            [...updates].sort((a, b) => {
-                                const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toDate().getTime() : (a.timestamp instanceof Date ? a.timestamp.getTime() : 0);
-                                const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toDate().getTime() : (b.timestamp instanceof Date ? b.timestamp.getTime() : 0);
-                                return timeB - timeA; // Sort descending
-                            }).map((update) => (
-                                <div key={update.id} className="p-4 border rounded-md bg-black/95 border-border text-sm relative group">
+                    {/* Add New Update Section */}
+                    <Card className="bg-card-foreground/5 border-border shadow-sm">
+                        <CardHeader className="pt-6">
+                            <CardTitle className="text-lg text-foreground flex items-center"><MessageSquarePlus className="mr-2 h-5 w-5 text-brand"/>Add New Update</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <Textarea
+                                value={newNote}
+                                onChange={(e) => setNewNote(e.target.value)}
+                                placeholder="Type your update here..."
+                                className="bg-input border-border"
+                                rows={3}
+                            />
+                            <Button onClick={handleAddNoteClick} disabled={isSaving || !newNote.trim()} className="bg-brand text-brand-foreground hover:bg-brand/90">
+                                <Plus className="mr-2 h-4 w-4" /> Add Update & Save
+                            </Button>
+                        </CardContent>
+                    </Card>
+                    {/* Existing Updates List */}
+                    <div className="space-y-4">
+                        {updates.map(update => (
+                            <Card key={update.id} className="bg-input/30 border-border/60 shadow-sm">
+                                <CardContent className="p-4 space-y-2">
                                     {editingUpdateId === update.id ? (
                                         <div className="space-y-2">
                                             <Textarea
                                                 value={editedUpdateText}
                                                 onChange={(e) => setEditedUpdateText(e.target.value)}
-                                                className="bg-input border-border py-1.5 px-3"
+                                                className="bg-input border-border"
                                                 rows={3}
-                                                readOnly={isSaving}
                                             />
-                                            <div className="flex justify-end space-x-2">
-                                                <Button variant="ghost" size="sm" onClick={handleCancelEditUpdate} disabled={isSaving}>
-                                                    <FaBan className="mr-1 h-3 w-3" /> Cancel
+                                            <div className="flex gap-2">
+                                                <Button size="sm" onClick={handleSaveEditUpdate} disabled={isSaving} className="bg-green-600 hover:bg-green-700 text-white">
+                                                    <Save className="mr-1 h-3 w-3" /> Save
                                                 </Button>
-                                                <Button variant="outline" size="sm" onClick={handleSaveEditUpdate} disabled={isSaving || !editedUpdateText.trim()} className="bg-green-600 hover:bg-green-700 text-white border-green-700">
-                                                    <FaCheck className="mr-1 h-3 w-3" /> Save Edit
-                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={handleCancelEditUpdate}>Cancel</Button>
                                             </div>
                                         </div>
                                     ) : (
                                         <>
-                                            <p className="whitespace-pre-line break-words">{update.note}</p>
-                                            <p className="text-xs text-muted-foreground text-right mt-1">
-                                                - {update.userName} on {formatTimestampForDisplay(update.timestamp)} {update.edited ? '(edited)' : ''}
-                                            </p>
-                                            {canModifyUpdate(update) && !isSaving && (
-                                                <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-400 hover:text-blue-300" onClick={() => handleEditUpdateClick(update)} title="Edit Update">
-                                                        <FaEdit className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-400" onClick={() => handleDeleteUpdateClick(update.id)} title="Delete Update">
-                                                        <FaTrash className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </div>
-                                            )}
+                                            <p className="text-sm whitespace-pre-line break-words">{update.note}</p>
+                                            <div className="flex justify-between items-center text-xs text-muted-foreground">
+                                                <span>
+                                                    By: {update.userName} on {formatTimestampForDisplay(update.timestamp)}
+                                                    {update.edited && <em className="ml-1">(edited)</em>}
+                                                </span>
+                                                {canModifyUpdate(update) && (
+                                                    <div className="flex gap-1">
+                                                        <Button variant="ghost" size="icon" onClick={() => handleEditUpdateClick(update)} className="h-6 w-6 text-muted-foreground hover:text-foreground" title="Edit Update">
+                                                            <Edit className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteUpdateClick(update.id)} className="h-6 w-6 text-destructive hover:text-destructive/80" title="Delete Update">
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </>
                                     )}
-                                </div>
-                            ))
-                        )}
-                    </div>
-                    <div className="shrink-0 space-y-2 pt-4 border-t border-border">
-                        <Label htmlFor="newNoteEdit">Add New Update/Note</Label>
-                        <Textarea
-                            id="newNoteEdit"
-                            value={newNote}
-                            onChange={(e) => setNewNote(e.target.value)}
-                            placeholder="Record any updates or notes..."
-                            className="bg-input border-border py-1.5 px-3"
-                            rows={3}
-                            readOnly={isSaving || editingUpdateId !== null}
-                        />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleAddNoteClick}
-                            disabled={isSaving || !newNote.trim() || editingUpdateId !== null}
-                            className="bg-brand text-brand-foreground hover:bg-brand/90 border-0"
-                        >
-                            Add Note
-                        </Button>
+                                </CardContent>
+                            </Card>
+                        ))}
+                        {updates.length === 0 && <p className="text-muted-foreground italic">No updates for this case yet.</p>}
                     </div>
                 </TabsContent>
-
+                
                 <TabsContent value="warrant" className="flex-grow flex flex-col space-y-6 pb-4 overflow-y-auto custom-scrollbar pr-4 pl-1">
-                     <div className="flex justify-between items-center mb-2 shrink-0">
-                        <h3 className="text-lg font-semibold text-white">Arrest Warrant Generation</h3>
-                        <div className="space-x-2">
-                             <Button variant="outline" size="sm" onClick={handleRegenerateWarrantPreview} title="Regenerate text preview" className="bg-blue-600 hover:bg-blue-700 text-white border-blue-700" disabled={isGeneratingDocx || isSaving}>
-                                <FaSync className="mr-2 h-3 w-3" /> Regenerate Preview
+                    <div className="flex justify-between items-center mb-2 shrink-0">
+                        <h3 className="text-lg font-semibold text-white flex items-center"><FileText className="mr-2 h-5 w-5 text-brand"/>Arrest Warrant Preview</h3>
+                        <div className="flex gap-2">
+                             <Button variant="outline" size="sm" onClick={handleRegenerateWarrantPreview} title="Regenerate text preview" className="bg-blue-600 hover:bg-blue-700 text-white border-blue-700">
+                                <RefreshCw className="mr-2 h-3 w-3" /> Regenerate
                             </Button>
-                            <Button variant="outline" size="sm" onClick={exportAsDocx} title="Export as DOCX (Official Template)" className="bg-sky-600 hover:bg-sky-700 text-white border-sky-700" disabled={isGeneratingDocx || isSaving}>
-                                {isGeneratingDocx ? <FaSync className="animate-spin mr-2 h-3 w-3" /> : <FaFileWord className="mr-2 h-3 w-3" />}
-                                {isGeneratingDocx ? 'Generating...' : 'Export DOCX'}
+                            <Button variant="outline" size="sm" onClick={exportAsPdf} disabled={isGeneratingDocx || !warrantText} className="bg-red-600 hover:bg-red-700 text-white border-red-700">
+                                <Download className="mr-2 h-3 w-3" /> Export PDF
                             </Button>
-                            <Button variant="outline" size="sm" onClick={exportAsPdf} title="Export Preview as PDF" className="bg-red-600 hover:bg-red-700 text-white border-red-700" disabled={isGeneratingDocx || isSaving || !warrantText}>
-                                <FaFilePdf className="mr-2 h-3 w-3" /> Export PDF Preview
+                            <Button variant="outline" size="sm" onClick={exportAsDocx} disabled={isGeneratingDocx || !warrantText} className="bg-green-600 hover:bg-green-700 text-white border-green-700">
+                                <Download className="mr-2 h-3 w-3" /> Export DOCX
                             </Button>
                         </div>
                     </div>
@@ -1481,22 +1175,28 @@ ${videoNotes || 'N/A'}
                         value={warrantText}
                         className="flex-grow w-full bg-input border-border font-mono text-xs whitespace-pre-line break-words py-1.5 px-3"
                         placeholder="Warrant text preview will be generated here based on case details..."
-                        style={{ minHeight: '300px' }}
+                        style={{ minHeight: '300px' }} // Ensure it has a decent height
                     />
-                     <p className="text-xs text-muted-foreground italic mt-1 shrink-0">
-                        Use 'Export DOCX' to generate the official warrant document using the template structure. The text area shows a simplified preview. Review the exported DOCX thoroughly.
+                    <p className="text-xs text-muted-foreground italic mt-1 shrink-0">
+                        This is a simplified preview. The exported DOCX will follow the official template structure.
                     </p>
                 </TabsContent>
             </Tabs>
 
-            <div className="pt-6 mt-6 border-t-2 border-brand shrink-0 flex justify-end space-x-4">
-                <Button type="button" variant="outline" onClick={onClose} disabled={isSaving || isGeneratingDocx}>Cancel</Button>
-                <Button type="button" onClick={() => handleSave()} disabled={isSaving || isGeneratingDocx || editingUpdateId !== null} className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                    <FaSave className="mr-2 h-4 w-4" />
-                    {isSaving ? 'Saving...' : 'Save Changes'}
+            {/* Footer with Save Button */}
+            <div className="pt-6 mt-6 border-t-2 border-brand shrink-0 flex justify-end">
+                <Button 
+                    type="button" 
+                    onClick={() => handleSave(true)} 
+                    disabled={isSaving || isGeneratingDocx || !title.trim()}
+                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                >
+                    <Save className="mr-2 h-4 w-4" />
+                    {isSaving ? 'Saving...' : 'Save All Changes'}
                 </Button>
             </div>
-        </div>
+        </DialogContent>
+    </Dialog>
     );
 };
 

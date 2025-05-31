@@ -61,12 +61,25 @@ export interface NoteEntry {
 // 📢 Bulletin Entry Interface (Collection: /bulletins)
 // -----------------------------
 export interface BulletinEntry {
-  id: string; // Firestore document ID (Auto-generated)
-  title: string; // Title of the bulletin
-  content: string; // Content of the bulletin
-  createdAt: Timestamp; // Firestore timestamp
-  postedByName: string; // Name of the user who posted the bulletin
-  postedByRank: string; // Rank of the user who posted the bulletin
+  id: string;
+  title: string;
+  content: string; // This is assumed to be an HTML string
+  contentPreview?: string; // Used for list previews
+  contentFull?: string; // Potentially redundant if `content` is the full HTML
+  postedByName: string;
+  postedByRank: string;
+  createdAt: any; // Firestore Timestamp, ISO string, or already a Date. Will be processed.
+}
+
+// It's good practice to define the structure of what child components expect,
+// especially after processing.
+export interface ProcessedBulletin {
+  id: string;
+  title: string;
+  content: string;
+  postedByName: string;
+  postedByRank: string;
+  createdAt: Date; // Strictly a Date object for display components
 }
 
 // -----------------------------

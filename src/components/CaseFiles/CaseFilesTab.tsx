@@ -8,12 +8,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../ConfirmationModal';
-import { FaTrash, FaPlusCircle, FaEdit, FaSave, FaEye, FaExchangeAlt, FaArchive, FaBan } from 'react-icons/fa';
+import { Trash2, PlusCircle, Edit3, Save, Eye, Repeat, Archive, Ban } from 'lucide-react'; // Import Lucide icons
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { formatTimestampForDisplay } from '../../utils/timeHelpers';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Badge } from '../ui/badge';
+import { canUserManageCiuCaseAssignments, canUserDeleteCiuCase } from '../../utils/permissionUtils'; // Import permission util
+
 interface CaseFilesTabProps {
     openCreateModal: () => void;
     openEditModal: (caseFile: CaseFile) => void;
@@ -53,11 +55,7 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
-  const isLeadOrSuper = useMemo(() => {
-    if (!currentUser || !currentUser.certifications || !currentUser.certifications['CIU']) return false;
-    const ciuLevel = currentUser.certifications['CIU'];
-    return ['LEAD', 'SUPER'].includes(ciuLevel);
-  }, [currentUser]);
+  const canManageAssignments = useMemo(() => canUserManageCiuCaseAssignments(currentUser), [currentUser]);
 
   useEffect(() => {
     if (currentUser && typeof currentUser.id === 'string') {
@@ -108,6 +106,10 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
   };
 
   const requestDeleteCase = (caseFile: CaseFile) => {
+    if (!canUserDeleteCiuCase(currentUser, caseFile.createdBy)) {
+        toast.error("You do not have permission to delete this case.");
+        return;
+    }
     setConfirmationModal({
       show: true,
       message: `Are you sure you want to delete the case "${caseFile.title}"? This action cannot be undone.`,
@@ -211,7 +213,7 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
                                   : caseFile.status.startsWith('Closed')
                                   ? 'bg-red-500'
                                   : caseFile.status === 'Archived'
-                                  ? 'bg-orange-500'
+                                  ? 'bg-orange-500' // Changed from orange to gray for archived
                                   : ''
                             } text-xs`}>
                             {caseFile.status}
@@ -227,9 +229,9 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
                         </TableCell>
                         <TableCell className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
-                                <Button size="icon" variant="ghost" onClick={() => openEditModal(caseFile)} className="text-muted-foreground hover:text-foreground h-7 w-7" title="Edit Case"><FaEdit className="h-3.5 w-3.5" /></Button>
-                                {(isLeadOrSuper || caseFile.createdBy === currentUser?.id) && (
-                                    <Button size="icon" variant="ghost" onClick={() => requestDeleteCase(caseFile)} className="text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7" title="Delete Case"><FaTrash className="h-3.5 w-3.5" /></Button>
+                                <Button size="icon" variant="ghost" onClick={() => openEditModal(caseFile)} className="text-muted-foreground hover:text-foreground h-7 w-7" title="Edit Case"><Edit3 className="h-3.5 w-3.5" /></Button>
+                                {canUserDeleteCiuCase(currentUser, caseFile.createdBy) && (
+                                    <Button size="icon" variant="ghost" onClick={() => requestDeleteCase(caseFile)} className="text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7" title="Delete Case"><Trash2 className="h-3.5 w-3.5" /></Button>
                                 )}
                             </div>
                         </TableCell>
@@ -276,7 +278,7 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
                               : caseFile.status.startsWith('Closed')
                               ? 'bg-red-500'
                               : caseFile.status === 'Archived'
-                              ? 'bg-orange-500'
+                              ? 'bg-slate-500' // Changed from orange to gray for archived
                               : ''
                           } text-xs`}>
                           {caseFile.status}
@@ -292,9 +294,9 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
                     </TableCell>
                     <TableCell className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                            <Button size="icon" variant="ghost" onClick={() => openEditModal(caseFile)} className="text-muted-foreground hover:text-foreground h-7 w-7" title="Edit Case"><FaEdit className="h-3.5 w-3.5" /></Button>
-                            {(isLeadOrSuper || caseFile.createdBy === currentUser?.id) && (
-                                <Button size="icon" variant="ghost" onClick={() => requestDeleteCase(caseFile)} className="text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7" title="Delete Case"><FaTrash className="h-3.5 w-3.5" /></Button>
+                            <Button size="icon" variant="ghost" onClick={() => openEditModal(caseFile)} className="text-muted-foreground hover:text-foreground h-7 w-7" title="Edit Case"><Edit3 className="h-3.5 w-3.5" /></Button>
+                            {canUserDeleteCiuCase(currentUser, caseFile.createdBy) && (
+                                <Button size="icon" variant="ghost" onClick={() => requestDeleteCase(caseFile)} className="text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7" title="Delete Case"><Trash2 className="h-3.5 w-3.5" /></Button>
                             )}
                         </div>
                     </TableCell>
@@ -313,7 +315,7 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
       <div className="flex justify-between items-center pb-4 border-b border-border">
         <h2 className="text-2xl font-semibold text-brand">Case Management</h2>
         <Button onClick={() => openCreateModal()} className="bg-accent hover:bg-accent/90 text-accent-foreground" disabled={loadingAssignees}>
-          <FaPlusCircle className="mr-2 h-4 w-4" /> Create New Case
+          <PlusCircle className="mr-2 h-4 w-4" /> Create New Case
         </Button>
       </div>
 
@@ -326,7 +328,7 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
             className="bg-transparent text-muted-foreground px-3 sm:px-4 py-2.5 text-sm sm:text-base font-medium data-[state=active]:bg-[#f3c700] data-[state=active]:text-black rounded-t-md transition hover:bg-muted/20">
             My Active Cases
           </TabsTrigger>
-          {isLeadOrSuper && (
+          {canManageAssignments && (
             <TabsTrigger 
               value="unassigned" 
               className="bg-transparent text-muted-foreground px-3 sm:px-4 py-2.5 text-sm sm:text-base font-medium data-[state=active]:bg-[#f3c700] data-[state=active]:text-black rounded-t-md transition hover:bg-muted/20">
@@ -353,7 +355,7 @@ const CaseFilesTab: React.FC<CaseFilesTabProps> = ({ openCreateModal, openEditMo
         <TabsContent value="myCases" className="bg-card p-4 md:p-6 rounded-b-lg border border-t-0 border-border mt-[-1px]">
           {renderCaseList(myCases, "My Active Cases", true)}
         </TabsContent>
-        {isLeadOrSuper && (
+        {canManageAssignments && (
           <TabsContent value="unassigned" className="bg-card p-4 md:p-6 rounded-b-lg border border-t-0 border-border mt-[-1px]">
             {renderCaseList(unassignedCases, "Open Unassigned Cases")}
           </TabsContent>

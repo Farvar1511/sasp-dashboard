@@ -6,15 +6,21 @@ import {
     Trash2,
     Search,
     RefreshCw,
-    FileText, // Using FileText for both Word and PDF for simplicity, or specific ones if preferred
+    FileText,
     UserPlus,
     Tag,
-    FileUp // For export/upload related actions if needed, using RefreshCw for sync
-} from 'lucide-react'; // Import Lucide icons
-import { Timestamp, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+    FileUp
+} from 'lucide-react';
+import { 
+    Timestamp, 
+    addDoc, 
+    collection, 
+    serverTimestamp, 
+    FieldValue // Add this import
+} from 'firebase/firestore';
 import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
-import { User } from '../../types/User'; // Ensure User type is imported
+import { User } from '../../types/User';
 import { toast } from 'react-toastify';
 import penalCodesData from './penal_codes.ts'; // Assuming this is correctly typed
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -25,8 +31,9 @@ import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { CreateCaseFile } from '../../utils/ciuUtils';
 
-import { CaseFile, CaseStatus } from '../../utils/ciuUtils'; // Removed TipConversionData as it is not exported
+import { CaseFile, CaseStatus, CaseUpdate } from '../../utils/ciuUtils'; // Ensure CaseUpdate is imported if not already
 
 interface PenalCode {
     pc: string;
@@ -73,6 +80,23 @@ export const isEvidenceItemPopulated = (item: EvidenceItem): boolean => {
 };
 
 interface NameOfInterest { id: number; name: string; role: string; affiliation: string; cid?: string; phoneNumber?: string; }
+
+export interface TipDetails {
+    incidentReport: string;
+    evidence: EvidenceItem[];
+    photos: string[];
+    photoSectionDescription: string;
+    location: string;
+    namesOfInterest: NameOfInterest[];
+    gangInfo: string;
+    videoNotes: string;
+    charges: PenalCode[];
+    originalTipId?: string;
+}
+
+interface EligibleAssignee extends User {
+    // No custom fields needed, User type is sufficient
+}
 
 interface CreateCaseModalProps {
     onClose: () => void;
@@ -300,11 +324,10 @@ const CreateCaseModal: React.FC<CreateCaseModalProps> = ({ onClose, onSuccess, e
             gangInfo,
             videoNotes,
             charges: selectedCharges,
-            updates: [], // No updates on creation
             originalTipId: initialDataForCase?.originalTipId || undefined,
         };
 
-        const newCaseData: Omit<CaseFile, 'id'> = {
+        const newCasePayload: CreateCaseFile = {
             title: title.trim(),
             description: summary.trim(),
             status: status, 
@@ -312,14 +335,15 @@ const CreateCaseModal: React.FC<CreateCaseModalProps> = ({ onClose, onSuccess, e
             assignedToName: assignedUser?.name || null,
             createdBy: currentUser.id || 'Unknown',
             createdByName: currentUser.name || 'Unknown',
-            createdAt: serverTimestamp() as Timestamp,
-            updatedAt: serverTimestamp() as Timestamp,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
             imageLinks: detailsObject.photos,
             details: JSON.stringify(detailsObject),
+            updates: [],
         };
 
         try {
-            const docRef = await addDoc(collection(dbFirestore, 'caseFiles'), newCaseData);
+            const docRef = await addDoc(collection(dbFirestore, 'caseFiles'), newCasePayload);
             toast.success(`Case "${title.trim()}" created successfully.`);
             onSuccess(docRef.id);
             onClose();
@@ -426,7 +450,10 @@ ${videoNotes || 'N/A'}
     const isLeadOrSuper = useMemo(() => {
         if (!currentUser || !currentUser.certifications || !currentUser.certifications['CIU']) return false;
         const ciuLevel = currentUser.certifications['CIU'];
-        return ['LEAD', 'SUPER'].includes(ciuLevel);
+        if (typeof ciuLevel === 'string') {
+            return ['LEAD', 'SUPER'].includes(ciuLevel.toUpperCase());
+        }
+        return false;
     }, [currentUser]);
 
     return (

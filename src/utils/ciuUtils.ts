@@ -16,13 +16,25 @@ export interface Gang {
   vehiclesInfo?: string; // General info about vehicles
   createdBy: string;
   createdByName?: string;
-  createdAt?: Timestamp;
+  createdAt?: Timestamp; // Data read from Firestore will be a Timestamp
   updatedBy?: string; 
   updatedById?: string;
   updatedByName?: string;
-  updatedAt?: Timestamp; // Allow FieldValue for serverTimestamp()
+  updatedAt?: Timestamp; // Data read from Firestore will be a Timestamp
   notes?: string; // Main notes field for the gang
   photoUrl?: string;
+}
+
+// Type for creating new gangs (allows FieldValue for timestamps)
+export interface CreateGang extends Omit<Gang, 'id' | 'createdAt' | 'updatedAt'> {
+    createdAt: FieldValue; // Use serverTimestamp() on write
+    updatedAt: FieldValue; // Use serverTimestamp() on write
+}
+
+// Type for updating gangs (allows FieldValue for updatedAt)
+export interface UpdateGang extends Partial<Omit<Gang, 'id' | 'createdAt' | 'updatedAt'>> {
+    updatedAt: FieldValue; // Use serverTimestamp() on write
+    // other fields are optional
 }
 
 export interface GangMember {
@@ -62,32 +74,52 @@ export interface GangNote {
 // --- Case File Interface --- 
 export type CaseStatus = 'Open - Unassigned' | 'Open - Assigned' | 'Under Review' | 'Closed - Solved' | 'Closed - Unsolved' | 'Archived';
 
+export interface CaseUpdate { 
+  id?: string; // Optional for new updates
+  userId: string; 
+  userName: string; 
+  note: string; 
+  timestamp: Timestamp | FieldValue | null; // Allow FieldValue for serverTimestamp()
+  edited?: boolean; 
+}
+
 export interface CaseFile {
   id: string;
   title: string;
-  description: string; 
+  description?: string;
   status: CaseStatus;
-  createdAt: Timestamp;
+  assignedToId?: string | null; 
+  assignedToName?: string | null; 
   createdBy: string; 
   createdByName: string; 
-  updatedAt: Timestamp | FieldValue;  
-  assignedToId?: string | null;
-  assignedToName?: string | null;
-  lastUpdatedAt?: Timestamp; 
+  createdAt: Timestamp; // Data read from Firestore will be a Timestamp
+  updatedAt: Timestamp; // Data read from Firestore will be a Timestamp
   imageLinks?: string[];
-  details?: string; // JSON string containing incidentReport, evidence, photos, location, namesOfInterest, gangInfo, updates, originalTipId
+  details?: string; 
+  updates?: CaseUpdate[]; 
 }
 
-// --- CIU Tip Interface ---
+// Type for creating new case files (allows FieldValue for timestamps)
+export interface CreateCaseFile extends Omit<CaseFile, 'id' | 'createdAt' | 'updatedAt'> {
+    createdAt: FieldValue; // Use serverTimestamp() on write
+    updatedAt: FieldValue; // Use serverTimestamp() on write
+}
+
+// Type for updating case files (allows FieldValue for updatedAt)
+export interface UpdateCaseFile extends Partial<Omit<CaseFile, 'id' | 'createdAt' | 'updatedAt'>> {
+    updatedAt: FieldValue; // Use serverTimestamp() on write
+    // other fields are optional
+}
+
 export type TipStatus = 'New' | 'Viewed' | 'Processing' | 'ConvertedToCase' | 'Archived' | 'Rejected';
 
 export interface FirestoreTip extends OriginalTipDetails {
-  id: string; // Firestore document ID
-  createdAt: Timestamp;
+  id: string; 
+  createdAt: Timestamp; // Data read from Firestore will be a Timestamp
   status: TipStatus;
   // submittedBy?: { id: string; name: string }; // For future non-anonymous tips
   // convertedToCaseId?: string; // Optional: ID of the case file if converted
-  // updatedAt?: Timestamp | FieldValue; // Optional: if you want to track updates to tips
+  // updatedAt?: Timestamp | FieldValue; // Allows reading Timestamp or writing FieldValue
 }
 
 

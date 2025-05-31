@@ -21,6 +21,7 @@ import { User } from '../../types/User';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db as dbFirestore } from '../../firebase';
 import { useAuth } from '../../context/AuthContext'; // Import useAuth
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'; // Add this import
 
 // PenalCode interface (ensure it matches the structure in penal_codes.ts)
 interface PenalCode {
@@ -87,10 +88,20 @@ interface EligibleAssignee extends User {
 interface SubmitCIUTipModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: { tipDetails: TipDetails; assignee: EligibleAssignee | null }) => void;
+    onSubmit: (data: { tipDetails: TipDetails; assignee: EligibleAssignee | null; detectiveWorkedWith?: string }) => void;
+    hideDetectiveAssignment?: boolean; // Add this prop
+    detectiveWorkedWith?: string; // Add this prop for controlled input
+    setDetectiveWorkedWith?: (val: string) => void; // Callback for controlled input
 }
 
-const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({ isOpen, onClose, onSubmit }) => {
+const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({
+    isOpen,
+    onClose,
+    onSubmit,
+    hideDetectiveAssignment,
+    detectiveWorkedWith,
+    setDetectiveWorkedWith
+}) => {
     const { user: currentUser } = useAuth(); // Get current user
     const [title, setTitle] = useState('');
     const [summary, setSummary] = useState('');
@@ -116,6 +127,11 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({ isOpen, onClose, 
 
     useEffect(() => {
         if (!isOpen) return;
+        if (hideDetectiveAssignment) {
+            setEligibleAssignees([]);
+            setLoadingAssignees(false);
+            return;
+        }
 
         const fetchEligibleUsers = async () => {
             setLoadingAssignees(true);
@@ -142,7 +158,7 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({ isOpen, onClose, 
         };
 
         fetchEligibleUsers();
-    }, [isOpen]);
+    }, [isOpen, hideDetectiveAssignment]);
 
     const resetForm = useCallback(() => {
         setTitle('');
@@ -244,7 +260,8 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({ isOpen, onClose, 
             toast.error("Summary is required to submit a tip.");
             return;
         }
-        if (!currentUser) { // Ensure currentUser is available
+        // Allow submission if public (hideDetectiveAssignment), even if not logged in
+        if (!currentUser && !hideDetectiveAssignment) {
             toast.error("Authentication error. Please log in again.");
             return;
         }
@@ -265,7 +282,11 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({ isOpen, onClose, 
 
         const selectedAssignee = eligibleAssignees.find(a => a.id === selectedAssigneeId) || null;
 
-        onSubmit({ tipDetails, assignee: selectedAssignee }); 
+        onSubmit({
+            tipDetails,
+            assignee: selectedAssignee,
+            detectiveWorkedWith: detectiveWorkedWith // Pass up if present
+        }); 
         // resetForm(); // Sidebar will close the modal, which can trigger reset if needed
         // onClose(); // Let Sidebar control closing
     };
@@ -295,6 +316,13 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({ isOpen, onClose, 
                     <LucideTimes className="h-5 w-5" />
                     <span className="sr-only">Close</span>
                 </Button>
+                {/* Accessibility: Always render a DialogTitle and DialogDescription */}
+                <VisuallyHidden>
+                    <DialogTitle>Submit CIU Tip</DialogTitle>
+                    <DialogDescription>
+                        Submit a tip to the Criminal Investigations Unit. Required: summary.
+                    </DialogDescription>
+                </VisuallyHidden>
                 <div className="pb-6 mb-6 border-b-2 border-brand shrink-0">
                     <h2 className="text-2xl md:text-3xl font-semibold text-brand flex items-center">
                         <FaLightbulb className="mr-3 text-brand" /> Submit CIU Tip
@@ -594,38 +622,60 @@ const SubmitCIUTipModal: React.FC<SubmitCIUTipModalProps> = ({ isOpen, onClose, 
                             )}
                         </CardContent>
                     </Card>
+                    {/* Free-type detective worked with (public only) */}
+                    {hideDetectiveAssignment && (
+                        <Card className="bg-card-foreground/5 border-border shadow-sm">
+                            <CardHeader className="pt-6">
+                                <CardTitle className="text-lg text-foreground">Detective Worked With (Optional)</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Input
+                                    type="text"
+                                    placeholder="Detective's name or callsign, if any"
+                                    value={detectiveWorkedWith || ''}
+                                    onChange={e => setDetectiveWorkedWith?.(e.target.value)}
+                                    className="bg-input border-border"
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    If you worked with a detective, enter their name or callsign here.
+                                </p>
+                            </CardContent>
+                        </Card>
+                    )}
                     {/* Assign to Detective */}
-                    <Card className="bg-card-foreground/5 border-border shadow-sm">
-                        <CardHeader className="pt-6">
-                            <CardTitle className="text-lg text-foreground">If you worked with a detective, select them (Optional)</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <Select 
-                                value={selectedAssigneeId || "none"} 
-                                onValueChange={(value) => setSelectedAssigneeId(value === "none" ? null : value)}
-                                disabled={loadingAssignees}
-                            >
-                                <SelectTrigger id="assign-detective" className="bg-input border-border">
-                                    <SelectValue placeholder={loadingAssignees ? "Loading detectives..." : "Select a detective or 'None'"} />
-                                </SelectTrigger>
-                                <SelectContent className="bg-popover border-border text-popover-foreground">
-                                    <SelectItem value="none">None (Create as Unassigned Case)</SelectItem>
-                                    {eligibleAssignees.map(user => (
-                                        user.id && (
-                                            <SelectItem key={user.id} value={user.id}>
-                                                {user.name} ({user.callsign || 'N/A'}) - CIU: {user.certifications?.CIU || 'N/A'}
-                                            </SelectItem>
-                                        )
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {loadingAssignees && <p className="text-xs text-muted-foreground italic mt-1">Loading available detectives...</p>}
-                        </CardContent>
-                    </Card>
+                    {!hideDetectiveAssignment && (
+                        <Card className="bg-card-foreground/5 border-border shadow-sm">
+                            <CardHeader className="pt-6">
+                                <CardTitle className="text-lg text-foreground">If you worked with a detective, select them (Optional)</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Select 
+                                    value={selectedAssigneeId || "none"} 
+                                    onValueChange={(value) => setSelectedAssigneeId(value === "none" ? null : value)}
+                                    disabled={loadingAssignees}
+                                >
+                                    <SelectTrigger id="assign-detective" className="bg-input border-border">
+                                        <SelectValue placeholder={loadingAssignees ? "Loading detectives..." : "Select a detective or 'None'"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-popover border-border text-popover-foreground">
+                                        <SelectItem value="none">None (Create as Unassigned Case)</SelectItem>
+                                        {eligibleAssignees.map(user => (
+                                            user.id && (
+                                                <SelectItem key={user.id} value={user.id}>
+                                                    {user.name} ({user.callsign || 'N/A'}) - CIU: {user.certifications?.CIU || 'N/A'}
+                                                </SelectItem>
+                                            )
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {loadingAssignees && <p className="text-xs text-muted-foreground italic mt-1">Loading available detectives...</p>}
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
                 <DialogFooter className="pt-6 mt-6 border-t-2 border-brand shrink-0 flex justify-end space-x-4">
                     <Button type="button" variant="outline" onClick={() => { onClose(); resetForm(); }}>Cancel</Button>
-                    <Button type="button" onClick={handleSubmit} disabled={!summary.trim() || !currentUser} className="bg-brand hover:bg-brand/90 text-brand-foreground">
+                    <Button type="button" onClick={handleSubmit} disabled={!summary.trim()} className="bg-brand hover:bg-brand/90 text-brand-foreground">
                         <LucidePaperPlane className="mr-2 h-4 w-4" /> Submit Tip as Case
                     </Button>
                 </DialogFooter>

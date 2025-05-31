@@ -17,6 +17,7 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ConfirmationModal from "./ConfirmationModal";
 import { NavLink, useLocation } from "react-router-dom";
+import BulletinsModal from "./BulletinsModal";
 
 interface Bulletin {
   id: string;
@@ -24,11 +25,11 @@ interface Bulletin {
   content: string;
   postedByName: string;
   postedByRank: string;
-  createdAt: Date;
+  createdAt: Date; // Ensure this is a Date object
 }
 
 interface BulletinsProps {
-  selectedBulletin?: Bulletin;
+  selectedBulletin?: Bulletin; // This prop is still used to trigger modal display
 }
 
 const commandAndHighCommandRanks = [
@@ -41,29 +42,6 @@ const commandAndHighCommandRanks = [
 ];
 
 const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
-  if (selectedBulletin) {
-    return (
-      <>
-        <h2 className="text-3xl font-bold text-[#f3c700] mb-6 text-center">
-          {selectedBulletin.title}
-        </h2>
-        <div
-          className="prose prose-lg prose-invert max-w-full md:max-w-4xl xl:max-w-5xl mx-auto bg-black/95 p-4 rounded"
-          dangerouslySetInnerHTML={{ __html: selectedBulletin.content }}
-        />
-        <p className="text-sm text-gray-400 text-center mt-4">
-          Posted by {selectedBulletin.postedByName} (
-          {selectedBulletin.postedByRank}) on{" "}
-          {selectedBulletin.createdAt.toLocaleDateString()} at{" "}
-          {selectedBulletin.createdAt.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
-      </>
-    );
-  }
-
   const { user: currentUser, isAdmin: isAdminFromAuth } = useAuth();
   const location = useLocation();
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
@@ -457,7 +435,17 @@ const Bulletins: React.FC<BulletinsProps> = ({ selectedBulletin }) => {
         confirmText="Delete"
         cancelText="Cancel"
       />
-      </Layout>
+
+      {/* If selectedBulletin is passed (from Home.tsx), show the modal */}
+      <BulletinsModal
+        bulletin={selectedBulletin || null}
+        isOpen={!!selectedBulletin}
+        onClose={() => {
+          // This will be handled by the parent component (Home.tsx)
+          // that manages the selectedBulletin state
+        }}
+      />
+    </Layout>
   );
 };
 

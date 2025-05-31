@@ -17,6 +17,7 @@ import "react-toastify/dist/ReactToastify.css";
 import "./index.css"; // Ensure global styles are imported
 import { LinksProvider } from "./context/LinksContext"; // Import LinksProvider
 import Outfits from "./components/Outfits"; // Import Outfits component
+import PublicSubmitCIUTip from './pages/PublicSubmitCIUTip'; // Import PublicSubmitCIUTip component
 
 function App() {
   return (
@@ -108,6 +109,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="/public/submit-ciu-tip" element={<PublicSubmitCIUTip />} />
             {/* Add other routes as needed */}
           </Routes>
           <ToastContainer

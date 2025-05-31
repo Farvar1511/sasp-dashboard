@@ -28,3 +28,17 @@ export const computeIsAdmin = (user?: User | null): boolean => {
   // Return true if the user is an admin by role or rank
   return roleAdmin || rankAdmin;
 };
+
+export function isAdmin(user: User | null): boolean {
+  if (!user) return false;
+  return user.role === "admin" || user.role === "Administrator";
+}
+
+export function isSuperUser(user: User | null): boolean {
+  if (!user) return false;
+  return user.role === "super" || user.role === "SuperUser";
+}
+
+export function hasElevatedPermissions(user: User | null): boolean {
+  return isAdmin(user) || isSuperUser(user);
+}

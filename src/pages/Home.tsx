@@ -13,7 +13,7 @@ import {
 import { db as dbFirestore } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import Layout from "../components/Layout";
-import Modal from "../components/Modal";
+import BulletinsModal from "../components/BulletinsModal";
 import Bulletins from "../components/Bulletins";
 import {
   RosterUser,
@@ -22,6 +22,7 @@ import {
   DisciplineEntry,
   NoteEntry,
   BulletinEntry,
+  ProcessedBulletin, // Import ProcessedBulletin
 } from "../types/User";
 import { CertStatus } from "../types/User";
 import { formatIssuedAt, convertFirestoreDate } from "../utils/timeHelpers";
@@ -102,9 +103,9 @@ const MyDashboard: React.FC = () => {
   );
   const [generalNotes, setGeneralNotes] = useState<NoteEntry[]>([]);
   const [tasks, setTasks] = useState<UserTask[]>([]);
-  const [bulletins, setBulletins] = useState<BulletinEntry[]>([]);
+  const [bulletins, setBulletins] = useState<BulletinEntry[]>([]); // Stores raw bulletins
   const [selectedBulletin, setSelectedBulletin] =
-    useState<BulletinEntry | null>(null);
+    useState<BulletinEntry | null>(null); // Stores the raw selected bulletin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -399,18 +400,18 @@ const MyDashboard: React.FC = () => {
         setBulletins(
           bulletinsSnapshot.docs.map((doc) => {
             const data = doc.data();
-            const contentLines = (data.content || "").split("\n");
+            // const contentLines = (data.content || "").split("\n"); // Not used for the modal's full content
             return {
               id: doc.id,
               title: data.title || "Untitled",
               content: data.content || "No content available.",
-              contentPreview: contentLines[0] || "No content available.",
-              contentFull: data.content || "No content available.",
+              // contentPreview: contentLines[0] || "No content available.", // For list view
+              // contentFull: data.content || "No content available.", // Redundant if content is full
               postedByName: data.postedByName || "Unknown",
               postedByRank: data.postedByRank || "Unknown",
-              createdAt: data.createdAt,
-            };
-          }) as BulletinEntry[]
+              createdAt: data.createdAt, // Keep as raw Firestore data for now (Timestamp or ISO string)
+            } as BulletinEntry;
+          })
         );
 
         const vehicleSnap = await getDocs(collection(dbFirestore, "fleet"));
@@ -991,29 +992,12 @@ const MyDashboard: React.FC = () => {
           </Card>
         </div>
 
-        {selectedBulletin && (
-          <Modal
-            isOpen={!!selectedBulletin}
-            onClose={() => setSelectedBulletin(null)}
-          >
-            <div className="p-6 bg-black bg-opacity-90 rounded-lg shadow-lg max-w-7xl w-full max-h-[80vh] overflow-y-auto mx-auto">
-              {selectedBulletin ? (
-                <Bulletins
-                  selectedBulletin={
-                    selectedBulletin
-                      ? {
-                          ...selectedBulletin,
-                          createdAt: selectedBulletin.createdAt.toDate(),
-                        }
-                      : undefined
-                  }
-                />
-              ) : (
-                <p className="text-white text-center">Loading bulletin...</p>
-              )}
-            </div>
-          </Modal>
-        )}
+        {/* Replace the old Modal with BulletinsModal */}
+        <BulletinsModal
+          bulletin={selectedBulletin}
+          isOpen={!!selectedBulletin}
+          onClose={() => setSelectedBulletin(null)}
+        />
       </div>
     </Layout>
   );
