@@ -25,6 +25,7 @@ import { getRandomBackgroundImage } from "../utils/backgroundImage";
 import { toast } from "react-toastify";
 import { FaEdit, FaTrash, FaSave, FaTimes, FaSearch, FaFilter, FaEyeSlash, FaEye } from "react-icons/fa";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { startOfISOWeek, addDays, format, differenceInCalendarWeeks } from "date-fns";
 
 const adminVoterRanks = [
   "Sergeant",
@@ -94,6 +95,24 @@ interface EligibleUserPromotionData extends RosterUser {
   comments: PromotionComment[];
 }
 
+// Utility to get the current promotion cycle (2-week window)
+function getCurrentPromotionCycle() {
+  const now = new Date();
+  // Find the Monday of the current ISO week
+  const weekStart = startOfISOWeek(now);
+  // Determine if we're in an even or odd week since a fixed epoch (e.g., Jan 1, 2024)
+  const epoch = new Date(2024, 0, 1); // Jan 1, 2024
+  const weeksSinceEpoch = differenceInCalendarWeeks(weekStart, epoch);
+  const cycleStart = addDays(weekStart, weeksSinceEpoch % 2 === 0 ? 0 : -7);
+  const cycleEnd = addDays(cycleStart, 13); // 2 weeks - 1 day
+  return {
+    start: cycleStart,
+    end: cycleEnd,
+    key: format(cycleStart, "yyyy-MM-dd") + "_" + format(cycleEnd, "yyyy-MM-dd"),
+    display: `${format(cycleStart, "MMM d, yyyy")} - ${format(cycleEnd, "MMM d, yyyy")}`,
+  };
+}
+
 export default function PromotionsTab(): JSX.Element {
   console.log("PromotionsTab component mounted/rendered.");
   const { user: currentUser, isAdmin } = useAuth();
@@ -107,6 +126,8 @@ export default function PromotionsTab(): JSX.Element {
   const [showHiddenByVotes, setShowHiddenByVotes] = useState<boolean>(false);
   const [highlightedUserId, setHighlightedUserId] = useState<string | null>(null);
   const [forceShowUserId, setForceShowUserId] = useState<string | null>(null);
+  const [cycleInfo, setCycleInfo] = useState(getCurrentPromotionCycle());
+  const [cycleCheckDone, setCycleCheckDone] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -275,6 +296,60 @@ export default function PromotionsTab(): JSX.Element {
     console.log("PromotionsTab: Focus user effect running. Search:", location.search);
     setForceShowUserId(null);
   }, [location.search, navigate, promotionData]);
+
+  // Clear votes at the start of a new cycle
+  useEffect(() => {
+    async function clearVotesIfNewCycle() {
+      const cycle = getCurrentPromotionCycle();
+      setCycleInfo(cycle);
+
+      const adminDocRef = doc(dbFirestore, "admin", "promotionCycle");
+      let lastCycleKey = null;
+      try {
+        const adminDocSnap = await getDoc(adminDocRef);
+        lastCycleKey = adminDocSnap.exists() ? adminDocSnap.data().lastCycleKey : null;
+      } catch (err) {
+        console.error("Failed to fetch last promotion cycle key:", err);
+      }
+
+      if (lastCycleKey !== cycle.key) {
+        // New cycle detected, clear votes for all eligible users
+        try {
+          // Fetch all users
+          const usersSnapshot = await getDocs(collection(dbFirestore, "users"));
+          const usersList = usersSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as RosterUser[];
+
+          // Only clear for eligible users (same logic as eligibleUsers)
+          const eligible = usersList.filter(u => {
+            const rankLower = u.rank?.toLowerCase() || "";
+            return !commandPlusRanks.includes(rankLower) &&
+              isOlderThanDays(u.lastPromotionDate, 14) &&
+              !u.isTerminated;
+          });
+
+          const promotionDocId = "activePromotion";
+          // Clear votes for each eligible user
+          await Promise.all(eligible.map(async (u) => {
+            const promoDocRef = doc(dbFirestore, "users", u.id, "promotions", promotionDocId);
+            // Set votes to empty object, keep other fields (like isManuallyHidden)
+            await setDoc(promoDocRef, { votes: {} }, { merge: true });
+          }));
+
+          // Update the last cleared cycle in Firestore
+          await setDoc(adminDocRef, { lastCycleKey: cycle.key }, { merge: true });
+          toast.info("Promotion votes cleared for new cycle.");
+        } catch (err) {
+          console.error("Failed to clear promotion votes for new cycle:", err);
+          toast.error("Failed to clear promotion votes for new cycle.");
+        }
+      }
+      setCycleCheckDone(true);
+    }
+    clearVotesIfNewCycle();
+  }, []);
 
   const filteredPromotionData = useMemo(() => {
     
@@ -508,7 +583,13 @@ export default function PromotionsTab(): JSX.Element {
         className="relative z-10 page-content space-y-6 p-6 text-white/80 min-h-screen"
         style={{ fontFamily: "'Inter', sans-serif" }}
       >
-        {}
+        {/* Promotion cycle display */}
+        <div className="text-center mb-2">
+          <span className="text-lg font-semibold text-[#f3c700]">
+            Promotions week of {cycleInfo.display}
+          </span>
+        </div>
+
         <div className="bg-black/95 text-[#f3c700] font-sans p-4 rounded-lg shadow-lg mb-6">
           <h1 className="text-2xl font-bold text-center mb-4">Promotion Review</h1>
 
