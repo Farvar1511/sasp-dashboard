@@ -1,10 +1,5 @@
 import { CertStatus } from "../types/User";
 
-// In Firestore, all the following keys ("ACU", "CIU", "FTO", "HEAT", "K9", "MBU", "SWAT")
-// are stored within the 'certifications' map for each user.
-// However, for logical separation within the application, we categorize them:
-
-// Certifications (represent specific qualifications)
 export const certificationKeys: string[] = ["ACU", "HEAT", "MBU"];
 
 // Divisions (represent assignment to a specific unit)
@@ -24,6 +19,8 @@ export const getCertStyle = (status: CertStatus | null) => {
       return { bgColor: "bg-green-600", textColor: "text-white" };
     case "TRAIN":
       return { bgColor: "bg-orange-600", textColor: "text-white" };
+    case "ASSIST":
+      return { bgColor: "bg-gray-500", textColor: "text-white" };
     default:
       return { bgColor: "bg-gray-600", textColor: "text-gray-300" };
   }

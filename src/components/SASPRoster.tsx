@@ -369,7 +369,7 @@ const SASPRoster: React.FC = () => {
         if (
           value &&
           value !== NONE_VALUE as CertStatus &&
-          ["LEAD", "SUPER", "CERT", "TRAIN"].includes(value)
+          ["LEAD", "SUPER", "CERT", "TRAIN", "ASSIST"].includes(value) // Added "ASSIST"
         ) {
           updatedCertifications[upperKey] = value as CertStatus;
         } else {

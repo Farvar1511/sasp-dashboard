@@ -8,13 +8,13 @@ const sizePresets = {
   'Extra Large': { listWidth: 450, chatWidth: 650, height: 800 },
 };
 export type SizePresetKey = keyof typeof sizePresets;
-
+export type CertStatus = "CERT" | "LEAD" | "SUPER" | "TRAIN" | "ASSIST" | null;
 
 // -----------------------------
 // 🔐 Certification Types
 // -----------------------------
 // Ensure 'SUPER' covers supervisor roles or add 'SUPERVISOR' if needed.
-export type CertStatus = "CERT" | "LEAD" | "SUPER" | "TRAIN" | null;
+// export type CertStatus = "CERT" | "LEAD" | "SUPER" | "TRAIN" | null;
 
 // -----------------------------
 // 📋 Task Interface (Subcollection: /users/:id/tasks)
