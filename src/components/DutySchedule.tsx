@@ -836,9 +836,9 @@ const DutySchedule: React.FC = () => {
             </p>
           </div>
 
-          <div className="bg-card/80 backdrop-blur-sm border border-border rounded-lg p-4 flex-grow max-w-2xl">
-            <h3 className="text-lg font-bold text-foreground mb-2 text-center">Quote of the Day</h3>
-            <blockquote className="text-muted-foreground italic text-sm leading-relaxed text-center">
+          <div className="bg-black/80 backdrop-blur-md border border-border rounded-lg p-8 flex-grow max-w-4xl">
+            <h3 className="text-3xl font-bold text-gray-200 text-shadow-lg/30 mb-4 text-center">Quote of the Day</h3>
+            <blockquote className="text-brand italic text-xl text-shadow-lg leading-relaxed text-center">
               "{currentQuote}"
             </blockquote>
           </div>
