@@ -173,9 +173,13 @@ const SASPRoster: React.FC = () => {
               )
                 ? (upperValue as CertStatus)
                 : null;
-              acc[key.toUpperCase()] = validStatus;
+              if (validStatus !== null) {
+                if (validStatus !== null) {
+                  acc[key.toUpperCase()] = validStatus;
+                }
+              }
               return acc;
-            }, {} as { [key: string]: CertStatus })
+            }, {} as { [key: string]: CertStatus | null })
           : {};
         return {
           id: doc.id,
@@ -239,9 +243,9 @@ const SASPRoster: React.FC = () => {
                   ? (value.toUpperCase() as CertStatus)
                   : null
                 : null;
-              acc[key.toUpperCase()] = validStatus;
+              acc[key.toUpperCase()] = validStatus; // This line is now correct with the updated type for acc
               return acc;
-            }, {} as { [key: string]: CertStatus });
+            }, {} as { [key: string]: CertStatus | null }); // MODIFIED: Changed type here
 
             const isActive =
               normalizedTemplateEntry.name === "VACANT"

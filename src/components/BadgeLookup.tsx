@@ -13,7 +13,7 @@ import Layout from "./Layout";
 export const saspStar = "/SASPLOGO2.png"; // Corrected path to logo
 
 // --- Types ---
-type CertStatus = "LEAD" | "SUPER" | "CERT" | "TRAIN" | null;
+type CertStatus = "LEAD" | "SUPER" | "CERT" | "TRAIN" | "ASSIST";
 
 // Use rankOrder for comparisons
 const rankOrder: { [key: string]: number } = {
@@ -216,15 +216,16 @@ const BadgeLookup: React.FC = () => {
       const normalizedCerts = userData.certifications
         ? Object.entries(userData.certifications).reduce(
             (acc, [key, value]) => {
-              let normalizedValue: CertStatus = null; // Default to null
+              let normalizedValue: CertStatus | undefined = undefined; // Default to undefined
               const currentKeyUpper = key.toUpperCase(); // Uppercase key once
 
               if (typeof value === "string") {
                 const upperValue = value.toUpperCase();
                 if (
-                  upperValue === "LEAD" ||
+                  upperValue === "TRAIN" ||
                   upperValue === "CERT" ||
                   upperValue === "SUPER" ||
+                  upperValue === "ASSIST" ||
                   upperValue === "LEAD"
                 ) {
                   normalizedValue = upperValue as CertStatus;
@@ -233,12 +234,12 @@ const BadgeLookup: React.FC = () => {
                 // Treat boolean true as 'CERT'
                 normalizedValue = "CERT";
               }
-              // Any other type (false, number, null, undefined etc.) or invalid string remains null
+              // Any other type (false, number, null, undefined etc.) or invalid string remains undefined
 
               acc[currentKeyUpper] = normalizedValue; // Store with uppercase key
               return acc;
             },
-            {} as { [key: string]: CertStatus | null }
+            {} as { [key: string]: CertStatus | undefined }
           )
         : {};
 

@@ -18,7 +18,7 @@ import { formatIssuedAt, isOlderThanDays, formatTimestampDateTime, getCurrentDat
 import { FaEdit, FaTrash, FaArrowUp, FaEye, FaEyeSlash, FaCheckCircle } from "react-icons/fa";
 import { CalendarIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { RosterUser, DisciplineEntry, NoteEntry, UserTask, FirestoreUserWithDetails } from "../types/User";
+import { RosterUser, DisciplineEntry, NoteEntry, UserTask, FirestoreUserWithDetails, CertStatus } from "../types/User";
 import EditUserModal from "./EditUserModal";
 import AddUserModal from "./AddUserModal";
 import EditTaskModal from "./EditTaskModal";
@@ -1327,7 +1327,9 @@ export default function AdminMenu(): JSX.Element {
               badge: editingUser.badge || "N/A",
               callsign: editingUser.callsign || "-",
               discordId: editingUser.discordId || "-",
-              certifications: editingUser.certifications || {},
+              certifications: Object.fromEntries(
+                Object.entries(editingUser.certifications || {}).map(([k, v]) => [k, v ?? null])
+              ) as { [key: string]: CertStatus | null },
               assignedVehicleId: editingUser.assignedVehicleId || undefined,
               loaStartDate: convertToString(editingUser.loaStartDate),
               loaEndDate: convertToString(editingUser.loaEndDate),

@@ -17,7 +17,7 @@ import { toast } from "react-toastify";
 import { UserTask, DisciplineEntry, NoteEntry } from "../types/User";
 
 // Define the possible certification statuses
-type CertStatus = "TRAIN" | "CERT" | "LEAD" | "SUPER";
+type CertStatus = "TRAIN" | "CERT" | "LEAD" | "SUPER" | "ASSIST" | null;
 
 interface EditUserModalProps {
   user: {

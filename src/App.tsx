@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import Login from "./components/Login";
 import Home from "./pages/Home";
+import DutySchedule from "./components/DutySchedule"; // Import the new component
 import SASPRoster from "./components/SASPRoster";
 import Fleet from "./components/Fleet";
 import Documents from "./components/Documents";
@@ -18,6 +19,7 @@ import "./index.css"; // Ensure global styles are imported
 import { LinksProvider } from "./context/LinksContext"; // Import LinksProvider
 import Outfits from "./components/Outfits"; // Import Outfits component
 import PublicSubmitCIUTip from './pages/PublicSubmitCIUTip'; // Import PublicSubmitCIUTip component
+import NotFoundPage from './components/NotFoundPage'; // Import NotFoundPage component
 
 function App() {
   return (
@@ -110,7 +112,10 @@ function App() {
               }
             />
             <Route path="/submit-ciu-tip" element={<PublicSubmitCIUTip />} />
+            <Route path="/dashboard/roster" element={<ProtectedRoute><SASPRoster /></ProtectedRoute>} />
+            <Route path="/dashboard/schedule" element={<ProtectedRoute><DutySchedule /></ProtectedRoute>} /> {/* New Route */}
             {/* Add other routes as needed */}
+            <Route path="*" element={<NotFoundPage />} /> {/* Add this line for catch-all */}
           </Routes>
           <ToastContainer
             position="bottom-right"

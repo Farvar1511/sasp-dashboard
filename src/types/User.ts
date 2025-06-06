@@ -8,7 +8,7 @@ const sizePresets = {
   'Extra Large': { listWidth: 450, chatWidth: 650, height: 800 },
 };
 export type SizePresetKey = keyof typeof sizePresets;
-export type CertStatus = "CERT" | "LEAD" | "SUPER" | "TRAIN" | "ASSIST" | null;
+export type CertStatus = "TRAIN" | "CERT" | "LEAD" | "SUPER" | "ASSIST";
 
 // -----------------------------
 // 🔐 Certification Types

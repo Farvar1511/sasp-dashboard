@@ -19,6 +19,10 @@ import {
   Briefcase,
   Clipboard, // Use for Cases
   XIcon, // Added XIcon - Can remove if not used elsewhere
+  Home, // Added Home icon
+  Clock, // Added Clock icon
+  Settings, // Added Settings icon
+  CalendarDays, // Added CalendarDays icon
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button"; // Import Button component
@@ -503,6 +507,13 @@ const Layout = ({ children }: { children: ReactNode }) => {
       href: "/admin",
       showCondition: "isAdmin",
       title: "Admin Management",
+    },
+    {
+      name: "Schedule", // New Schedule item
+      icon: Clock, // Use Clock icon
+      href: "/dashboard/schedule", // New route for Schedule
+      showCondition: "always", // Show always for now, can be changed based on requirements
+      title: "View and Manage Schedule", // Tooltip or title for the item
     },
   ], []); // Empty dependency array as base items don't change
 

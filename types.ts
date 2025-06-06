@@ -1,6 +1,8 @@
 import { Timestamp } from "firebase/firestore";
 
-// ... existing types (User, FleetVehicle, RosterUser, CertStatus) ...
+// ... existing types (User, FleetVehicle, RosterUser) ...
+
+export type CertStatus = "TRAIN" | "CERT" | "LEAD" | "SUPER" | "ASSIST";
 
 export interface Task {
   id: string;
