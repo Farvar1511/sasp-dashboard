@@ -17,36 +17,24 @@ import {
   MessagesSquare, // Use for Department Chat
   GanttChartSquare, // Use for Gangs
   Briefcase,
-  Clipboard, // Use for Cases
-  XIcon, // Added XIcon - Can remove if not used elsewhere
-  Home, // Added Home icon
-  Clock, // Added Clock icon
+  Clipboard, 
+  XIcon, 
+  Home, 
+  Clock,
   Settings, // Added Settings icon
   CalendarDays, // Added CalendarDays icon
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button"; // Import Button component
-// Import the new Sidebar component
 import Sidebar from "../components/Sidebar";
-// Import Avatar components
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-// Import getInitials or similar utility
 import { getInitials } from "../utils/getInitials"; // Assuming path
-// Import ProfileModal
 import ProfileModal from "./ProfileModal"; // Assuming path
-// Import NavItemProps type from Sidebar
 import { NavItemProps } from "../components/Sidebar";
-// Import backgroundImages directly
 import { backgroundImages } from "../data/images";
 import { FaTachometerAlt, FaUsers, FaCar, FaFileAlt, FaChalkboardTeacher, FaUserSecret, FaUserShield, FaGavel, FaBullhorn, FaSignOutAlt, FaComments, FaBell } from 'react-icons/fa'; // Added FaFileAlt
-// Helper function to format name
 import { formatUserNameShort, formatUserName, getAvatarFallback } from "./Chat/utils"; // Assuming formatUserNameShort exists or create it, Added formatUserName, getAvatarFallback
-// Import types for chat
 import { User } from "../types/User"; // Keep User type
-// REMOVED ChatGroup, ChatMessage types if only used for bubble
-// REMOVED ExpandableChat imports
-// REMOVED ChatWindow import
-// Import Firestore functions and types
 import {
     collection, query, where, orderBy, onSnapshot, addDoc,
     serverTimestamp, doc, updateDoc, getDoc, setDoc, Timestamp, getDocs,

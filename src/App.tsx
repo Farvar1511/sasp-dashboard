@@ -114,7 +114,6 @@ function App() {
             <Route path="/submit-ciu-tip" element={<PublicSubmitCIUTip />} />
             <Route path="/dashboard/roster" element={<ProtectedRoute><SASPRoster /></ProtectedRoute>} />
             <Route path="/dashboard/schedule" element={<ProtectedRoute><DutySchedule /></ProtectedRoute>} /> {/* New Route */}
-            {/* Add other routes as needed */}
             <Route path="*" element={<NotFoundPage />} /> {/* Add this line for catch-all */}
           </Routes>
           <ToastContainer
